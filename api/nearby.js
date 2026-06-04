@@ -356,7 +356,7 @@ module.exports = async function handler(req, res) {
 
   // Category debug logs
   if (cat === 'petrol') {
-    console.log(`[nearby] PETROL rawElements=${elements.length} filtered=${finalResults.length} filteredOut=${filteredOut} fallback=${!data}`);
+    console.log(`[nearby] PETROL rawElements=${elements.length} filtered=${results.length} filteredOut=${filteredOut} fallback=${!data}`);
   }
   if (cat === 'tyres' || cat === 'parts' || cat === 'moto') {
     const fallbackUsed = results.length === 0;

@@ -1072,8 +1072,8 @@ export default function App() {
     <>
       {/* Login / Signup */}
       {(authScreen === 'login' || authScreen === 'signup') && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
-          <div style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
+        <div onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
               <div>
                 <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>
@@ -1092,13 +1092,13 @@ export default function App() {
             )}
             <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email"
               placeholder={lang==='de'?'E-Mail-Adresse':'Email address'}
-              style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'12px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:10,outline:'none'}}
-              autoComplete="email" disabled={authBusy||!AUTH_AVAILABLE}/>
+              style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'12px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.2)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:10,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none',cursor:AUTH_AVAILABLE?'text':'not-allowed'}}
+              autoComplete="email" disabled={authBusy||!AUTH_AVAILABLE} readOnly={!AUTH_AVAILABLE}/>
             <input value={authPwd} onChange={e=>setAuthPwd(e.target.value)} type="password"
               placeholder={lang==='de'?'Passwort (min. 6 Zeichen)':'Password (min. 6 chars)'}
-              style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'12px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:authErr?8:16,outline:'none'}}
+              style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'12px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.2)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:authErr?8:16,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none',cursor:AUTH_AVAILABLE?'text':'not-allowed'}}
               autoComplete={authScreen==='signup'?'new-password':'current-password'}
-              disabled={authBusy||!AUTH_AVAILABLE}
+              disabled={authBusy||!AUTH_AVAILABLE} readOnly={!AUTH_AVAILABLE}
               onKeyDown={e=>e.key==='Enter'&&handleAuthSubmit()}/>
             {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:12,lineHeight:1.45}}>{authErr}</div>}
             <button onClick={handleAuthSubmit} disabled={authBusy||!AUTH_AVAILABLE}
@@ -1116,8 +1116,8 @@ export default function App() {
       )}
       {/* Account */}
       {authScreen === 'account' && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
-          <div style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
+        <div onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
               <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{lang==='de'?'Mein Konto':'My Account'}</div>
               <button onClick={()=>setAuthScreen(null)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
@@ -1255,6 +1255,7 @@ export default function App() {
 
   // ── HOME ─────────────────────────────────────────────────────────────────────
   if (screen === 'home') return (
+    <>
     <Screen>
       {freeLimitHit && (
         <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>
@@ -1576,12 +1577,14 @@ export default function App() {
         </div>
       )}
       <style>{CSS}</style>
-      {authModal}
     </Screen>
+    {authModal}
+    </>
   );
 
   // ── FIX NOW ──────────────────────────────────────────────────────────────────
   if (screen === 'fix-now') return (
+    <>
     <Screen>
       {freeLimitHit && (
         <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>
@@ -1688,8 +1691,9 @@ export default function App() {
       </Scroll>
       <NavBar screen={screen} t={t} goto={goto}/>
       <style>{CSS}</style>
-    {authModal}
     </Screen>
+    {authModal}
+    </>
   );
 
   // ── RESULT ───────────────────────────────────────────────────────────────────
