@@ -54,4 +54,9 @@ export const Analytics = {
   signupSuccess:    ()                 => track('signup_success'),
   loginSuccess:     ()                 => track('login_success'),
   logout:           ()                 => track('logout'),
+  checkoutStarted:  (plan)             => track('checkout_started', { plan }),
+  checkoutSuccess:  (plan)             => track('checkout_success', { plan }),
+  checkoutCancelled:()                 => track('checkout_cancelled'),
+  proUnlocked:      (plan)             => track('pro_unlocked', { plan }),
+  signupStarted:    ()                 => track('signup_started'),
 };

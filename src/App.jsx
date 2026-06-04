@@ -5,6 +5,8 @@ import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
 import { getQP } from './data/quickproblems.js';
 import { useLocation } from './hooks/useLocation.js';
 import { Analytics } from './analytics.js';
+import { useAuth } from './useAuth.js';
+import { checkUsage, incrementUsage, AUTH_AVAILABLE } from './auth.js';
 import { useAI } from './hooks/useAI.js';
 import { useNearby, MAP_CATS } from './hooks/useNearby.js';
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
@@ -262,6 +264,12 @@ export default function App() {
   const [aiMsgIdx, setAiMsgIdx]   = useState(0);
   const [feedback, setFeedback]   = useState(null); // null | 'fixed' | 'broken'
   const [freeLimitHit, setFreeLimitHit] = useState(false); // true = paywall shown
+  const [authScreen, setAuthScreen]   = useState(null);   // null | 'login' | 'signup' | 'account'
+  const [authEmail, setAuthEmail]     = useState('');
+  const [authPwd, setAuthPwd]         = useState('');
+  const [authErr, setAuthErr]         = useState('');
+  const [authBusy, setAuthBusy]       = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [toast, setToast]         = useState(null);
   const [history, setHistory]     = useState(() => {
     // One-time migration: clean old corrupted/incomplete history entries on load
@@ -289,6 +297,7 @@ export default function App() {
   const { lat, lng, city, country, locStatus, requestLocation, getCC } = useLocation();
   const { result: aiResult, loading: aiLoading, error: aiError, diagnose, reset: aiReset } = useAI();
   const { bizs, loading: bizLoading, error: bizError, stale: bizStale, fallback: bizFallback, fetchBiz } = useNearby();
+  const { user, profile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
   // cc: GPS country wins, then browser-detected region, then lang-based fallback
@@ -571,15 +580,24 @@ export default function App() {
     diagCategoryRef.current = curFix;
     setPrevScr('fix-now');
     // ── Free device limit check ─────────────────────────────────────────────
-    // Emergency keywords always bypass — gas/electrical/structural must always be accessible
     const EMERGENCY_BYPASS = /gas\s*(leak|geruch|smell|riecht)|riecht\s+nach\s+gas|gasleitung|live\s*(wire|cable)|240v|230v|stromschlag|sicherungskasten|load.?bearing|tragende\s+wand|asbest|asbestos|notfall|emergency/i;
     const isEmergency = EMERGENCY_BYPASS.test(prob);
-    const freeUsed = LS.get('free_diagnosis_used');
-    if (freeUsed && !isEmergency) {
-      setFreeLimitHit(true);
-      Analytics.limitReached();
-      Analytics.paywallViewed();
-      return;  // paywall overlay renders on current screen (home or fix-now)
+
+    // Pro users: always allowed
+    if (!isPro) {
+      if (user && AUTH_AVAILABLE) {
+        // Logged-in free user: check Supabase usage count
+        const usage = await checkUsage(user.id);
+        if (usage && !usage.allowed) {
+          setFreeLimitHit(true); Analytics.limitReached(); Analytics.paywallViewed(); return;
+        }
+      } else {
+        // Guest: check localStorage
+        const freeUsed = LS.get('free_diagnosis_used');
+        if (freeUsed && !isEmergency) {
+          setFreeLimitHit(true); Analytics.limitReached(); Analytics.paywallViewed(); return;
+        }
+      }
     }
     setFeedback(null);
     // Clear stale SS.aiResult BEFORE entering result screen
@@ -595,7 +613,10 @@ export default function App() {
     if (!result) return;
     // Mark free diagnosis as used — only for real results (not safety blocks or fallbacks)
     if (!result.callPro && !result._fallback) {
-      LS.set('free_diagnosis_used', true);
+      LS.set('free_diagnosis_used', true);          // always mark locally
+      if (user && AUTH_AVAILABLE && !isPro) {       // also increment Supabase for logged-in users
+        incrementUsage(user.id).catch(() => {});    // fire-and-forget
+      }
     }
     // Parse estimatedCost into a number for savings tracking
     // Format: "€5–15", "£10–25", "$8" — extract midpoint
@@ -646,6 +667,77 @@ export default function App() {
       }
     }
   }
+
+  // ── Stripe checkout ────────────────────────────────────────────────────────
+  async function startCheckout(plan) {
+    if (!user) { setAuthScreen('login'); return; }
+    setCheckoutBusy(true);
+    Analytics.track('checkout_started', { plan });
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan, userId: user.id, userEmail: user.email }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      } else {
+        // Stripe not configured yet
+        showToast(data.message || (lang==='de'?'Zahlung noch nicht verfügbar':'Payment not available yet'));
+      }
+    } catch (_) {
+      showToast(lang==='de'?'Verbindungsfehler':'Connection error');
+    } finally {
+      setCheckoutBusy(false);
+    }
+  }
+
+  // ── Auth actions ─────────────────────────────────────────────────────────────
+  async function handleAuthSubmit() {
+    if (!authEmail.trim() || !authPwd.trim()) {
+      setAuthErr(lang==='de'?'Bitte E-Mail und Passwort eingeben':'Please enter email and password');
+      return;
+    }
+    setAuthBusy(true); setAuthErr('');
+    try {
+      if (authScreen === 'signup') {
+        Analytics.track('signup_started');
+        await signup(authEmail.trim(), authPwd);
+        Analytics.track('signup_success');
+      } else {
+        await login(authEmail.trim(), authPwd);
+        Analytics.track('login_success');
+        // If user logged in while paywall was showing, re-check Pro status
+        await refreshProfile();
+      }
+      setAuthScreen(null); setAuthEmail(''); setAuthPwd('');
+    } catch (err) {
+      const msg = err.message || '';
+      setAuthErr(
+        msg.includes('Invalid login') ? (lang==='de'?'Ungültige E-Mail oder Passwort':'Invalid email or password') :
+        msg.includes('already registered') ? (lang==='de'?'E-Mail bereits registriert':'Email already registered') :
+        msg.includes('auth_unavailable') ? (lang==='de'?'Auth nicht konfiguriert. Supabase-Schlüssel fehlen.':'Auth not configured. Supabase keys missing.') :
+        msg
+      );
+    } finally { setAuthBusy(false); }
+  }
+
+  // ── Check for successful Stripe redirect ─────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get('checkout');
+    if (checkout === 'success') {
+      window.history.replaceState({}, '', '/');
+      showToast(lang==='de'?'✅ Pro freigeschaltet! Vielen Dank.':'✅ Pro unlocked! Thank you.');
+      Analytics.track('checkout_success');
+      refreshProfile(); // reload profile to get is_pro=true
+      setFreeLimitHit(false);
+    } else if (checkout === 'cancelled') {
+      window.history.replaceState({}, '', '/');
+      Analytics.track('checkout_cancelled');
+    }
+  }, []); // eslint-disable-line
 
   async function handleShare() {
     const r = aiResult;
@@ -1087,7 +1179,20 @@ export default function App() {
             <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>FIXIT PRO</div>
             <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8',marginBottom:4}}>{lang==='de'?'Unbegrenzte KI-Analysen':'Unlimited AI Analyses'}</div>
             <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.38)',marginBottom:14}}>€3.99/Monat · €17.99 {lang==='de'?'einmalig':'lifetime'}</div>
-            <div style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'11px',fontSize:'0.73rem',color:'rgba(255,255,255,0.35)',fontStyle:'italic'}}>🚧 {lang==='de'?'Pro-Upgrade — demnächst verfügbar':'Pro upgrade — coming soon'}</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {/* Lifetime — highlighted */}
+                <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.6:1}}>
+                  <div style={{fontSize:'0.62rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · EMPFOHLEN</div>
+                  <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 einmalig</div>
+                  <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>Ein Werkstattbesuch kostet €120–€300</div>
+                </button>
+                {/* Monthly */}
+                <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'13px',cursor:'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.6)',textAlign:'left',opacity:checkoutBusy?0.6:1}}>
+                  <div style={{fontSize:'0.62rem',fontWeight:700,color:C.m,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>MONATLICH</div>
+                  <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / Monat</div>
+                </button>
+                {!user && <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.3)',textAlign:'center',marginTop:2}}>{lang==='de'?'Konto erforderlich — kostenlos und schnell':'Account required — free and quick'}</div>}
+              </div>
           </div>
           <button onClick={()=>setFreeLimitHit(false)} style={{width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'13px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':'Back to app'}</button>
         </div>
@@ -1106,6 +1211,12 @@ export default function App() {
           <div style={{fontSize:'1.5rem',fontWeight:900}}>FIX<span style={{color:C.o}}>IT</span></div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             {lat && <div style={{fontSize:'0.7rem',color:C.g,background:'rgba(26,158,92,0.1)',border:'1px solid rgba(26,158,92,0.2)',borderRadius:100,padding:'4px 10px'}}>📍 {city||`${lat.toFixed(2)},${lng.toFixed(2)}`}</div>}
+            {/* Auth/Account button */}
+            {AUTH_AVAILABLE && (
+              <button onClick={()=>setAuthScreen(user?'account':'login')} style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:100,padding:'5px 12px',fontSize:'0.7rem',cursor:'pointer',color:C.m,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
+                {user ? <><span>👤</span><span style={{maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>{isPro&&<span style={{color:'#E8521A',fontWeight:700}}>PRO</span>}</> : <><span>🔑</span><span>{lang==='de'?'Anmelden':'Login'}</span></>}
+              </button>
+            )}
             {(() => {
               const vhCount = history.filter(h=>h&&h.problem&&(h.diagnosis||h.confidence)).length;
               return vhCount > 0 && (
@@ -1339,6 +1450,65 @@ export default function App() {
       </Scroll>
       <NavBar screen={screen} t={t} goto={goto}/>
       <div style={{position:'absolute',bottom:2,right:8,fontSize:'0.52rem',color:'rgba(255,255,255,0.1)',pointerEvents:'none',userSelect:'none',letterSpacing:'0.05em',fontFamily:'monospace',zIndex:1}}>{BUILD_VERSION}</div>
+      {/* ── Login / Signup modal ── */}
+      {(authScreen === 'login' || authScreen === 'signup') && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(12px)',zIndex:400,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <div style={{background:'#141210',border:'1px solid rgba(255,255,255,0.08)',borderRadius:20,width:'100%',maxWidth:360,padding:'28px 24px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+              <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}</div>
+              <button onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,width:32,height:32,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'0.9rem'}}>✕</button>
+            </div>
+            {!AUTH_AVAILABLE && (
+              <div style={{background:'rgba(232,178,26,0.1)',border:'1px solid rgba(232,178,26,0.25)',borderRadius:10,padding:'10px 12px',fontSize:'0.75rem',color:'rgba(232,178,26,0.8)',marginBottom:14}}>
+                {lang==='de'?'Auth nicht konfiguriert. Supabase-Umgebungsvariablen fehlen.':'Auth not configured. Supabase environment variables missing.'}
+              </div>
+            )}
+            <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email" placeholder={lang==='de'?'E-Mail-Adresse':'Email address'}
+              style={{...s.inp,marginBottom:10,fontSize:'0.9rem'}} autoComplete="email" disabled={authBusy||!AUTH_AVAILABLE}/>
+            <input value={authPwd} onChange={e=>setAuthPwd(e.target.value)} type="password" placeholder={lang==='de'?'Passwort (min. 6 Zeichen)':'Password (min. 6 chars)'}
+              style={{...s.inp,marginBottom:authErr?8:16,fontSize:'0.9rem'}} autoComplete={authScreen==='signup'?'new-password':'current-password'} disabled={authBusy||!AUTH_AVAILABLE}
+              onKeyDown={e=>e.key==='Enter'&&handleAuthSubmit()}/>
+            {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:12,lineHeight:1.4}}>{authErr}</div>}
+            <button onClick={handleAuthSubmit} disabled={authBusy||!AUTH_AVAILABLE} style={{...s.btn,width:'100%',marginBottom:12,opacity:authBusy||!AUTH_AVAILABLE?0.5:1}}>
+              {authBusy?<Spinner/>:authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}
+            </button>
+            <button onClick={()=>{setAuthScreen(authScreen==='login'?'signup':'login');setAuthErr('');}} style={{background:'none',border:'none',color:C.m,fontSize:'0.75rem',cursor:'pointer',width:'100%',textAlign:'center',padding:'4px',fontFamily:'inherit'}}>
+              {authScreen==='login'?(lang==='de'?'Noch kein Konto? Registrieren →':'No account? Sign up →'):(lang==='de'?'Bereits registriert? Anmelden →':'Already have an account? Sign in →')}
+            </button>
+          </div>
+        </div>
+      )}
+      {/* ── Account modal ── */}
+      {authScreen === 'account' && user && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(12px)',zIndex:400,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <div style={{background:'#141210',border:'1px solid rgba(255,255,255,0.08)',borderRadius:20,width:'100%',maxWidth:360,padding:'28px 24px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+              <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{lang==='de'?'Mein Konto':'My Account'}</div>
+              <button onClick={()=>setAuthScreen(null)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,width:32,height:32,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'0.9rem'}}>✕</button>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.04)',borderRadius:12,padding:'14px',marginBottom:14}}>
+              <div style={{fontSize:'0.65rem',color:C.m,marginBottom:3}}>E-MAIL</div>
+              <div style={{fontSize:'0.88rem',color:'#F0EDE8',wordBreak:'break-all'}}>{user.email}</div>
+            </div>
+            <div style={{background:isPro?'rgba(232,82,26,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${isPro?'rgba(232,82,26,0.25)':'rgba(255,255,255,0.07)'}`,borderRadius:12,padding:'14px',marginBottom:20}}>
+              <div style={{fontSize:'0.65rem',color:C.m,marginBottom:3}}>{lang==='de'?'STATUS':'STATUS'}</div>
+              {isPro ? (
+                <div style={{fontSize:'0.88rem',color:'#E8521A',fontWeight:700}}>✅ FIXIT PRO {profile?.plan==='lifetime'?'· Lifetime':'· Monthly'}</div>
+              ) : (
+                <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.5)'}}>{lang==='de'?'Free — 1 kostenlose Diagnose':'Free — 1 free diagnosis'}</div>
+              )}
+            </div>
+            {!isPro && (
+              <button onClick={()=>{setAuthScreen(null);setFreeLimitHit(true);}} style={{...s.btn,width:'100%',marginBottom:10,background:'rgba(232,82,26,0.9)'}}>
+                {lang==='de'?'Auf Pro upgraden 🚀':'Upgrade to Pro 🚀'}
+              </button>
+            )}
+            <button onClick={async()=>{await logout();Analytics.track('logout');setAuthScreen(null);}} style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'11px',color:'rgba(255,255,255,0.4)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit',width:'100%'}}>
+              {lang==='de'?'Abmelden':'Sign out'}
+            </button>
+          </div>
+        </div>
+      )}
       <style>{CSS}</style>
     </Screen>
   );
@@ -1360,7 +1530,20 @@ export default function App() {
             <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>FIXIT PRO</div>
             <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8',marginBottom:4}}>{lang==='de'?'Unbegrenzte KI-Analysen':'Unlimited AI Diagnoses'}</div>
             <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.38)',marginBottom:14}}>€3.99/Monat · €17.99 {lang==='de'?'einmalig':'lifetime'}</div>
-            <div style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'11px',fontSize:'0.73rem',color:'rgba(255,255,255,0.35)',fontStyle:'italic'}}>🚧 {lang==='de'?'Pro-Upgrade — demnächst verfügbar':'Pro upgrade — coming soon'}</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {/* Lifetime — highlighted */}
+                <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.6:1}}>
+                  <div style={{fontSize:'0.62rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · EMPFOHLEN</div>
+                  <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 einmalig</div>
+                  <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>Ein Werkstattbesuch kostet €120–€300</div>
+                </button>
+                {/* Monthly */}
+                <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'13px',cursor:'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.6)',textAlign:'left',opacity:checkoutBusy?0.6:1}}>
+                  <div style={{fontSize:'0.62rem',fontWeight:700,color:C.m,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>MONATLICH</div>
+                  <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / Monat</div>
+                </button>
+                {!user && <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.3)',textAlign:'center',marginTop:2}}>{lang==='de'?'Konto erforderlich — kostenlos und schnell':'Account required — free and quick'}</div>}
+              </div>
           </div>
           <button onClick={()=>setFreeLimitHit(false)} style={{width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'13px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':'Back to app'}</button>
         </div>
