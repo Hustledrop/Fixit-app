@@ -31,6 +31,10 @@ function buildQuery(cat, south, west, north, east) {
       `node["shop"="tyres"](${b})`,
       `way["shop"="tyres"](${b})`,
       `node["shop"="car_repair"]["service:tyres"="yes"](${b})`,
+      `node["shop"="car_repair"]["service:vehicle:tyres"="yes"](${b})`,
+      `way["shop"="car_repair"]["service:vehicle:tyres"="yes"](${b})`,
+      `node["shop"="vulcanizer"](${b})`,
+      `way["shop"="vulcanizer"](${b})`,
     ],
     petrol: [
       `node["amenity"="fuel"](${b})`,
@@ -52,6 +56,14 @@ function buildQuery(cat, south, west, north, east) {
       `node["craft"="electronics_repair"](${b})`,
       `way["craft"="electronics_repair"](${b})`,
       `node["shop"="mobile_phone"](${b})`,
+    ],
+    moto: [
+      `node["shop"="motorcycle"](${b})`,
+      `way["shop"="motorcycle"](${b})`,
+      `node["craft"="motorcycle_repair"](${b})`,
+      `way["craft"="motorcycle_repair"](${b})`,
+      `node["service:vehicle:motorcycle"="yes"](${b})`,
+      `way["service:vehicle:motorcycle"="yes"](${b})`,
     ],
   };
 
@@ -86,7 +98,7 @@ function fetchOverpass(host, query) {
         'User-Agent':     'FixItApp/1.0 Vercel-Proxy',
         'Accept':         'application/json',
       },
-      timeout: 22000,
+      timeout: 11000, // 11s × 2 hosts = 22s max, under Vercel 25s limit
     };
 
     const req = https.request(options, res => {
