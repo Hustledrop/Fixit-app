@@ -151,8 +151,8 @@ module.exports = async function handler(req, res) {
   // CRITICAL: use toFixed(6) to avoid JS float garbage like 7.4254430000000005
   const south = (latN - 0.03).toFixed(6);
   const north = (latN + 0.03).toFixed(6);
-  const west  = (lngN - 0.05).toFixed(6);
-  const east  = (lngN + 0.05).toFixed(6);
+  const west  = (lngN - 0.055).toFixed(6); // expanded from 0.05: captures shops at bbox edge (e.g. Reifen Niebergall was 5m outside)
+  const east  = (lngN + 0.055).toFixed(6); // symmetric expansion
 
   const query = buildQuery(cat, south, west, north, east);
   console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN}`);
