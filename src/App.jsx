@@ -297,7 +297,7 @@ export default function App() {
   const { lat, lng, city, country, locStatus, requestLocation, getCC } = useLocation();
   const { result: aiResult, loading: aiLoading, error: aiError, diagnose, reset: aiReset } = useAI();
   const { bizs, loading: bizLoading, error: bizError, stale: bizStale, fallback: bizFallback, fetchBiz } = useNearby();
-  const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
+  const { user, profile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
   // cc: GPS country wins, then browser-detected region, then lang-based fallback
@@ -1211,12 +1211,12 @@ export default function App() {
           <div style={{fontSize:'1.5rem',fontWeight:900}}>FIX<span style={{color:C.o}}>IT</span></div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             {lat && <div style={{fontSize:'0.7rem',color:C.g,background:'rgba(26,158,92,0.1)',border:'1px solid rgba(26,158,92,0.2)',borderRadius:100,padding:'4px 10px'}}>📍 {city||`${lat.toFixed(2)},${lng.toFixed(2)}`}</div>}
-            {/* Auth/Account button */}
-            {AUTH_AVAILABLE && (
-              <button onClick={()=>setAuthScreen(user?'account':'login')} style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:100,padding:'5px 12px',fontSize:'0.7rem',cursor:'pointer',color:C.m,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
-                {user ? <><span>👤</span><span style={{maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>{isPro&&<span style={{color:'#E8521A',fontWeight:700}}>PRO</span>}</> : <><span>🔑</span><span>{lang==='de'?'Anmelden':'Login'}</span></>}
-              </button>
-            )}
+            {/* Auth/Account button — always visible (handles guest mode gracefully) */}
+            <button onClick={()=>setAuthScreen(user?'account':'login')} style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:100,padding:'5px 12px',fontSize:'0.7rem',cursor:'pointer',color:C.m,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
+              {user
+                ? <><span>👤</span><span style={{maxWidth:90,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>{isPro&&<span style={{color:'#E8521A',fontWeight:700,marginLeft:4}}>PRO</span>}</>
+                : <><span>🔑</span><span>{lang==='de'?'Anmelden':lang==='tr'?'Giriş':lang==='pl'?'Zaloguj':'Login'}</span></>}
+            </button>
             {(() => {
               const vhCount = history.filter(h=>h&&h.problem&&(h.diagnosis||h.confidence)).length;
               return vhCount > 0 && (
@@ -1450,63 +1450,10 @@ export default function App() {
       </Scroll>
       <NavBar screen={screen} t={t} goto={goto}/>
       <div style={{position:'absolute',bottom:2,right:8,fontSize:'0.52rem',color:'rgba(255,255,255,0.1)',pointerEvents:'none',userSelect:'none',letterSpacing:'0.05em',fontFamily:'monospace',zIndex:1}}>{BUILD_VERSION}</div>
-      {/* ── Login / Signup modal ── */}
-      {(authScreen === 'login' || authScreen === 'signup') && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(12px)',zIndex:400,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
-          <div style={{background:'#141210',border:'1px solid rgba(255,255,255,0.08)',borderRadius:20,width:'100%',maxWidth:360,padding:'28px 24px'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
-              <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}</div>
-              <button onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,width:32,height:32,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'0.9rem'}}>✕</button>
-            </div>
-            {!AUTH_AVAILABLE && (
-              <div style={{background:'rgba(232,178,26,0.1)',border:'1px solid rgba(232,178,26,0.25)',borderRadius:10,padding:'10px 12px',fontSize:'0.75rem',color:'rgba(232,178,26,0.8)',marginBottom:14}}>
-                {lang==='de'?'Auth nicht konfiguriert. Supabase-Umgebungsvariablen fehlen.':'Auth not configured. Supabase environment variables missing.'}
-              </div>
-            )}
-            <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email" placeholder={lang==='de'?'E-Mail-Adresse':'Email address'}
-              style={{...s.inp,marginBottom:10,fontSize:'0.9rem'}} autoComplete="email" disabled={authBusy||!AUTH_AVAILABLE}/>
-            <input value={authPwd} onChange={e=>setAuthPwd(e.target.value)} type="password" placeholder={lang==='de'?'Passwort (min. 6 Zeichen)':'Password (min. 6 chars)'}
-              style={{...s.inp,marginBottom:authErr?8:16,fontSize:'0.9rem'}} autoComplete={authScreen==='signup'?'new-password':'current-password'} disabled={authBusy||!AUTH_AVAILABLE}
-              onKeyDown={e=>e.key==='Enter'&&handleAuthSubmit()}/>
-            {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:12,lineHeight:1.4}}>{authErr}</div>}
-            <button onClick={handleAuthSubmit} disabled={authBusy||!AUTH_AVAILABLE} style={{...s.btn,width:'100%',marginBottom:12,opacity:authBusy||!AUTH_AVAILABLE?0.5:1}}>
-              {authBusy?<Spinner/>:authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}
-            </button>
-            <button onClick={()=>{setAuthScreen(authScreen==='login'?'signup':'login');setAuthErr('');}} style={{background:'none',border:'none',color:C.m,fontSize:'0.75rem',cursor:'pointer',width:'100%',textAlign:'center',padding:'4px',fontFamily:'inherit'}}>
-              {authScreen==='login'?(lang==='de'?'Noch kein Konto? Registrieren →':'No account? Sign up →'):(lang==='de'?'Bereits registriert? Anmelden →':'Already have an account? Sign in →')}
-            </button>
-          </div>
-        </div>
-      )}
-      {/* ── Account modal ── */}
-      {authScreen === 'account' && user && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(12px)',zIndex:400,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
-          <div style={{background:'#141210',border:'1px solid rgba(255,255,255,0.08)',borderRadius:20,width:'100%',maxWidth:360,padding:'28px 24px'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
-              <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{lang==='de'?'Mein Konto':'My Account'}</div>
-              <button onClick={()=>setAuthScreen(null)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,width:32,height:32,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'0.9rem'}}>✕</button>
-            </div>
-            <div style={{background:'rgba(255,255,255,0.04)',borderRadius:12,padding:'14px',marginBottom:14}}>
-              <div style={{fontSize:'0.65rem',color:C.m,marginBottom:3}}>E-MAIL</div>
-              <div style={{fontSize:'0.88rem',color:'#F0EDE8',wordBreak:'break-all'}}>{user.email}</div>
-            </div>
-            <div style={{background:isPro?'rgba(232,82,26,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${isPro?'rgba(232,82,26,0.25)':'rgba(255,255,255,0.07)'}`,borderRadius:12,padding:'14px',marginBottom:20}}>
-              <div style={{fontSize:'0.65rem',color:C.m,marginBottom:3}}>{lang==='de'?'STATUS':'STATUS'}</div>
-              {isPro ? (
-                <div style={{fontSize:'0.88rem',color:'#E8521A',fontWeight:700}}>✅ FIXIT PRO {profile?.plan==='lifetime'?'· Lifetime':'· Monthly'}</div>
-              ) : (
-                <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.5)'}}>{lang==='de'?'Free — 1 kostenlose Diagnose':'Free — 1 free diagnosis'}</div>
-              )}
-            </div>
-            {!isPro && (
-              <button onClick={()=>{setAuthScreen(null);setFreeLimitHit(true);}} style={{...s.btn,width:'100%',marginBottom:10,background:'rgba(232,82,26,0.9)'}}>
-                {lang==='de'?'Auf Pro upgraden 🚀':'Upgrade to Pro 🚀'}
-              </button>
-            )}
-            <button onClick={async()=>{await logout();Analytics.track('logout');setAuthScreen(null);}} style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'11px',color:'rgba(255,255,255,0.4)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit',width:'100%'}}>
-              {lang==='de'?'Abmelden':'Sign out'}
-            </button>
-          </div>
+      {/* iPhone PWA install hint — only show if not already installed */}
+      {typeof window !== 'undefined' && !/standalone/.test(window.navigator.userAgent) && /iPhone|iPad/.test(navigator.userAgent) && (
+        <div style={{textAlign:'center',fontSize:'0.65rem',color:'rgba(255,255,255,0.2)',padding:'6px 20px 0',letterSpacing:'0.02em'}}>
+          {lang==='de'?'📲 Tippe auf Teilen → Zum Home-Bildschirm':'📲 Tap Share → Add to Home Screen'}
         </div>
       )}
       <style>{CSS}</style>
@@ -2375,5 +2322,95 @@ export default function App() {
     );
   }
 
-  return null;
+
+  // ── GLOBAL AUTH MODALS — render on top of any screen ─────────────────────────
+  const authModal = (
+    <>
+      {/* Login / Signup */}
+      {(authScreen === 'login' || authScreen === 'signup') && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <div style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+              <div>
+                <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>
+                  {authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}
+                </div>
+                <div style={{fontSize:'0.68rem',color:C.m,marginTop:2}}>
+                  {authScreen==='signup'?(lang==='de'?'Kostenlos — keine Kreditkarte nötig':'Free — no credit card needed'):(lang==='de'?'Willkommen zurück':'Welcome back')}
+                </div>
+              </div>
+              <button onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
+            </div>
+            {!AUTH_AVAILABLE && (
+              <div style={{background:'rgba(232,178,26,0.1)',border:'1px solid rgba(232,178,26,0.25)',borderRadius:10,padding:'10px 12px',fontSize:'0.73rem',color:'rgba(232,178,26,0.85)',marginBottom:14,lineHeight:1.5}}>
+                ⚙️ {lang==='de'?'Auth nicht konfiguriert — Supabase-Umgebungsvariablen fehlen. App läuft im Gastmodus.':'Auth not configured — Supabase environment variables missing. App runs in guest mode.'}
+              </div>
+            )}
+            <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email"
+              placeholder={lang==='de'?'E-Mail-Adresse':'Email address'}
+              style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'12px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:10,outline:'none'}}
+              autoComplete="email" disabled={authBusy||!AUTH_AVAILABLE}/>
+            <input value={authPwd} onChange={e=>setAuthPwd(e.target.value)} type="password"
+              placeholder={lang==='de'?'Passwort (min. 6 Zeichen)':'Password (min. 6 chars)'}
+              style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'12px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:authErr?8:16,outline:'none'}}
+              autoComplete={authScreen==='signup'?'new-password':'current-password'}
+              disabled={authBusy||!AUTH_AVAILABLE}
+              onKeyDown={e=>e.key==='Enter'&&handleAuthSubmit()}/>
+            {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:12,lineHeight:1.45}}>{authErr}</div>}
+            <button onClick={handleAuthSubmit} disabled={authBusy||!AUTH_AVAILABLE}
+              style={{background:AUTH_AVAILABLE?C.o:'rgba(255,255,255,0.08)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:AUTH_AVAILABLE?'#fff':'rgba(255,255,255,0.3)',fontFamily:'inherit',width:'100%',cursor:AUTH_AVAILABLE&&!authBusy?'pointer':'not-allowed',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              {authBusy?<Spinner/>:authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}
+            </button>
+            <button onClick={()=>{setAuthScreen(authScreen==='login'?'signup':'login');setAuthErr('');}}
+              style={{background:'none',border:'none',color:C.m,fontSize:'0.75rem',cursor:'pointer',width:'100%',textAlign:'center',padding:'4px',fontFamily:'inherit'}}>
+              {authScreen==='login'
+                ?(lang==='de'?'Noch kein Konto? Registrieren →':'No account? Sign up →')
+                :(lang==='de'?'Bereits registriert? Anmelden →':'Already have an account? Sign in →')}
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Account */}
+      {authScreen === 'account' && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <div style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+              <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{lang==='de'?'Mein Konto':'My Account'}</div>
+              <button onClick={()=>setAuthScreen(null)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+            </div>
+            {user ? (<>
+              <div style={{background:'rgba(255,255,255,0.04)',borderRadius:12,padding:'13px 14px',marginBottom:10}}>
+                <div style={{fontSize:'0.6rem',color:C.m,marginBottom:2,letterSpacing:'0.08em'}}>E-MAIL</div>
+                <div style={{fontSize:'0.88rem',color:'#F0EDE8',wordBreak:'break-all'}}>{user.email}</div>
+              </div>
+              <div style={{background:isPro?'rgba(232,82,26,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${isPro?'rgba(232,82,26,0.25)':'rgba(255,255,255,0.08)'}`,borderRadius:12,padding:'13px 14px',marginBottom:18}}>
+                <div style={{fontSize:'0.6rem',color:C.m,marginBottom:4,letterSpacing:'0.08em'}}>{lang==='de'?'STATUS':'STATUS'}</div>
+                {isPro
+                  ? <div style={{fontSize:'0.9rem',color:'#E8521A',fontWeight:700}}>✅ FIXIT PRO {profile?.plan==='lifetime'?'· Lifetime':'· Monthly'}</div>
+                  : <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.5)'}}>{lang==='de'?'Free — 1 kostenlose Diagnose':'Free — 1 free diagnosis'}</div>}
+              </div>
+              {!isPro && (
+                <button onClick={()=>{setAuthScreen(null);setFreeLimitHit(true);}}
+                  style={{background:'rgba(232,82,26,0.85)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.88rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',cursor:'pointer',marginBottom:10}}>
+                  🚀 {lang==='de'?'Auf Pro upgraden':'Upgrade to Pro'}
+                </button>
+              )}
+              <button onClick={async()=>{await logout();Analytics.track('logout');setAuthScreen(null);}}
+                style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'11px',color:'rgba(255,255,255,0.4)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit',width:'100%'}}>
+                {lang==='de'?'Abmelden':'Sign out'}
+              </button>
+            </>) : (
+              <div style={{textAlign:'center',padding:'20px 0'}}>
+                <div style={{color:C.m,fontSize:'0.85rem',marginBottom:16}}>{lang==='de'?'Nicht angemeldet':'Not signed in'}</div>
+                <button onClick={()=>setAuthScreen('login')} style={{...s.btn,width:'100%'}}>
+                  {lang==='de'?'Anmelden':'Sign in'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+  return authModal;
 }

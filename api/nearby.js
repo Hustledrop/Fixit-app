@@ -142,7 +142,7 @@ function buildQuery(cat, latN, lngN) {
   };
 
   const lines = (parts[cat] || parts.garage).join(';\n  ');
-  return { query: `[out:json][timeout:10];\n(\n  ${lines};\n);\nout center tags;`, south, west, north, east };
+  return { query: `[out:json][timeout:8];\n(\n  ${lines};\n);\nout center tags;`, south, west, north, east };
 }
 
 // Server-side tyre keyword filter
@@ -216,7 +216,7 @@ function fetchOverpass(host, query) {
         'User-Agent':     'FixItApp/1.0 Vercel-Proxy',
         'Accept':         'application/json',
       },
-      timeout: 7000,  // 7s per host × 3 hosts = 21s max, safely under Vercel 25s limit
+      timeout: 9000,  // 9s per host × 2 hosts = 18s max, safely under Vercel 25s limit
     };
 
     const req = https.request(options, res => {
