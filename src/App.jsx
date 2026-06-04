@@ -297,7 +297,7 @@ export default function App() {
   const { lat, lng, city, country, locStatus, requestLocation, getCC } = useLocation();
   const { result: aiResult, loading: aiLoading, error: aiError, diagnose, reset: aiReset } = useAI();
   const { bizs, loading: bizLoading, error: bizError, stale: bizStale, fallback: bizFallback, fetchBiz } = useNearby();
-  const { user, profile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
+  const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
   // cc: GPS country wins, then browser-detected region, then lang-based fallback
@@ -2386,7 +2386,7 @@ export default function App() {
               <div style={{background:isPro?'rgba(232,82,26,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${isPro?'rgba(232,82,26,0.25)':'rgba(255,255,255,0.08)'}`,borderRadius:12,padding:'13px 14px',marginBottom:18}}>
                 <div style={{fontSize:'0.6rem',color:C.m,marginBottom:4,letterSpacing:'0.08em'}}>{lang==='de'?'STATUS':'STATUS'}</div>
                 {isPro
-                  ? <div style={{fontSize:'0.9rem',color:'#E8521A',fontWeight:700}}>✅ FIXIT PRO {profile?.plan==='lifetime'?'· Lifetime':'· Monthly'}</div>
+                  ? <div style={{fontSize:'0.9rem',color:'#E8521A',fontWeight:700}}>✅ FIXIT PRO {authProfile?.plan==='lifetime'?'· Lifetime':'· Monthly'}</div>
                   : <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.5)'}}>{lang==='de'?'Free — 1 kostenlose Diagnose':'Free — 1 free diagnosis'}</div>}
               </div>
               {!isPro && (
