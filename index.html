@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <title>FIXIT — AI Emergency &amp; Repair Assistant</title>
   <meta name="description" content="Instant repair guidance, emergency help, nearby services, and AI-powered repair support in 10 languages."/>
@@ -40,9 +42,22 @@
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
   <script>
+    // SW registration with updateViaCache:'none' — browser always fetches sw.js fresh (no cache)
+    // This ensures a new CACHE_VERSION in sw.js triggers immediate cache invalidation.
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+          .then(reg => {
+            // Check for SW update when user returns to the tab
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible') reg.update();
+            });
+            // If a new SW is waiting, reload to activate it
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              window.location.reload();
+            });
+          })
+          .catch(() => {});
       });
     }
   </script>

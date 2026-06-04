@@ -9,6 +9,8 @@ import { useAI } from './hooks/useAI.js';
 import { useNearby, MAP_CATS } from './hooks/useNearby.js';
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
 
+// ── Build version — update this on each deploy to confirm cache bust ────────
+const BUILD_VERSION = '2025-06-04-v2';
 // ── localStorage helpers (prefixed fixit_) ────────────────────────────────────
 const LS = {
   get: k => { try { return JSON.parse(localStorage.getItem('fixit_'+k)); } catch { return null; } },
@@ -1336,6 +1338,7 @@ export default function App() {
         )}
       </Scroll>
       <NavBar screen={screen} t={t} goto={goto}/>
+      <div style={{position:'absolute',bottom:2,right:8,fontSize:'0.52rem',color:'rgba(255,255,255,0.1)',pointerEvents:'none',userSelect:'none',letterSpacing:'0.05em',fontFamily:'monospace',zIndex:1}}>{BUILD_VERSION}</div>
       <style>{CSS}</style>
     </Screen>
   );
