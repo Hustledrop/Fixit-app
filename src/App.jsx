@@ -4,6 +4,7 @@ import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalSt
 import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
 import { getQP } from './data/quickproblems.js';
 import { useLocation } from './hooks/useLocation.js';
+import { Analytics } from './analytics.js';
 import { useAI } from './hooks/useAI.js';
 import { useNearby, MAP_CATS } from './hooks/useNearby.js';
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
@@ -258,6 +259,7 @@ export default function App() {
   const [emrgKey, setEmrgKey]     = useState(null);
   const [aiMsgIdx, setAiMsgIdx]   = useState(0);
   const [feedback, setFeedback]   = useState(null); // null | 'fixed' | 'broken'
+  const [freeLimitHit, setFreeLimitHit] = useState(false); // true = paywall shown
   const [toast, setToast]         = useState(null);
   const [history, setHistory]     = useState(() => {
     // One-time migration: clean old corrupted/incomplete history entries on load
@@ -566,17 +568,33 @@ export default function App() {
     setHsnModel('');
     diagCategoryRef.current = curFix;
     setPrevScr('fix-now');
+    // ── Free device limit check ─────────────────────────────────────────────
+    // Emergency keywords always bypass — gas/electrical/structural must always be accessible
+    const EMERGENCY_BYPASS = /gas\s*(leak|geruch|smell|riecht)|riecht\s+nach\s+gas|gasleitung|live\s*(wire|cable)|240v|230v|stromschlag|sicherungskasten|load.?bearing|tragende\s+wand|asbest|asbestos|notfall|emergency/i;
+    const isEmergency = EMERGENCY_BYPASS.test(prob);
+    const freeUsed = LS.get('free_diagnosis_used');
+    if (freeUsed && !isEmergency) {
+      setFreeLimitHit(true);
+      Analytics.limitReached();
+      Analytics.paywallViewed();
+      return;
+    }
     setFeedback(null);
     // Clear stale SS.aiResult BEFORE entering result screen
     // Without this, result screen shows old title while new diagnosis loads
     SS.set('aiResult', null);
     SS.set('aiProblem', prob);
+    Analytics.diagnosisStarted(curFix, !!(photoB64));
     goto('result');
     await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, userProfile: profile });
   }
 
   function saveToHistory(result, prob) {
     if (!result) return;
+    // Mark free diagnosis as used — only for real results (not safety blocks or fallbacks)
+    if (!result.callPro && !result._fallback) {
+      LS.set('free_diagnosis_used', true);
+    }
     // Parse estimatedCost into a number for savings tracking
     // Format: "€5–15", "£10–25", "$8" — extract midpoint
     function parseSaving(costStr) {
@@ -630,6 +648,7 @@ export default function App() {
   async function handleShare() {
     const r = aiResult;
     if (!r) return;
+    Analytics.shareClicked();
 
     // ── Build full diagnosis share text ──────────────────────────────────────
     const APP_URL = 'https://fixit-app-xi.vercel.app/';
@@ -1052,6 +1071,25 @@ export default function App() {
   // ── HOME ─────────────────────────────────────────────────────────────────────
   if (screen === 'home') return (
     <Screen>
+      {freeLimitHit && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>
+          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
+          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>
+          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>
+          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>
+          <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>
+          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8',letterSpacing:'-0.02em'}}>{lang==='de'?'Kostenlose Analysen aufgebraucht':lang==='tr'?'Ücretsiz analizler tükendi':lang==='pl'?'Darmowe analizy wyczerpane':'Free analyses used'}</div>
+          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.4)',textAlign:'center',lineHeight:1.65,marginBottom:28,maxWidth:300}}>{lang==='de'?'Du hast deine 3 kostenlosen KI-Analysen genutzt. Nearby, Ersatzteile und Notfall bleiben immer kostenlos.':'You've used your 3 free AI analyses. Nearby, parts and emergency remain free.'}</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:28}}>{[['✅','Nearby & Maps'],['✅','Parts finder'],['✅','Emergency'],['🔒','Unlimited AI']].map(([ic,lb])=>(<div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>))}</div>
+          <div style={{width:'100%',maxWidth:340,background:'linear-gradient(135deg,rgba(232,82,26,0.12),rgba(232,82,26,0.04))',border:'1px solid rgba(232,82,26,0.25)',borderRadius:18,padding:'20px',marginBottom:14,textAlign:'center'}}>
+            <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>FIXIT PRO</div>
+            <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8',marginBottom:4}}>{lang==='de'?'Unbegrenzte KI-Analysen':'Unlimited AI Analyses'}</div>
+            <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.38)',marginBottom:14}}>€3.99/Monat · €17.99 {lang==='de'?'einmalig':'lifetime'}</div>
+            <div style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'11px',fontSize:'0.73rem',color:'rgba(255,255,255,0.35)',fontStyle:'italic'}}>🚧 {lang==='de'?'Pro-Upgrade — demnächst verfügbar':'Pro upgrade — coming soon'}</div>
+          </div>
+          <button onClick={()=>setFreeLimitHit(false)} style={{width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'13px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':'Back to app'}</button>
+        </div>
+      )}
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
       {/* Offline banner */}
       {!isOnline && <div style={{background:'rgba(232,178,26,0.15)',borderBottom:'1px solid rgba(232,178,26,0.3)',padding:'8px 16px',fontSize:'0.72rem',color:C.y,textAlign:'center',flexShrink:0}}>⚠️ Offline mode — emergency info still available</div>}
