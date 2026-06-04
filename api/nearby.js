@@ -37,11 +37,25 @@ function buildQuery(cat, latN, lngN) {
       `node["shop"="auto_parts"](${b})`,
       `way["shop"="auto_parts"](${b})`,
     ],
-    // Restored to 3-line query from uploaded stable version
+    // Balanced tyres query: covers real German tyre shops without heavy name~ regex
+    // shop=tyres and vulcanizer: dedicated tyre retailers
+    // craft=tyre_fitting: tyre fitting workshops
+    // service:vehicle:tyres=yes: the standard OSM tag for tyre-capable garages (NOT service:tyres=yes)
+    // service:vehicle:tires=yes: alternate spelling
+    // service:tyres=yes: older tagging still used by some
     tyres: [
       `node["shop"="tyres"](${b})`,
       `way["shop"="tyres"](${b})`,
-      `node["shop"="car_repair"]["service:tyres"="yes"](${b})`,
+      `node["shop"="vulcanizer"](${b})`,
+      `way["shop"="vulcanizer"](${b})`,
+      `node["craft"="tyre_fitting"](${b})`,
+      `way["craft"="tyre_fitting"](${b})`,
+      `node["service:vehicle:tyres"="yes"](${b})`,
+      `way["service:vehicle:tyres"="yes"](${b})`,
+      `node["service:vehicle:tires"="yes"](${b})`,
+      `way["service:vehicle:tires"="yes"](${b})`,
+      `node["service:tyres"="yes"](${b})`,
+      `way["service:tyres"="yes"](${b})`,
     ],
     petrol: [
       `node["amenity"="fuel"](${b})`,
