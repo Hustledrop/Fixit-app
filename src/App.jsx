@@ -385,7 +385,10 @@ export default function App() {
     if (screen === 'nearby' && lat && lng) {
       fetchBiz(mapCat, lat, lng);
     }
-  }, [nearbyBump, mapCat, lat, lng]); // mapCat in deps ensures chip + reset both trigger
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nearbyBump, mapCat]); // lat/lng intentionally excluded — GPS updates must NOT auto-refetch
+  // Fetch is triggered by: category chip tap, refresh button, goto('nearby')
+  // lat/lng are read inside fetchBiz at call time, not as reactive deps
 
   // Persist key UI state so returning from external store tab restores correctly
   useEffect(() => {
