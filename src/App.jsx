@@ -297,7 +297,7 @@ export default function App() {
   const { lat, lng, city, country, locStatus, requestLocation, getCC } = useLocation();
   const { result: aiResult, loading: aiLoading, error: aiError, diagnose, reset: aiReset } = useAI();
   const { bizs, loading: bizLoading, error: bizError, stale: bizStale, fallback: bizFallback, fetchBiz } = useNearby();
-  const { user, profile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
+  const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
   // cc: GPS country wins, then browser-detected region, then lang-based fallback
