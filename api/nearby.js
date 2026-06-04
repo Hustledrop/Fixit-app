@@ -315,15 +315,18 @@ module.exports = async function handler(req, res) {
   const maxDist = cat === 'tyres' ? 12 : 15;
 
   elements.forEach(el => {
-    if (!el.tags?.name) return;
+    const tags = el.tags || {};
+    // Use name, then brand, then operator — many petrol/fuel stations have no `name` but have `brand`
+    const displayName = tags.name || tags.brand || tags.operator || tags.amenity || null;
+    if (!displayName) return;  // skip elements with zero identifiers
 
     // Server-side relevance filters (belt-and-suspenders after Overpass name~ filter)
     if (cat === 'tyres' && !isTyreRelevant(el)) { filteredOut++; return; }
     if (cat === 'parts' && !isPartsRelevant(el)) { filteredOut++; return; }
     if (cat === 'moto'  && !isMotoRelevant(el))  { filteredOut++; return; }
 
-    if (seen[el.tags.name]) return;
-    seen[el.tags.name] = true;
+    if (seen[displayName]) return;
+    seen[displayName] = true;
 
     const elLat = el.lat ?? el.center?.lat;
     const elLon = el.lon ?? el.center?.lon;
@@ -337,7 +340,7 @@ module.exports = async function handler(req, res) {
       : null;
 
     out.push({
-      name:    el.tags.name,
+      name:    displayName,
       lat:     parseFloat(elLat),
       lng:     parseFloat(elLon),
       dist:    Math.round(dist * 1000) / 1000,
