@@ -653,7 +653,7 @@ export default function App() {
     Analytics.shareClicked();
 
     // ── Build full diagnosis share text ──────────────────────────────────────
-    const APP_URL = 'https://fixit-app-xi.vercel.app/';
+    const APP_URL = 'https://www.fixit-app.com/';
     const prob = (problemRef.current || '').trim();
 
     // Labels per language
