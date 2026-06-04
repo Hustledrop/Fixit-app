@@ -1180,18 +1180,35 @@ export default function App() {
             <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8',marginBottom:4}}>{lang==='de'?'Unbegrenzte KI-Analysen':'Unlimited AI Analyses'}</div>
             <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.38)',marginBottom:14}}>€3.99/Monat · €17.99 {lang==='de'?'einmalig':'lifetime'}</div>
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                {/* Lifetime — highlighted */}
-                <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.6:1}}>
-                  <div style={{fontSize:'0.62rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · EMPFOHLEN</div>
-                  <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 einmalig</div>
-                  <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>Ein Werkstattbesuch kostet €120–€300</div>
-                </button>
-                {/* Monthly */}
-                <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'13px',cursor:'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.6)',textAlign:'left',opacity:checkoutBusy?0.6:1}}>
-                  <div style={{fontSize:'0.62rem',fontWeight:700,color:C.m,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>MONATLICH</div>
-                  <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / Monat</div>
-                </button>
-                {!user && <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.3)',textAlign:'center',marginTop:2}}>{lang==='de'?'Konto erforderlich — kostenlos und schnell':'Account required — free and quick'}</div>}
+                {!user ? (
+                  // Not logged in — show login prompt instead of checkout
+                  <button onClick={()=>setAuthScreen('signup')} style={{background:'rgba(232,82,26,0.9)',border:'none',borderRadius:12,padding:'14px',cursor:'pointer',fontFamily:'inherit',color:'#fff',fontWeight:700,fontSize:'0.9rem',textAlign:'center'}}>
+                    🔑 {lang==='de'?'Konto erstellen & upgraden':'Create account & upgrade'}
+                    <div style={{fontSize:'0.7rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren — keine Kreditkarte nötig':'Free to sign up — no card needed yet'}</div>
+                  </button>
+                ) : (
+                  <>
+                    {/* Lifetime — highlighted */}
+                    <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                        <div>
+                          <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · {lang==='de'?'EMPFOHLEN':'RECOMMENDED'}</div>
+                          <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 {lang==='de'?'einmalig':'one-time'}</div>
+                          <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{lang==='de'?'Ein Werkstattbesuch kostet €120–€300':'One workshop visit costs €120–€300'}</div>
+                        </div>
+                        <div style={{fontSize:'1.1rem',marginTop:2}}>{checkoutBusy?'⏳':'→'}</div>
+                      </div>
+                    </button>
+                    {/* Monthly */}
+                    <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <div>
+                        <div style={{fontSize:'0.6rem',fontWeight:700,color:C.m,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{lang==='de'?'MONATLICH':'MONTHLY'}</div>
+                        <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / {lang==='de'?'Monat':'month'}</div>
+                      </div>
+                      <div style={{fontSize:'1.1rem'}}>{checkoutBusy?'⏳':'→'}</div>
+                    </button>
+                  </>
+                )}
               </div>
           </div>
           <button onClick={()=>setFreeLimitHit(false)} style={{width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'13px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':'Back to app'}</button>
@@ -1212,11 +1229,22 @@ export default function App() {
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             {lat && <div style={{fontSize:'0.7rem',color:C.g,background:'rgba(26,158,92,0.1)',border:'1px solid rgba(26,158,92,0.2)',borderRadius:100,padding:'4px 10px'}}>📍 {city||`${lat.toFixed(2)},${lng.toFixed(2)}`}</div>}
             {/* Auth/Account button — always visible (handles guest mode gracefully) */}
-            <button onClick={()=>setAuthScreen(user?'account':'login')} style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:100,padding:'5px 12px',fontSize:'0.7rem',cursor:'pointer',color:C.m,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
-              {user
-                ? <><span>👤</span><span style={{maxWidth:90,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>{isPro&&<span style={{color:'#E8521A',fontWeight:700,marginLeft:4}}>PRO</span>}</>
-                : <><span>🔑</span><span>{lang==='de'?'Anmelden':lang==='tr'?'Giriş':lang==='pl'?'Zaloguj':'Login'}</span></>}
-            </button>
+            <button onClick={()=>setAuthScreen(user?'account':'login')} style={{
+                background: user ? 'rgba(255,255,255,0.08)' : 'rgba(232,82,26,0.15)',
+                border: `1px solid ${user ? 'rgba(255,255,255,0.15)' : 'rgba(232,82,26,0.4)'}`,
+                borderRadius:22,padding:'8px 14px',fontSize:'0.72rem',fontWeight:600,
+                cursor:'pointer',color:user?C.t:'#E8521A',fontFamily:'inherit',
+                display:'flex',alignItems:'center',gap:6,minHeight:36,whiteSpace:'nowrap',
+              }}>
+                {user
+                  ? <><span style={{fontSize:'0.9rem'}}>👤</span>
+                      <span style={{maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>
+                      {isPro && <span style={{background:'#E8521A',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:4,padding:'1px 5px',letterSpacing:'0.05em'}}>PRO</span>}
+                    </>
+                  : <><span style={{fontSize:'0.9rem'}}>🔑</span>
+                      <span>{lang==='de'?'Anmelden':lang==='tr'?'Giriş':lang==='pl'?'Zaloguj':'Login'}</span>
+                    </>}
+              </button>
             {(() => {
               const vhCount = history.filter(h=>h&&h.problem&&(h.diagnosis||h.confidence)).length;
               return vhCount > 0 && (
@@ -1478,18 +1506,35 @@ export default function App() {
             <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8',marginBottom:4}}>{lang==='de'?'Unbegrenzte KI-Analysen':'Unlimited AI Diagnoses'}</div>
             <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.38)',marginBottom:14}}>€3.99/Monat · €17.99 {lang==='de'?'einmalig':'lifetime'}</div>
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                {/* Lifetime — highlighted */}
-                <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.6:1}}>
-                  <div style={{fontSize:'0.62rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · EMPFOHLEN</div>
-                  <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 einmalig</div>
-                  <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>Ein Werkstattbesuch kostet €120–€300</div>
-                </button>
-                {/* Monthly */}
-                <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'13px',cursor:'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.6)',textAlign:'left',opacity:checkoutBusy?0.6:1}}>
-                  <div style={{fontSize:'0.62rem',fontWeight:700,color:C.m,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>MONATLICH</div>
-                  <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / Monat</div>
-                </button>
-                {!user && <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.3)',textAlign:'center',marginTop:2}}>{lang==='de'?'Konto erforderlich — kostenlos und schnell':'Account required — free and quick'}</div>}
+                {!user ? (
+                  // Not logged in — show login prompt instead of checkout
+                  <button onClick={()=>setAuthScreen('signup')} style={{background:'rgba(232,82,26,0.9)',border:'none',borderRadius:12,padding:'14px',cursor:'pointer',fontFamily:'inherit',color:'#fff',fontWeight:700,fontSize:'0.9rem',textAlign:'center'}}>
+                    🔑 {lang==='de'?'Konto erstellen & upgraden':'Create account & upgrade'}
+                    <div style={{fontSize:'0.7rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren — keine Kreditkarte nötig':'Free to sign up — no card needed yet'}</div>
+                  </button>
+                ) : (
+                  <>
+                    {/* Lifetime — highlighted */}
+                    <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                        <div>
+                          <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · {lang==='de'?'EMPFOHLEN':'RECOMMENDED'}</div>
+                          <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 {lang==='de'?'einmalig':'one-time'}</div>
+                          <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{lang==='de'?'Ein Werkstattbesuch kostet €120–€300':'One workshop visit costs €120–€300'}</div>
+                        </div>
+                        <div style={{fontSize:'1.1rem',marginTop:2}}>{checkoutBusy?'⏳':'→'}</div>
+                      </div>
+                    </button>
+                    {/* Monthly */}
+                    <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <div>
+                        <div style={{fontSize:'0.6rem',fontWeight:700,color:C.m,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{lang==='de'?'MONATLICH':'MONTHLY'}</div>
+                        <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / {lang==='de'?'Monat':'month'}</div>
+                      </div>
+                      <div style={{fontSize:'1.1rem'}}>{checkoutBusy?'⏳':'→'}</div>
+                    </button>
+                  </>
+                )}
               </div>
           </div>
           <button onClick={()=>setFreeLimitHit(false)} style={{width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'13px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':'Back to app'}</button>

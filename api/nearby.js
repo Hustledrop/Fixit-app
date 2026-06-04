@@ -223,6 +223,12 @@ function fetchOverpass(host, query) {
       let data = '';
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
+        if (res.statusCode === 429) {
+          // Rate-limited — skip immediately, don't wait for body
+          console.warn(`[nearby] ${host} HTTP 429 (rate limited) — skipping to next endpoint`);
+          reject(new Error(`HTTP 429 rate-limited from ${host}`));
+          return;
+        }
         if (res.statusCode !== 200) {
           console.error(`[nearby] ${host} HTTP ${res.statusCode} body: ${data.substring(0, 500)}`);
           reject(new Error(`HTTP ${res.statusCode} from ${host}`));
@@ -346,6 +352,9 @@ module.exports = async function handler(req, res) {
   const results = out.slice(0, 25);
 
   // Category debug logs
+  if (cat === 'petrol') {
+    console.log(`[nearby] PETROL rawElements=${elements.length} filtered=${finalResults.length} filteredOut=${filteredOut} fallback=${!data}`);
+  }
   if (cat === 'tyres' || cat === 'parts' || cat === 'moto') {
     const fallbackUsed = results.length === 0;
     const tag = cat === 'tyres' ? 'TYRES_DEBUG' : 'PARTS_DEBUG';
