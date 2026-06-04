@@ -1,35 +1,27 @@
 // api/nearby.js — Overpass proxy for FixIt nearby search
-// FIXIT_NEARBY_STABLE_REVERT_V4
-// Two proven endpoints only. maps.mail.ru removed.
+// Queries restored to uploaded stable version.
+// Kept: displayName brand/operator fix, fallbackUsed, 429 skip, moto category.
 
 const OVERPASS_ENDPOINTS = [
   'overpass-api.de',
   'overpass.kumi.systems',
 ];
 
-// Standard bbox for all categories (≈7km × 7km at 50°N)
+// Bbox constants — same as uploaded working version (calculated inline per query)
 const BBOX_NS = 0.03;
 const BBOX_EW = 0.05;
 
-// Tyres uses a larger search area (fuel/tyre shops are sparser)
-const TYRES_BBOX_NS = 0.05;
-const TYRES_BBOX_EW = 0.07;
-
-// Keyword regexes for Overpass name~ queries (ASCII-only for Overpass ERE)
-const TYRE_NAME_REGEX  = 'Reifen|Tyre|Tire|Vulkan|Felgen|Rader|Wheels|Wheel';
-const PARTS_NAME_REGEX = 'Autoteile|KFZ.Teile|Kfz.Teile|Ersatzteil|Autozubeh|Zubeh|Teile';
-const MOTO_NAME_REGEX  = 'Motorrad|Motorbike|Motorcycle|Scooter|Roller|Zweirad|Moped';
-
 function buildQuery(cat, latN, lngN) {
-  const ns = cat === 'tyres' ? TYRES_BBOX_NS : BBOX_NS;
-  const ew = cat === 'tyres' ? TYRES_BBOX_EW : BBOX_EW;
-
-  const south = (latN - ns).toFixed(6);
-  const north = (latN + ns).toFixed(6);
-  const west  = (lngN - ew).toFixed(6);
-  const east  = (lngN + ew).toFixed(6);
+  const south = (latN - BBOX_NS).toFixed(6);
+  const north = (latN + BBOX_NS).toFixed(6);
+  const west  = (lngN - BBOX_EW).toFixed(6);
+  const east  = (lngN + BBOX_EW).toFixed(6);
   const b     = `${south},${west},${north},${east}`;
 
+  // Queries restored to the stable uploaded version.
+  // TYRES: was 3 lines in uploaded (worked). Extra name~ lines added later caused heavy load.
+  // PARTS: was 4 lines in uploaded (worked). Extra name~ lines added later caused heavy load.
+  // Kept: moto (new category), petrol (unchanged), garage/hardware/vet/it (unchanged).
   const parts = {
     garage: [
       `node["shop"="car_repair"](${b})`,
@@ -38,38 +30,18 @@ function buildQuery(cat, latN, lngN) {
       `node["craft"="car_repair"](${b})`,
       `way["craft"="car_repair"](${b})`,
     ],
+    // Restored to 4-line query from uploaded stable version
     parts: [
       `node["shop"="car_parts"](${b})`,
       `way["shop"="car_parts"](${b})`,
       `node["shop"="auto_parts"](${b})`,
       `way["shop"="auto_parts"](${b})`,
-      `node["service:vehicle:parts"="yes"](${b})`,
-      `way["service:vehicle:parts"="yes"](${b})`,
-      `node["shop"="car_repair"]["name"~"${PARTS_NAME_REGEX}",i](${b})`,
-      `way["shop"="car_repair"]["name"~"${PARTS_NAME_REGEX}",i](${b})`,
     ],
+    // Restored to 3-line query from uploaded stable version
     tyres: [
       `node["shop"="tyres"](${b})`,
       `way["shop"="tyres"](${b})`,
-      `relation["shop"="tyres"](${b})`,
-      `node["shop"="vulcanizer"](${b})`,
-      `way["shop"="vulcanizer"](${b})`,
-      `node["craft"="tyre_fitting"](${b})`,
-      `way["craft"="tyre_fitting"](${b})`,
-      `node["service:vehicle:tyres"="yes"](${b})`,
-      `way["service:vehicle:tyres"="yes"](${b})`,
-      `node["service:vehicle:tires"="yes"](${b})`,
-      `way["service:vehicle:tires"="yes"](${b})`,
-      `node["service:vehicle:wheels"="yes"](${b})`,
-      `way["service:vehicle:wheels"="yes"](${b})`,
-      `node["service:tyres"="yes"](${b})`,
-      `way["service:tyres"="yes"](${b})`,
-      `node["shop"="car_repair"]["name"~"${TYRE_NAME_REGEX}",i](${b})`,
-      `way["shop"="car_repair"]["name"~"${TYRE_NAME_REGEX}",i](${b})`,
-      `node["shop"="auto_parts"]["name"~"${TYRE_NAME_REGEX}",i](${b})`,
-      `way["shop"="auto_parts"]["name"~"${TYRE_NAME_REGEX}",i](${b})`,
-      `node["amenity"="car_repair"]["name"~"${TYRE_NAME_REGEX}",i](${b})`,
-      `way["amenity"="car_repair"]["name"~"${TYRE_NAME_REGEX}",i](${b})`,
+      `node["shop"="car_repair"]["service:tyres"="yes"](${b})`,
     ],
     petrol: [
       `node["amenity"="fuel"](${b})`,
@@ -92,92 +64,58 @@ function buildQuery(cat, latN, lngN) {
       `way["craft"="electronics_repair"](${b})`,
       `node["shop"="mobile_phone"](${b})`,
     ],
+    // Moto: kept as new category (not in uploaded but requested feature)
     moto: [
       `node["shop"="motorcycle"](${b})`,
       `way["shop"="motorcycle"](${b})`,
-      `relation["shop"="motorcycle"](${b})`,
       `node["craft"="motorcycle_repair"](${b})`,
       `way["craft"="motorcycle_repair"](${b})`,
       `node["service:vehicle:motorcycle"="yes"](${b})`,
       `way["service:vehicle:motorcycle"="yes"](${b})`,
-      `node["shop"="scooter"](${b})`,
-      `way["shop"="scooter"](${b})`,
-      `node["shop"="car_repair"]["name"~"${MOTO_NAME_REGEX}",i](${b})`,
-      `way["shop"="car_repair"]["name"~"${MOTO_NAME_REGEX}",i](${b})`,
-      `node["shop"="vehicle"]["name"~"${MOTO_NAME_REGEX}",i](${b})`,
-      `way["shop"="vehicle"]["name"~"${MOTO_NAME_REGEX}",i](${b})`,
     ],
   };
 
   const lines = (parts[cat] || parts.garage).join(';\n  ');
-  return { query: `[out:json][timeout:8];\n(\n  ${lines};\n);\nout center tags;`, south, west, north, east };
+  // timeout:25 matches the uploaded stable version (was [timeout:25])
+  return { query: `[out:json][timeout:25];\n(\n  ${lines};\n);\nout center tags;`, south, west, north, east };
 }
 
-// Server-side keyword filters
-const TYRE_KEYWORDS  = /reifen|tyre|tire|vulkan|felgen|räder|rader|wheel/i;
-const PARTS_KEYWORDS = /autoteile|kfz.?teile|ersatzteil|autozubeh|zubehör|zubeh/i;
-const MOTO_KEYWORDS  = /motorrad|motorbike|motorcycle|scooter|roller|zweirad|moto|moped/i;
-
-function isTyreRelevant(el) {
-  const tags = el.tags || {};
-  if (['tyres','vulcanizer'].includes(tags.shop)) return true;
-  if (tags.craft === 'tyre_fitting') return true;
-  if (tags['service:vehicle:tyres'] === 'yes') return true;
-  if (tags['service:vehicle:tires'] === 'yes') return true;
-  if (tags['service:vehicle:wheels'] === 'yes') return true;
-  if (tags['service:tyres'] === 'yes') return true;
-  const s = [tags.name, tags.brand, tags.operator].filter(Boolean).join(' ');
-  return TYRE_KEYWORDS.test(s);
-}
-
-function isPartsRelevant(el) {
-  const tags = el.tags || {};
-  if (['car_parts','auto_parts'].includes(tags.shop)) return true;
-  if (tags['service:vehicle:parts'] === 'yes') return true;
-  const s = [tags.name, tags.brand, tags.operator].filter(Boolean).join(' ');
-  return PARTS_KEYWORDS.test(s);
-}
-
-function isMotoRelevant(el) {
-  const tags = el.tags || {};
-  if (['motorcycle','scooter'].includes(tags.shop)) return true;
-  if (tags.craft === 'motorcycle_repair') return true;
-  if (tags['service:vehicle:motorcycle'] === 'yes') return true;
-  const s = [tags.name, tags.brand, tags.operator, tags.description].filter(Boolean).join(' ');
-  return MOTO_KEYWORDS.test(s);
-}
-
-function haversine(lat1, lon1, lat2, lon2) {
+function haversine(la1, lo1, la2, lo2) {
   const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dLa = (la2 - la1) * Math.PI / 180;
+  const dLo = (lo2 - lo1) * Math.PI / 180;
+  const a = Math.sin(dLa / 2) ** 2 +
+    Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function fetchOverpass(host, query, south, west, north, east) {
+function fetchOverpass(host, query) {
   return new Promise((resolve, reject) => {
     const https = require('https');
-    const body  = `data=${encodeURIComponent(query)}`;
-    const opts  = {
+    const encoded = 'data=' + encodeURIComponent(query);
+    const body    = Buffer.from(encoded, 'utf8');
+    const options = {
       hostname: host,
       path:     '/api/interpreter',
       method:   'POST',
       headers:  {
         'Content-Type':   'application/x-www-form-urlencoded',
-        'Content-Length': Buffer.byteLength(body),
-        'User-Agent':     'FixIt/1.0 Vercel-Proxy',
+        'Content-Length': body.length,
+        'User-Agent':     'FixItApp/1.0 Vercel-Proxy',
         'Accept':         'application/json',
       },
-      timeout: 9000,  // 9s per host × 2 hosts = 18s max, safely under Vercel 25s limit
+      // Restored to 22s from uploaded stable version.
+      // Reduced to 9s was the main regression causing timeouts on cold Overpass queries.
+      // 2 hosts × 22s = 44s max but Vercel maxDuration=25s means only ~1 host can fully run.
+      // In practice: first host usually responds in 2-8s; second is only reached on failure.
+      timeout: 22000,
     };
 
-    const req = https.request(opts, res => {
+    const req = https.request(options, res => {
       let data = '';
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
         if (res.statusCode === 429) {
-          // Rate-limited — skip immediately
           console.warn(`[nearby] ${host} HTTP 429 (rate limited) — skipping to next endpoint`);
           reject(new Error(`HTTP 429 rate-limited from ${host}`));
           return;
@@ -190,13 +128,14 @@ function fetchOverpass(host, query, south, west, north, east) {
         try {
           resolve(JSON.parse(data));
         } catch (e) {
-          reject(new Error(`JSON parse error from ${host}: ${e.message}`));
+          console.error(`[nearby] ${host} invalid JSON: ${data.substring(0, 200)}`);
+          reject(new Error(`Invalid JSON from ${host}`));
         }
       });
     });
 
-    req.on('timeout', () => { req.destroy(); reject(new Error(`${host} timeout`)); });
-    req.on('error',   err => reject(err));
+    req.on('error',   err => reject(new Error(`${host} network error: ${err.message}`)));
+    req.on('timeout', ()  => { req.destroy(); reject(new Error(`${host} timeout`)); });
     req.write(body);
     req.end();
   });
@@ -215,21 +154,16 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { query, south, west, north, east } = buildQuery(cat, latN, lngN);
-  const radiusKm = cat === 'tyres'
-    ? `${(TYRES_BBOX_NS * 111).toFixed(0)}km`
-    : `${(BBOX_NS * 111).toFixed(0)}km`;
-
-  console.log(`[nearby] REQUEST cat=${cat} lat=${latN} lng=${lngN} radius=${radiusKm}`);
+  const { query } = buildQuery(cat, latN, lngN);
+  console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN}`);
 
   let data = null;
   let lastErr = null;
 
   for (const host of OVERPASS_ENDPOINTS) {
     try {
-      console.log(`[nearby] trying ${host}...`);
-      data = await fetchOverpass(host, query, south, west, north, east);
-      console.log(`[nearby] ${host} OK — ${(data.elements||[]).length} raw elements`);
+      data = await fetchOverpass(host, query);
+      console.log(`[nearby] ${host} OK — ${(data.elements||[]).length} elements`);
       break;
     } catch (err) {
       lastErr = err;
@@ -239,7 +173,6 @@ export default async function handler(req, res) {
 
   if (!data) {
     console.error(`[nearby] all endpoints failed: ${lastErr?.message}`);
-    console.warn(`[nearby] ${cat.toUpperCase()}_FALLBACK reason=endpoint_failure`);
     res.status(200).json({
       results: [],
       fallbackUsed: true,
@@ -251,36 +184,28 @@ export default async function handler(req, res) {
   }
 
   const elements = data.elements || [];
-  const rawCount = elements.length;
-  const seen     = {};
-  const out      = [];
-  let filteredOut = 0;
-
-  const distLimit = cat === 'tyres' ? 12 : 15;
+  const seen = {};
+  const out  = [];
 
   elements.forEach(el => {
     const tags = el.tags || {};
     // Use name → brand → operator → amenity as display name
-    // Many petrol/fuel stations have brand but no name tag
+    // Petrol stations often have brand but no name tag
     const displayName = tags.name || tags.brand || tags.operator || tags.amenity || null;
-    if (!displayName) return;
-
-    // Server-side relevance filters
-    if (cat === 'tyres' && !isTyreRelevant(el)) { filteredOut++; return; }
-    if (cat === 'parts' && !isPartsRelevant(el)) { filteredOut++; return; }
-    if (cat === 'moto'  && !isMotoRelevant(el))  { filteredOut++; return; }
-
-    if (seen[displayName]) return;
+    if (!displayName || seen[displayName]) return;
     seen[displayName] = true;
 
     const elLat = el.lat ?? el.center?.lat;
     const elLon = el.lon ?? el.center?.lon;
     if (!elLat || !elLon) return;
 
-    const dist = haversine(latN, lngN, elLat, elLon);
-    if (dist > distLimit) return;
+    const dist = haversine(latN, lngN, parseFloat(elLat), parseFloat(elLon));
+    if (dist > 15) return;
 
-    const street = [tags['addr:housenumber'], tags['addr:street']].filter(Boolean).join(' ') || null;
+    const street = el.tags['addr:street']
+      ? el.tags['addr:street'] + (el.tags['addr:housenumber'] ? ' ' + el.tags['addr:housenumber'] : '')
+      : null;
+
     out.push({
       name:    displayName,
       lat:     parseFloat(elLat),
@@ -296,10 +221,6 @@ export default async function handler(req, res) {
   out.sort((a, b) => a.dist - b.dist);
   const results = out.slice(0, 25);
 
-  // Safe debug log — no undefined variable references
-  console.log(
-    `[nearby] cat=${cat} raw=${rawCount} filtered_out=${filteredOut} returned=${results.length} fallback=false`
-  );
-
+  console.log(`[nearby] cat=${cat} raw=${elements.length} returned=${results.length}`);
   res.status(200).json({ results, cat });
 }
