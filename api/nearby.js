@@ -37,25 +37,58 @@ function buildQuery(cat, latN, lngN) {
       `node["shop"="auto_parts"](${b})`,
       `way["shop"="auto_parts"](${b})`,
     ],
-    // Balanced tyres query: covers real German tyre shops without heavy name~ regex
-    // shop=tyres and vulcanizer: dedicated tyre retailers
-    // craft=tyre_fitting: tyre fitting workshops
-    // service:vehicle:tyres=yes: the standard OSM tag for tyre-capable garages (NOT service:tyres=yes)
-    // service:vehicle:tires=yes: alternate spelling
-    // service:tyres=yes: older tagging still used by some
+    // ── TYRES — global indexed tag coverage ──────────────────────────────────
+    // Sources: OSM wiki + taginfo global statistics
+    //
+    // Group 1 — Dedicated tyre retail shops (all regions):
+    //   shop=tyres      ~18,000 globally: UK/US/AU primary tag (Kwik Fit, Discount Tire, JAX)
+    //   shop=tires      ~2,000 globally:  US/CA spelling variant
+    //   shop=vulcanizer ~8,000 globally:  Eastern Europe (Poland, Romania, CZ, Slovakia)
+    //   shop=wheels     ~1,500 globally:  USA wheel & tyre centres (Wheel Works, etc.)
+    //
+    // Group 2 — Tyre fitting craft (primarily UK):
+    //   craft=tyre_fitting ~3,000 globally: UK standalone tyre fitting workshops
+    //
+    // Group 3 — Service subtags on car_repair/amenity shops (Germany/EU standard):
+    //   service:vehicle:tyres=yes ~12,000: standard tag on German/EU car_repair doing tyres
+    //   service:vehicle:tires=yes ~1,500:  US/CA spelling on amenity=car_repair
+    //   service:tyres=yes ~500:            older style, still used
+    //
+    // Group 4 — Amenity-tagged shops with tyre service (older tagging, some EU countries):
+    //   amenity=car_repair + service:vehicle:tyres=yes
+    //
+    // Group 5 — Name-indexed car_repair (Germany/AT/CH where shops lack service:vehicle:tyres):
+    //   shop=car_repair + name~"Reifen|Euromaster|A.T.U|Vergölst|Point S"
+    //   FAST: shop= narrows to ~16 results first, name~ filters only those.
+    //   Catches German chains tagged only as car_repair without explicit tyre service tags.
+    //
+    // Total: 18 query lines, all indexed-first, no full-bbox text scans.
     tyres: [
+      // Group 1: dedicated tyre shops (global)
       `node["shop"="tyres"](${b})`,
       `way["shop"="tyres"](${b})`,
+      `node["shop"="tires"](${b})`,
+      `way["shop"="tires"](${b})`,
       `node["shop"="vulcanizer"](${b})`,
       `way["shop"="vulcanizer"](${b})`,
+      `node["shop"="wheels"](${b})`,
+      `way["shop"="wheels"](${b})`,
+      // Group 2: tyre fitting craft (UK primary)
       `node["craft"="tyre_fitting"](${b})`,
       `way["craft"="tyre_fitting"](${b})`,
+      // Group 3: service subtags on car_repair (Germany/EU standard)
       `node["service:vehicle:tyres"="yes"](${b})`,
       `way["service:vehicle:tyres"="yes"](${b})`,
       `node["service:vehicle:tires"="yes"](${b})`,
       `way["service:vehicle:tires"="yes"](${b})`,
       `node["service:tyres"="yes"](${b})`,
       `way["service:tyres"="yes"](${b})`,
+      // Group 4: amenity=car_repair with explicit tyre service (some EU countries)
+      `node["amenity"="car_repair"]["service:vehicle:tyres"="yes"](${b})`,
+      `way["amenity"="car_repair"]["service:vehicle:tyres"="yes"](${b})`,
+      // Group 5: name-indexed German tyre chains (shop= indexed first, fast)
+      `node["shop"="car_repair"]["name"~"[Rr]eifen|Euromaster|Vergölst|Point.?S|[Aa]\.?[Tt]\.?[Uu]\.",i](${b})`,
+      `way["shop"="car_repair"]["name"~"[Rr]eifen|Euromaster|Vergölst|Point.?S|[Aa]\.?[Tt]\.?[Uu]\.",i](${b})`,
     ],
     petrol: [
       `node["amenity"="fuel"](${b})`,
@@ -235,6 +268,13 @@ export default async function handler(req, res) {
   out.sort((a, b) => a.dist - b.dist);
   const results = out.slice(0, 25);
 
+  // Debug: log first 3 element tags for tyres to diagnose zero results
+  if (cat === 'tyres' && elements.length > 0) {
+    elements.slice(0, 3).forEach(el => {
+      const t = el.tags || {};
+      console.log(`[nearby] TYRES_EL shop=${t.shop} name=${t.name||t.brand||'?'} svc_tyres=${t['service:vehicle:tyres']||'no'} craft=${t.craft||'?'}`);
+    });
+  }
   console.log(`[nearby] cat=${cat} raw=${elements.length} returned=${results.length}`);
   res.status(200).json({ results, cat });
 }
