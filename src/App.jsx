@@ -577,8 +577,7 @@ export default function App() {
       setFreeLimitHit(true);
       Analytics.limitReached();
       Analytics.paywallViewed();
-      goto('home');  // navigate to home so paywall overlay is visible
-      return;
+      return;  // paywall overlay renders on current screen (home or fix-now)
     }
     setFeedback(null);
     // Clear stale SS.aiResult BEFORE entering result screen
@@ -1079,8 +1078,8 @@ export default function App() {
           <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>
           <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>
           <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>
-          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8',letterSpacing:'-0.02em'}}>{lang==='de'?'Kostenlose Analysen aufgebraucht':lang==='tr'?'Ücretsiz analizler tükendi':lang==='pl'?'Darmowe analizy wyczerpane':'Free analyses used'}</div>
-          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.4)',textAlign:'center',lineHeight:1.65,marginBottom:28,maxWidth:300}}>{lang==='de'?'Du hast deine 3 kostenlosen KI-Analysen genutzt. Nearby, Ersatzteile und Notfall bleiben immer kostenlos.':'You have used your 3 free AI analyses. Nearby, parts and emergency remain free.'}</div>
+          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8',letterSpacing:'-0.02em'}}>{lang==='de'?'Kostenlose Analyse genutzt':lang==='tr'?'Ücretsiz analiz kullanıldı':lang==='pl'?'Darmowa analiza wykorzystana':'Free diagnosis used'}</div>
+          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.4)',textAlign:'center',lineHeight:1.65,marginBottom:28,maxWidth:300}}>{lang==='de'?'Du hast deine kostenlose KI-Analyse genutzt. Nearby, Ersatzteile und Notfall bleiben weiterhin verfügbar.':lang==='tr'?'Ücretsiz AI analizini kullandın. Yakındaki ve acil durum her zaman ücretsizdir.':lang==='pl'?'Wykorzystałeś swoją bezpłatną analizę AI. Usługi w pobliżu i nagłe przypadki są zawsze bezpłatne.':'You have used your free AI diagnosis. Nearby, parts and emergency remain available.'}</div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:28}}>{[['✅','Nearby & Maps'],['✅','Parts finder'],['✅','Emergency'],['🔒','Unlimited AI']].map(([ic,lb])=>(<div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>))}</div>
           <div style={{width:'100%',maxWidth:340,background:'linear-gradient(135deg,rgba(232,82,26,0.12),rgba(232,82,26,0.04))',border:'1px solid rgba(232,82,26,0.25)',borderRadius:18,padding:'20px',marginBottom:14,textAlign:'center'}}>
             <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>FIXIT PRO</div>
@@ -1344,6 +1343,25 @@ export default function App() {
   // ── FIX NOW ──────────────────────────────────────────────────────────────────
   if (screen === 'fix-now') return (
     <Screen>
+      {freeLimitHit && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>
+          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
+          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>
+          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>
+          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>
+          <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>
+          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8',letterSpacing:'-0.02em'}}>{lang==='de'?'Kostenlose Analyse genutzt':lang==='tr'?'Ücretsiz analiz kullanıldı':lang==='pl'?'Darmowa analiza wykorzystana':'Free diagnosis used'}</div>
+          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.4)',textAlign:'center',lineHeight:1.65,marginBottom:28,maxWidth:300}}>{lang==='de'?'Du hast deine kostenlose KI-Analyse genutzt. Nearby, Ersatzteile und Notfall bleiben weiterhin verfügbar.':'You have used your free AI diagnosis. Nearby, parts and emergency remain available.'}</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:28}}>{[['✅','Nearby & Maps'],['✅','Parts finder'],['✅','Emergency'],['🔒','Unlimited AI']].map(([ic,lb])=>(<div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>))}</div>
+          <div style={{width:'100%',maxWidth:340,background:'linear-gradient(135deg,rgba(232,82,26,0.12),rgba(232,82,26,0.04))',border:'1px solid rgba(232,82,26,0.25)',borderRadius:18,padding:'20px',marginBottom:14,textAlign:'center'}}>
+            <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>FIXIT PRO</div>
+            <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8',marginBottom:4}}>{lang==='de'?'Unbegrenzte KI-Analysen':'Unlimited AI Diagnoses'}</div>
+            <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.38)',marginBottom:14}}>€3.99/Monat · €17.99 {lang==='de'?'einmalig':'lifetime'}</div>
+            <div style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'11px',fontSize:'0.73rem',color:'rgba(255,255,255,0.35)',fontStyle:'italic'}}>🚧 {lang==='de'?'Pro-Upgrade — demnächst verfügbar':'Pro upgrade — coming soon'}</div>
+          </div>
+          <button onClick={()=>setFreeLimitHit(false)} style={{width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'13px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':'Back to app'}</button>
+        </div>
+      )}
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
       <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <BackBtn/>
