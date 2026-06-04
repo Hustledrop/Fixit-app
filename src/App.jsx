@@ -577,6 +577,7 @@ export default function App() {
       setFreeLimitHit(true);
       Analytics.limitReached();
       Analytics.paywallViewed();
+      goto('home');  // navigate to home so paywall overlay is visible
       return;
     }
     setFeedback(null);

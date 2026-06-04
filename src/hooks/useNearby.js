@@ -17,7 +17,6 @@ const CACHE = new Map();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 function cacheKey(cat, lat, lng) {
-  // Round to 2 decimal places ≈ 1km precision — same area = same cache entry
   return `${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}`;
 }
 
@@ -43,14 +42,13 @@ export function useNearby() {
   const fetchBiz = useCallback(async (cat, lat, lng) => {
     if (!lat || !lng) { setError('loc'); setFallback(false); return; }
 
-    // ── Cache hit: show instantly, refresh in background ──────────────────
+    // Cache hit: show instantly, refresh in background
     const cached = getCached(cat, lat, lng);
     if (cached) {
       setBizs(cached);
-      setStale(true);    // mark as stale so UI can show "Letzte Ergebnisse"
+      setStale(true);
       setFallback(false);
       setError(cached.length === 0 ? 'empty' : null);
-      // Revalidate in background without showing spinner
     }
 
     const thisReq = ++reqId.current;
@@ -64,23 +62,9 @@ export function useNearby() {
 
     try {
       const url = `/api/nearby?cat=${encodeURIComponent(cat)}&lat=${lat}&lng=${lng}`;
-      // 6s client-side timeout: show Maps fallback fast if Overpass is cold/slow
-      // The server request continues; if it resolves later, we update silently.
-      const controller = new AbortController();
-      const fetchTimer = setTimeout(() => controller.abort(), 6000);
-      let res;
-      try {
-        res = await fetch(url, { signal: controller.signal });
-        clearTimeout(fetchTimer);
-      } catch (abortErr) {
-        clearTimeout(fetchTimer);
-        // Timed out on client side — show fallback immediately
-        if (thisReq !== reqId.current) return;
-        setFallback(true);
-        if (!cached) setError('empty'); // triggers Maps fallback card
-        setLoading(false);
-        return;
-      }
+      // No client-side abort — let the server's 7s per-host timeout handle it.
+      // The Vercel function has 25s maxDuration which is the real ceiling.
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`API HTTP ${res.status}`);
       const data = await res.json();
       if (thisReq !== reqId.current) return;
@@ -88,15 +72,14 @@ export function useNearby() {
       const results = data.results || [];
 
       if (data.fallbackUsed) {
-        // Overpass failed — show cached if available, otherwise show Maps fallback card
         setFallback(true);
         if (cached && cached.length > 0) {
-          setBizs(cached);  // keep showing last known results
+          setBizs(cached);
           setStale(true);
           setError(null);
         } else {
           setBizs([]);
-          setError('empty'); // triggers Maps fallback in UI
+          setError('empty');
         }
       } else {
         setCache(cat, lat, lng, results);
@@ -111,7 +94,6 @@ export function useNearby() {
       console.error('[useNearby] fetch failed:', err.message);
       setFallback(true);
       if (!cached) setError('error');
-      // If we had cached data, it remains displayed — don't overwrite with error
     } finally {
       if (thisReq === reqId.current) setLoading(false);
     }
