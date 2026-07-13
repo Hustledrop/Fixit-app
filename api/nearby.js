@@ -114,31 +114,46 @@ module.exports = async function handler(req, res) {
   const latN = parseFloat(lat), lngN = parseFloat(lng);
   if (isNaN(latN) || isNaN(lngN)) { res.status(400).json({ error: 'Invalid lat/lng' }); return; }
 
-  // Bbox — EW slightly wider (0.055) to avoid edge shops being missed by floating point
-  const south = (latN - 0.03).toFixed(6);
-  const north = (latN + 0.03).toFixed(6);
-  const west  = (lngN - 0.055).toFixed(6);
-  const east  = (lngN + 0.055).toFixed(6);
+  // ── Progressive bbox: small first, expand only if 0 results ──────────────
+  // Pass 1: ~3.5km radius — enough for most urban/suburban users
+  // Pass 2: ~7km radius — for village users with no services in immediate vicinity
+  // This ensures village users near Veles/Macedonia still find nearest services
+  const PASS1 = { ns: 0.03,  ew: 0.055 };
+  const PASS2 = { ns: 0.06,  ew: 0.10  };
 
-  const query = buildQuery(cat, south, west, north, east);
-  console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN} bbox:S=${south} W=${west} N=${north} E=${east}`);
-
-  let data = null, lastErr = null;
-  for (const host of OVERPASS_ENDPOINTS) {
-    try {
-      data = await fetchOverpass(host, query);
-      console.log(`[nearby] ${host} OK — ${(data.elements||[]).length} elements`);
-      break;
-    } catch (err) {
-      lastErr = err;
-      console.warn(`[nearby] ${host} failed: ${err.message}`);
+  async function tryFetch(ns, ew) {
+    const south = (latN - ns).toFixed(6);
+    const north = (latN + ns).toFixed(6);
+    const west  = (lngN - ew).toFixed(6);
+    const east  = (lngN + ew).toFixed(6);
+    const query = buildQuery(cat, south, west, north, east);
+    console.log(`[nearby] cat=${cat} bbox NS=${ns} EW=${ew}`);
+    for (const host of OVERPASS_ENDPOINTS) {
+      try {
+        const d = await fetchOverpass(host, query);
+        console.log(`[nearby] ${host} OK — ${(d.elements||[]).length} elements`);
+        return d;
+      } catch (err) {
+        console.warn(`[nearby] ${host} failed: ${err.message}`);
+      }
     }
+    return null;
+  }
+
+  let data = await tryFetch(PASS1.ns, PASS1.ew);
+  let usedPass2 = false;
+
+  // Expand radius for village users: if 0 elements returned, try wider bbox
+  if (data && (data.elements||[]).length === 0) {
+    console.log(`[nearby] 0 elements in pass 1 — expanding to ${PASS2.ns}°NS x ${PASS2.ew}°EW for village coverage`);
+    const data2 = await tryFetch(PASS2.ns, PASS2.ew);
+    if (data2) { data = data2; usedPass2 = true; }
   }
 
   if (!data) {
-    console.error(`[nearby] all endpoints failed: ${lastErr?.message}`);
+    console.error(`[nearby] all endpoints failed`);
     res.status(200).json({ results: [], fallbackUsed: true,
-      fallbackReason: 'endpoint_failure', error: lastErr?.message, cat });
+      fallbackReason: 'endpoint_failure', cat });
     return;
   }
 

@@ -1063,6 +1063,9 @@ export default function App() {
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             {lat && <div style={{fontSize:'0.7rem',color:C.g,background:'rgba(26,158,92,0.1)',border:'1px solid rgba(26,158,92,0.2)',borderRadius:100,padding:'4px 10px'}}>📍 {city||`${lat.toFixed(2)},${lng.toFixed(2)}`}</div>}
             {history.length > 0 && <button onClick={()=>setShowHistory(true)} style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:100,padding:'5px 10px',fontSize:'0.7rem',cursor:'pointer',color:C.m,fontFamily:'inherit'}}>🕐 {history.length}</button>}
+            <button onClick={()=>setAuthScreen(user?'account':'login')} style={{background:user?'rgba(255,255,255,0.08)':'rgba(232,82,26,0.15)',border:`1px solid ${user?'rgba(255,255,255,0.15)':'rgba(232,82,26,0.4)'}`,borderRadius:22,padding:'7px 13px',fontSize:'0.72rem',fontWeight:600,cursor:'pointer',color:user?'#F0EDE8':'#E8521A',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,minHeight:34,whiteSpace:'nowrap'}}>
+              {user?<><span>👤</span><span style={{maxWidth:72,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>{isPro&&<span style={{background:'#E8521A',color:'#fff',fontSize:'0.58rem',fontWeight:800,borderRadius:4,padding:'1px 4px',marginLeft:3}}>PRO</span>}</>:<><span>🔑</span><span>{lang==='de'?'Anmelden':lang==='mk'?'Влез':lang==='tr'?'Giriş':'Login'}</span></>}
+            </button>
             <button onClick={()=>setShowLP(true)} style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:100,padding:'5px 12px',fontSize:'0.8rem',cursor:'pointer',color:C.m,fontFamily:'inherit'}}>{LANGS[lang]?.f} {lang.toUpperCase()}</button>
           </div>
         </div>
@@ -1097,10 +1100,7 @@ export default function App() {
                   <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
                   <div style={{fontSize:'0.72rem',color:C.m,marginBottom:6}}>{h.diagnosis}</div>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
-              {/* Auth button — always visible */}
-              <button onClick={()=>setAuthScreen(user?'account':'login')} style={{background:user?'rgba(255,255,255,0.08)':'rgba(232,82,26,0.15)',border:`1px solid ${user?'rgba(255,255,255,0.15)':'rgba(232,82,26,0.4)'}`,borderRadius:22,padding:'7px 13px',fontSize:'0.72rem',fontWeight:600,cursor:'pointer',color:user?'#F0EDE8':'#E8521A',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,minHeight:34,whiteSpace:'nowrap'}}>
-                {user?<><span>👤</span><span style={{maxWidth:75,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>{isPro&&<span style={{background:'#E8521A',color:'#fff',fontSize:'0.58rem',fontWeight:800,borderRadius:4,padding:'1px 4px',letterSpacing:'0.05em',marginLeft:3}}>PRO</span>}</>:<><span>🔑</span><span>{lang==='de'?'Anmelden':lang==='mk'?'Влез':'Login'}</span></>}
-              </button>
+              
                     <span style={{fontSize:'0.65rem',color:C.m}}>{new Date(h.date).toLocaleDateString()}</span>
                     {h.fixed===true && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
                     {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
