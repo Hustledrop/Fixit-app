@@ -182,7 +182,8 @@ export default function App() {
   const [toast, setToast]         = useState(null);
   const [history, setHistory]     = useState(() => LS.get('history') || []);
   const [showHistory, setShowHistory] = useState(false);
-  const [nearbyBump, setNearbyBump]   = useState(0); // increment to force nearby refresh
+  const [nearbyBump,  setNearbyBump]  = useState(0); // increment to force nearby refresh
+  const [nearbyForce, setNearbyForce] = useState(false); // true = bypass 30min cache
   const [isOnline, setIsOnline]   = useState(navigator.onLine);
   const [showPWA, setShowPWA]     = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -282,9 +283,11 @@ export default function App() {
   // also by GPS arrival. nearbyBump guarantees re-fetch even if screen hasn't changed.
   useEffect(() => {
     if (screen === 'nearby' && lat && lng) {
-      fetchBiz(mapCat, lat, lng);
+      fetchBiz(mapCat, lat, lng, nearbyForce);
+      if (nearbyForce) setNearbyForce(false);
     }
-  }, [nearbyBump, mapCat, lat, lng]); // mapCat in deps ensures chip + reset both trigger
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nearbyBump, mapCat]); // lat/lng excluded — GPS updates must NOT auto-refetchmapCat in deps ensures chip + reset both trigger
 
   // Persist key UI state so returning from external store tab restores correctly
   useEffect(() => {
@@ -1620,13 +1623,13 @@ export default function App() {
           _isMK = lang === 'mk', _isFR = lang === 'fr',
           _isES = lang === 'es', _isIT = lang === 'it';
     const catMapsQ={
-      garage:   _isDE?'Autowerkstatt in der Nähe':_isTR?'Araba tamircisi yakınımda':_isHR?'Auto servis u blizini':_isMK?'Автосервис во близина':_isFR?'Garage automobile près de moi':_isES?'Taller mecánico cercano':_isIT?'Officina auto vicino':' car mechanic near me',
-      parts:    _isDE?'Autoteile in der Nähe':_isTR?'Oto yedek parça yakınımda':_isHR?'Auto dijelovi u blizini':_isMK?'Авто делови во близина':'auto parts store near me',
-      tyres:    _isDE?'Reifenservice in der Nähe':_isTR?'Lastik servisi yakınımda':_isHR?'Servis za gume u blizini':_isMK?'Сервис за гуми во близина':'tyre service near me',
-      petrol:   _isDE?'Tankstelle in der Nähe':_isTR?'Benzin istasyonu yakınımda':_isHR?'Benzinska stanica u blizini':_isMK?'Бензинска станица во близина':'petrol station near me',
-      hardware: _isDE?'Baumarkt in der Nähe':_isTR?'Hırdavatçı yakınımda':_isHR?'Željezarija u blizini':_isMK?'Железарија во близина':'hardware store near me',
-      vet:      _isDE?'Tierarzt in der Nähe':_isTR?'Veteriner yakınımda':_isHR?'Veterinar u blizini':_isMK?'Ветеринар во близина':'veterinarian near me',
-      it:       _isDE?'Computer Reparatur in der Nähe':_isTR?'Bilgisayar tamiri yakınımda':_isHR?'Servis računala u blizini':_isMK?'Сервис компјутери во близина':'computer repair near me',
+      garage:   _isDE?'Autowerkstatt in der Nähe':_isTR?'Araba tamircisi yakınımda':_isHR?'Auto servis u blizini':_isMK?'Автосервис во близина':_isFR?'Garage automobile près de moi':_isES?'Taller mecánico cercano':_isIT?'Officina auto vicino':'car repair near me',
+      parts:    _isDE?'Autoteile in der Nähe':_isTR?'Oto yedek parça yakınımda':_isHR?'Auto dijelovi u blizini':_isMK?'Автоделови во близина':'auto parts store near me',
+      tyres:    _isDE?'Reifenservice in der Nähe':_isTR?'Lastik servisi yakınımda':_isHR?'Servis za gume u blizini':_isMK?'Вулканизер во близина':'tyre service near me',
+      petrol:   _isDE?'Tankstelle in der Nähe':_isTR?'Benzin istasyonu yakınımda':_isHR?'Benzinska stanica u blizini':_isMK?'Бензинска пумпа во близина':'petrol station near me',
+      hardware: _isDE?'Baumarkt in der Nähe':_isTR?'Hırdavatçı yakınımda':_isHR?'Željezarija u blizini':_isMK?'Железарија и градежни материјали во близина':'hardware store near me',
+      vet:      _isDE?'Tierarzt in der Nähe':_isTR?'Veteriner yakınımda':_isHR?'Veterinar u blizini':_isMK?'Ветеринарна станица во близина':'veterinarian near me',
+      it:       _isDE?'Computer Reparatur in der Nähe':_isTR?'Bilgisayar tamiri yakınımda':_isHR?'Servis računala u blizini':_isMK?'Компјутерски сервис во близина':'computer repair near me',
       moto:     _isDE?'Motorradwerkstatt in der Nähe':_isTR?'Motosiklet servisi yakınımda':_isHR?'Servis motocikla u blizini':_isMK?'Мото сервис во близина':_isFR?'Garage moto près de moi':_isES?'Taller motos cerca de mí':_isIT?'Officina moto vicino':'motorcycle repair near me',
     };
     return (
@@ -1636,7 +1639,7 @@ export default function App() {
           <BackBtn/>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
             <div style={{fontSize:'1.2rem',fontWeight:800,flex:1}}>{t('findNearby')}</div>
-            <button onClick={()=>{if(lat){setNearbyBump(b=>b+1);}else goto('loc-ask');}} style={{background:C.o,border:'none',borderRadius:100,padding:'8px 16px',color:'#fff',fontSize:'0.75rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{t('refresh')}</button>
+            <button onClick={()=>{if(lat){setNearbyForce(true);setNearbyBump(b=>b+1);}else goto('loc-ask');}} style={{background:C.o,border:'none',borderRadius:100,padding:'8px 16px',color:'#fff',fontSize:'0.75rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{t('refresh')}</button>
           </div>
           <div style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:2}}>
             {Object.keys(MAP_CATS).map(k=>(

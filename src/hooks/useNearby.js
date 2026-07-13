@@ -1,3 +1,6 @@
+// useNearby.js — Nearby fetch hook with module-level cache + in-flight dedup + cooldown
+// Cache persists across re-renders; resets on page reload (intentional — fresh data on return)
+
 import { useState, useCallback, useRef } from 'react';
 
 export const MAP_CATS = {
@@ -11,48 +14,148 @@ export const MAP_CATS = {
   moto:     { icon:'🏍️' },
 };
 
+// ── Module-level state — survives re-renders, resets on full page reload ─────
+
+const CACHE     = new Map();  // key → { results, ts }
+const INFLIGHT  = new Map();  // key → Promise  (in-flight dedup)
+const FAILCACHE = new Map();  // key → ts        (60s cooldown after endpoint failure)
+
+const CACHE_TTL   = 30 * 60 * 1000;  // 30 minutes
+const FAIL_TTL    =      60 * 1000;  // 60 seconds
+
+// Round to 2dp (~1km) for cache key — same location = same results
+function cacheKey(cat, lat, lng) {
+  return `${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}`;
+}
+
+function getCache(cat, lat, lng) {
+  const k = cacheKey(cat, lat, lng);
+  const e = CACHE.get(k);
+  if (!e) return null;
+  if (Date.now() - e.ts > CACHE_TTL) { CACHE.delete(k); return null; }
+  return e.results;
+}
+
+function setCache(cat, lat, lng, results) {
+  CACHE.set(cacheKey(cat, lat, lng), { results, ts: Date.now() });
+}
+
+function inCooldown(cat, lat, lng) {
+  const k = cacheKey(cat, lat, lng);
+  const t = FAILCACHE.get(k);
+  if (!t) return false;
+  if (Date.now() - t > FAIL_TTL) { FAILCACHE.delete(k); return false; }
+  return true;
+}
+
+function markFailed(cat, lat, lng) {
+  FAILCACHE.set(cacheKey(cat, lat, lng), Date.now());
+}
+
+// ── Hook ─────────────────────────────────────────────────────────────────────
+
 export function useNearby() {
-  const [bizs, setBizs]       = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState(null); // null | 'loc' | 'empty' | 'error'
+  const [bizs, setBizs]         = useState([]);
+  const [loading, setLoading]   = useState(false);
+  const [error,   setError]     = useState(null);   // null | 'loc' | 'empty' | 'error'
+  const [stale,   setStale]     = useState(false);  // showing cached while refreshing
+  const [fallback, setFallback] = useState(false);  // Overpass failed → show Maps link
   const reqId = useRef(0);
 
-  const fetchBiz = useCallback(async (cat, lat, lng) => {
-    if (!lat || !lng) { setError('loc'); return; }
+  const fetchBiz = useCallback(async (cat, lat, lng, forceRefresh = false) => {
+    if (!lat || !lng) { setError('loc'); setFallback(false); setLoading(false); return; }
 
+    const key = cacheKey(cat, lat, lng);
+
+    // ── 1. Cache hit — show instantly, no network request ───────────────────
+    if (!forceRefresh) {
+      const cached = getCache(cat, lat, lng);
+      if (cached !== null) {
+        console.log(`[nearby] CACHE HIT cat=${cat} results=${cached.length}`);
+        setBizs(cached);
+        setLoading(false);
+        setStale(false);
+        setFallback(false);
+        setError(cached.length === 0 ? 'empty' : null);
+        return;
+      }
+    }
+
+    // ── 2. Failure cooldown — show fallback immediately ──────────────────────
+    if (!forceRefresh && inCooldown(cat, lat, lng)) {
+      console.log(`[nearby] COOLDOWN cat=${cat} — showing Maps fallback`);
+      setFallback(true);
+      setError('empty');
+      setLoading(false);
+      return;
+    }
+
+    // ── 3. In-flight dedup — attach to existing request ─────────────────────
+    if (INFLIGHT.has(key)) {
+      console.log(`[nearby] IN-FLIGHT DEDUP cat=${cat}`);
+      try {
+        await INFLIGHT.get(key);
+        const fresh = getCache(cat, lat, lng);
+        if (fresh !== null) {
+          setBizs(fresh);
+          setError(fresh.length === 0 ? 'empty' : null);
+          setFallback(false);
+        }
+      } catch (_) {}
+      setLoading(false);
+      return;
+    }
+
+    // ── 4. Fresh fetch ───────────────────────────────────────────────────────
     const thisReq = ++reqId.current;
     setLoading(true);
+    setStale(false);
+    setFallback(false);
     setError(null);
     setBizs([]);
 
+    const fetchPromise = fetch(
+      `/api/nearby?cat=${encodeURIComponent(cat)}&lat=${lat}&lng=${lng}`
+    ).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+
+    INFLIGHT.set(key, fetchPromise);
+
     try {
-      // Call our Vercel serverless proxy — avoids CORS, mobile browser blocks,
-      // and Overpass IP allowlist issues. Server fetches Overpass on our behalf.
-      const url = `/api/nearby?cat=${encodeURIComponent(cat)}&lat=${lat}&lng=${lng}`;
-      const res = await fetch(url);
-
-      if (!res.ok) throw new Error(`API HTTP ${res.status}`);
-      const data = await res.json();
-
-      if (thisReq !== reqId.current) return; // stale response guard
+      const data = await fetchPromise;
+      INFLIGHT.delete(key);
+      if (thisReq !== reqId.current) return;
 
       const results = data.results || [];
-      if (data.fallbackUsed) {
-        setBizs([]);
-        setError('empty'); // triggers Maps fallback in App.jsx
-      } else {
-        setBizs(results);
-        setError(results.length === 0 ? 'empty' : null);
-      }
 
+      if (data.fallbackUsed) {
+        markFailed(cat, lat, lng);
+        setFallback(true);
+        // If we had cached results, show them as stale while fallback is shown
+        const cached = getCache(cat, lat, lng);
+        if (cached && cached.length > 0) {
+          setBizs(cached); setStale(true); setError(null);
+        } else {
+          setBizs([]); setError('empty');
+        }
+      } else {
+        setCache(cat, lat, lng, results);
+        setBizs(results);
+        setStale(false);
+        setFallback(false);
+        setError(results.length === 0 ? 'empty' : null);
+        console.log(`[nearby] FETCHED cat=${cat} returned=${results.length}`);
+      }
     } catch (err) {
+      INFLIGHT.delete(key);
       if (thisReq !== reqId.current) return;
-      console.error('[useNearby] fetch failed:', err.message);
+      console.error(`[nearby] fetch error: ${err.message}`);
+      markFailed(cat, lat, lng);
+      setFallback(true);
       setError('error');
     } finally {
       if (thisReq === reqId.current) setLoading(false);
     }
   }, []);
 
-  return { bizs, loading, error, stale: false, fallback: false, fetchBiz };
+  return { bizs, loading, error, stale, fallback, fetchBiz };
 }
