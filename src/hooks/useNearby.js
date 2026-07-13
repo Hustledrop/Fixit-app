@@ -37,8 +37,13 @@ export function useNearby() {
       if (thisReq !== reqId.current) return; // stale response guard
 
       const results = data.results || [];
-      setBizs(results);
-      setError(results.length === 0 ? 'empty' : null);
+      if (data.fallbackUsed) {
+        setBizs([]);
+        setError('empty'); // triggers Maps fallback in App.jsx
+      } else {
+        setBizs(results);
+        setError(results.length === 0 ? 'empty' : null);
+      }
 
     } catch (err) {
       if (thisReq !== reqId.current) return;

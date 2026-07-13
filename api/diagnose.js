@@ -5,8 +5,8 @@ const DEPLOY_VERSION = 'diagnose-v10-compact-1200';
 
 // ── In-memory rate limit (MVP) ────────────────────────────────────────────────
 const RL = new Map();
-const RL_MAX  = 3;     // 3 backend calls per IP per 24h (abuse protection only)
-const RL_WIN  = 86400; // Frontend localStorage handles the normal 1-free-per-device limit
+const RL_MAX  = 10;
+const RL_WIN  = 3600;
 
 function checkRateLimit(ip) {
   const now   = Math.floor(Date.now() / 1000);
@@ -443,9 +443,8 @@ module.exports = async function handler(req, res) {
     ? vehiclePartSuggestions(vehicleCtx, partType, prob)
     : null;
 
-  const photoKB = hasImage ? Math.round(photoB64.length * 3 / 4 / 1024) : 0;
-  console.log('[FixIt] REQUEST cat=%s lang=%s hasText=%s hasImage=%s photoKB=%d vehicle=%s partType=%s intelligentParts=%s prob=%s',
-    cat, lang2, hasText, hasImage, photoKB,
+  console.log('[FixIt] REQUEST cat=%s lang=%s hasText=%s hasImage=%s vehicle=%s partType=%s intelligentParts=%s prob=%s',
+    cat, lang2, hasText, hasImage,
     vehicleCtx ? JSON.stringify(vehicleCtx) : 'none',
     partType || 'none',
     intelligentParts ? JSON.stringify(intelligentParts) : 'none',
@@ -483,9 +482,8 @@ module.exports = async function handler(req, res) {
     const mime = detectMime(photoB64);
     if (mime) {
       content.push({ type: 'image', source: { type: 'base64', media_type: mime, data: photoB64 } });
-      console.log('[FixIt] IMAGE_BLOCK_ADDED mime=%s photoKB=%d', mime, photoKB);
     } else {
-      console.warn('[FixIt] Image MIME unknown — photoB64 starts with: %s', photoB64.slice(0, 20));
+      console.warn('[FixIt] Image MIME unknown — text-only');
     }
   }
 
@@ -504,23 +502,6 @@ module.exports = async function handler(req, res) {
       `Write ALL visible text in ${lang2}. Exception: imageQuery must be English keywords only (for image search).`,
 
       `Be specific and expert, but concise. Name the exact component and real tool names. Diagnosis max 2 short sentences. Max 4 causes. Max 4 steps. Each step description max 2 short sentences. Each tip max 1 short sentence. Avoid advanced technician-only explanations unless absolutely necessary. Keep JSON compact and valid.`,
-      `LOCATION UNCERTAINTY RULE: For components whose location varies by model year, engine, trim, or market (cabin filter, fuse box, relays, battery, sensors, access panels, hidden compartments): do NOT state one definitive location as absolute fact. Instead: give the most likely location first, then mention alternative positions briefly, use hedging language (usually / typically / often / depending on variant / check first). If the user has not provided year/engine/trim and the location genuinely varies, acknowledge this. Never invent certainty you do not have.`,
-
-      // ── VISION ANALYSIS RULES — only active when user uploads a photo ──────
-      ...(hasImage ? [
-        `PHOTO PROVIDED — you MUST visually analyse this specific image before answering. Do not give generic advice.`,
-        `Lead your diagnosis with what you actually SEE: location, size, severity, surface condition.`,
-        `Your steps must describe repair actions for the VISIBLE damage in this photo — not hypothetical general advice.`,
-        `Visual inspection checklist (address each that is relevant):`,
-        `— Location: where exactly is the damage on the part/panel?`,
-        `— Severity: shallow surface scratch, crease, deep dent, crack, deformation?`,
-        `— Paint: intact and uncracked, or chipped/cracked/showing metal?`,
-        `— Panel access: can you reach behind it, or is it a closed section?`,
-        `— For dents: is the dent close to a crease, edge, or flat panel centre?`,
-        `For car body dents specifically: state explicitly whether PDR (Paintless Dent Repair) is realistic for THIS dent. State whether suction cup or glue pull tabs would work, or if a dent rod/body hammer is needed. State whether a repaint is likely required.`,
-        `Tone: you are a skilled repair technician — confident, direct, practical. No hedging. No "damage can happen from impacts". No generic safety boilerplate unless genuinely needed.`,
-        `DIY assessment: give an honest "can the user do this alone?" answer based on the actual visible damage — not a generic disclaimer.`,
-      ] : []),
 
       // Build vehicle-aware partsNeeded instruction
       // When intelligentParts exist: force the AI to use them exactly (pre-computed from knowledge table)
@@ -528,12 +509,12 @@ module.exports = async function handler(req, res) {
       // When no vehicle: use generic short-query rules
       ...(intelligentParts ? [
         `DETECTED VEHICLE: ${[vehicleCtx.year, vehicleCtx.make, vehicleCtx.model, vehicleCtx.generation, vehicleCtx.engine].filter(Boolean).join(' ')}.`,
-        `partsNeeded REQUIRED: You MUST use EXACTLY this pre-computed list as your partsNeeded array (no changes, no additions, no OEM/part number codes): ${JSON.stringify(intelligentParts)}. These are vehicle-specific search suggestions generated from a fitment knowledge base. Copy them exactly into the partsNeeded field.`,
+        `partsNeeded REQUIRED: You MUST use EXACTLY this pre-computed list as your partsNeeded array. Do not change it, do not add generic alternatives, do not modify the order: ${JSON.stringify(intelligentParts)}. These are vehicle-specific search suggestions generated from a fitment knowledge base. Copy them exactly into the partsNeeded field.`,
       ] : vehicleCtx ? [
         `DETECTED VEHICLE: ${[vehicleCtx.year, vehicleCtx.make, vehicleCtx.model, vehicleCtx.generation, vehicleCtx.engine].filter(Boolean).join(' ')}. Use this for vehicle-specific part search queries.`,
-        `partsNeeded: 2–4 SHORT vehicle-specific search terms. Include model/generation in each for model-specific parts (brake pads, spark plug, battery, chain kit, filters). For universal consumables (chain spray, chain cleaner, brake cleaner, oil, tools, brushes, care products): use SHORT generic product names WITHOUT prepending the model — e.g. "Motorrad Kettenspray", "S100 Kettenreiniger", not "Suzuki GSXR Kettenspray 2006". Include 1 brand name. NEVER invent OEM part numbers. No sentences.`,
+        `partsNeeded: 2–4 vehicle-specific search terms using detected vehicle. Include model in each. Include 1 brand (Brembo/Bosch/Varta/NGK). No sentences. SEARCH SUGGESTIONS only.`,
       ] : [
-        `partsNeeded: 2–4 SHORT buyable search terms, 2–5 words each. GOOD: ["Geberit Spülkasten Dichtung","Universal WC Flapper 63mm"]. BAD: ["Ablaufventil passend zum Modell","Bosch OEM 0250202132"]. NEVER invent OEM/OE part numbers or codes. No sentences. No "passend für".`,
+        `partsNeeded: 2–4 SHORT buyable search terms, 2–5 words each. GOOD: ["Geberit Spülkasten Dichtung","Universal WC Flapper 63mm"]. BAD: ["Ablaufventil passend zum Modell"]. No sentences. No "passend für".`,
       ]),
 
       `estimatedCost: realistic DIY parts cost only, in the currency of ${countryName}. Format: "€5–15". timeEstimate: realistic hands-on time.`,

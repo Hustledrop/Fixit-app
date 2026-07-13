@@ -34,10 +34,9 @@ export function useLocation() {
     );
   }, []);
 
-  // Return best country code: GPS country → browser region → lang fallback → DEFAULT
-  const getCC = useCallback((lang, detectedRegion) => {
-    if (country && country !== 'DEFAULT') return country;         // GPS wins
-    if (detectedRegion && COUNTRIES[detectedRegion]) return detectedRegion; // browser region
+  // Return best country code: GPS country → lang fallback → DEFAULT
+  const getCC = useCallback((lang) => {
+    if (country && country !== 'DEFAULT') return country;
     const g = LANG_TO_CC[lang];
     return (g && COUNTRIES[g]) ? g : 'DEFAULT';
   }, [country]);

@@ -1,19 +1,19 @@
-// auth.js — Supabase Auth + profile wrapper with full graceful degradation
+// src/auth.js — Supabase auth + profile/usage layer
+// Gracefully degrades to guest mode when env vars are missing.
 //
 // SETUP (5 minutes):
-// 1. https://supabase.com → New Project
-// 2. Settings → API → copy "Project URL" and "anon public" key
-// 3. Vercel → Environment Variables:
-//    VITE_SUPABASE_URL      = https://xxxx.supabase.co
-//    VITE_SUPABASE_ANON_KEY = eyJhbGci...
-// 4. Run the SQL in /supabase-setup.sql in Supabase → SQL Editor
-// 5. Redeploy → auth activates automatically
-//
-// WITHOUT env vars: app runs in full guest mode, auth calls are no-ops.
+//  1. supabase.com → New Project → Settings → API
+//  2. Copy "Project URL" → VITE_SUPABASE_URL
+//  3. Copy "anon public" key → VITE_SUPABASE_ANON_KEY
+//  4. Copy "service_role" key → SUPABASE_SERVICE_ROLE_KEY (server-only)
+//  5. Run supabase-setup.sql in Supabase SQL Editor
+//  6. Redeploy on Vercel — auth activates automatically
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// AUTH_AVAILABLE is evaluated at BUILD TIME by Vite.
+// When env vars are set in Vercel and app is rebuilt → AUTH_AVAILABLE = true.
 export const AUTH_AVAILABLE = !!(SUPABASE_URL && SUPABASE_KEY);
 
 let _sb = null;
@@ -22,9 +22,7 @@ async function sb() {
   if (!AUTH_AVAILABLE) return null;
   if (_sb) return _sb;
   try {
-    const { createClient } = await import(
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
-    );
+    const { createClient } = await import('@supabase/supabase-js');
     _sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: true, autoRefreshToken: true },
     });
@@ -44,20 +42,14 @@ export async function signUp(email, password) {
   const c = await sb(); if (!c) throw new Error('auth_unavailable');
   const { data, error } = await c.auth.signUp({ email, password });
   if (error) throw error;
-  // Create profile row immediately
+  // Ensure profile + usage rows exist (trigger handles this, but belt-and-suspenders)
   if (data?.user) {
     await c.from('profiles').upsert({
-      id: data.user.id,
-      email: data.user.email,
-      is_pro: false,
-      plan: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      id: data.user.id, email: data.user.email,
+      is_pro: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
     await c.from('usage').upsert({
-      user_id: data.user.id,
-      diagnosis_count: 0,
-      free_limit: 1,
+      user_id: data.user.id, diagnosis_count: 0, free_limit: 1,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
   }
@@ -84,40 +76,12 @@ export async function onAuthStateChange(callback) {
   return () => data.subscription.unsubscribe();
 }
 
-// ── Profile / usage queries ───────────────────────────────────────────────────
+// ── Profile / usage ───────────────────────────────────────────────────────────
 
 export async function getProfile(userId) {
   const c = await sb(); if (!c || !userId) return null;
   const { data } = await c.from('profiles').select('*').eq('id', userId).single();
   return data;
-}
-
-export async function incrementUsage(userId) {
-  // Returns { allowed: bool, diagnosis_count: int, is_pro: bool }
-  const c = await sb(); if (!c || !userId) return { allowed: false };
-  const profile = await getProfile(userId);
-  if (profile?.is_pro) return { allowed: true, is_pro: true };
-
-  const { data: usage } = await c
-    .from('usage')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  const count = usage?.diagnosis_count ?? 0;
-  const limit = usage?.free_limit ?? 1;
-
-  if (count >= limit) return { allowed: false, diagnosis_count: count };
-
-  // Increment
-  await c.from('usage').upsert({
-    user_id: userId,
-    diagnosis_count: count + 1,
-    free_limit: limit,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id' });
-
-  return { allowed: true, diagnosis_count: count + 1 };
 }
 
 export async function checkUsage(userId) {
@@ -128,4 +92,19 @@ export async function checkUsage(userId) {
   const count = usage?.diagnosis_count ?? 0;
   const limit = usage?.free_limit ?? 1;
   return { allowed: count < limit, diagnosis_count: count, is_pro: false };
+}
+
+export async function incrementUsage(userId) {
+  const c = await sb(); if (!c || !userId) return { allowed: false };
+  const profile = await getProfile(userId);
+  if (profile?.is_pro) return { allowed: true, is_pro: true };
+  const { data: usage } = await c.from('usage').select('*').eq('user_id', userId).single();
+  const count = usage?.diagnosis_count ?? 0;
+  const limit = usage?.free_limit ?? 1;
+  if (count >= limit) return { allowed: false, diagnosis_count: count };
+  await c.from('usage').upsert({
+    user_id: userId, diagnosis_count: count + 1, free_limit: limit,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+  return { allowed: true, diagnosis_count: count + 1 };
 }

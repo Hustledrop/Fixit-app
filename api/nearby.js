@@ -1,18 +1,13 @@
-// api/nearby.js — Vercel serverless Overpass proxy
-// Fixes: float precision in bbox, safe "out center tags;" output, correct OSM tags
-
-const https = require('https');
+// api/nearby.js — FixIt Overpass proxy  FIXIT_NEARBY_STABLE_V5
+// Restored from stable uploaded ZIP + bbox fix + moto + timeout fix
 
 const OVERPASS_ENDPOINTS = [
   'overpass-api.de',
   'overpass.kumi.systems',
 ];
 
-// Safe Overpass tag sets per category (verified working OSM tags)
-// Using "out center tags;" — works for both nodes (direct lat/lon) and ways (center)
 function buildQuery(cat, south, west, north, east) {
   const b = `${south},${west},${north},${east}`;
-
   const parts = {
     garage: [
       `node["shop"="car_repair"](${b})`,
@@ -66,117 +61,84 @@ function buildQuery(cat, south, west, north, east) {
       `way["service:vehicle:motorcycle"="yes"](${b})`,
     ],
   };
-
   const lines = (parts[cat] || parts.garage).join(';\n  ');
-  // "out center tags;" is the safe output for mixed node/way results:
-  // - nodes: get lat/lon directly
-  // - ways:  get center lat/lon + all tags
-  // No >;out skel which caused the 400
   return `[out:json][timeout:25];\n(\n  ${lines};\n);\nout center tags;`;
 }
 
 function haversine(la1, lo1, la2, lo2) {
   const R = 6371;
-  const dLa = (la2 - la1) * Math.PI / 180;
-  const dLo = (lo2 - lo1) * Math.PI / 180;
-  const a = Math.sin(dLa / 2) ** 2 +
-    Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
+  const a = Math.sin(dLa/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
 function fetchOverpass(host, query) {
   return new Promise((resolve, reject) => {
+    const https   = require('https');
     const encoded = 'data=' + encodeURIComponent(query);
     const body    = Buffer.from(encoded, 'utf8');
-    const options = {
-      hostname: host,
-      path:     '/api/interpreter',
-      method:   'POST',
-      headers:  {
-        'Content-Type':   'application/x-www-form-urlencoded',
+    const req = https.request({
+      hostname: host, path: '/api/interpreter', method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
         'Content-Length': body.length,
-        'User-Agent':     'FixItApp/1.0 Vercel-Proxy',
-        'Accept':         'application/json',
+        'User-Agent': 'FixItApp/1.0 Vercel-Proxy', 'Accept': 'application/json',
       },
-      timeout: 11000, // 11s × 2 hosts = 22s max, under Vercel 25s limit
-    };
-
-    const req = https.request(options, res => {
+      // 11s × 2 hosts = 22s max, safely under Vercel 25s limit
+      timeout: 11000,
+    }, res => {
       let data = '';
-      res.on('data', chunk => { data += chunk; });
+      res.on('data', c => { data += c; });
       res.on('end', () => {
+        if (res.statusCode === 429) {
+          reject(new Error(`HTTP 429 rate-limited from ${host}`)); return;
+        }
         if (res.statusCode !== 200) {
-          // Log full error body so we can debug further
-          console.error(`[nearby] ${host} HTTP ${res.statusCode} body: ${data.substring(0, 500)}`);
-          reject(new Error(`HTTP ${res.statusCode} from ${host}`));
-          return;
+          reject(new Error(`HTTP ${res.statusCode} from ${host}`)); return;
         }
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          console.error(`[nearby] ${host} invalid JSON: ${data.substring(0, 200)}`);
-          reject(new Error(`Invalid JSON from ${host}`));
-        }
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error(`JSON parse error from ${host}`)); }
       });
     });
-
-    req.on('error',   err => reject(new Error(`${host} network error: ${err.message}`)));
-    req.on('timeout', ()  => { req.destroy(); reject(new Error(`${host} timeout`)); });
-    req.write(body);
-    req.end();
+    req.on('error',   e  => reject(new Error(`${host} network: ${e.message}`)));
+    req.on('timeout', () => { req.destroy(); reject(new Error(`${host} timeout`)); });
+    req.write(body); req.end();
   });
 }
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin',  '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
-  if (req.method !== 'GET')     { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const { cat, lat, lng } = req.query;
-  const latN = parseFloat(lat);
-  const lngN = parseFloat(lng);
+  const { cat = 'garage', lat, lng } = req.query;
+  const latN = parseFloat(lat), lngN = parseFloat(lng);
+  if (isNaN(latN) || isNaN(lngN)) { res.status(400).json({ error: 'Invalid lat/lng' }); return; }
 
-  if (!cat || isNaN(latN) || isNaN(lngN)) {
-    res.status(400).json({ error: 'Missing params: cat, lat, lng required' });
-    return;
-  }
-  if (latN < -90 || latN > 90 || lngN < -180 || lngN > 180) {
-    res.status(400).json({ error: 'Coordinates out of range' });
-    return;
-  }
-
-  // CRITICAL: use toFixed(6) to avoid JS float garbage like 7.4254430000000005
+  // Bbox — EW slightly wider (0.055) to avoid edge shops being missed by floating point
   const south = (latN - 0.03).toFixed(6);
   const north = (latN + 0.03).toFixed(6);
-  const west  = (lngN - 0.055).toFixed(6); // expanded from 0.05: captures shops at bbox edge (e.g. Reifen Niebergall was 5m outside)
-  const east  = (lngN + 0.055).toFixed(6); // symmetric expansion
+  const west  = (lngN - 0.055).toFixed(6);
+  const east  = (lngN + 0.055).toFixed(6);
 
   const query = buildQuery(cat, south, west, north, east);
-  console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN}`);
-  console.log(`[nearby] bbox: S=${south} W=${west} N=${north} E=${east}`);
-  console.log(`[nearby] query:\n${query}`);
+  console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN} bbox:S=${south} W=${west} N=${north} E=${east}`);
 
-  let lastErr;
-  let data = null;
-
+  let data = null, lastErr = null;
   for (const host of OVERPASS_ENDPOINTS) {
     try {
       data = await fetchOverpass(host, query);
       console.log(`[nearby] ${host} OK — ${(data.elements||[]).length} elements`);
       break;
     } catch (err) {
-      console.warn(`[nearby] ${host} failed: ${err.message}`);
       lastErr = err;
+      console.warn(`[nearby] ${host} failed: ${err.message}`);
     }
   }
 
   if (!data) {
     console.error(`[nearby] all endpoints failed: ${lastErr?.message}`);
-    // Return 200 with empty results — frontend shows Maps fallback
-    res.status(200).json({ results: [], error: lastErr?.message || 'All endpoints failed' });
+    res.status(200).json({ results: [], fallbackUsed: true,
+      fallbackReason: 'endpoint_failure', error: lastErr?.message, cat });
     return;
   }
 
@@ -184,37 +146,35 @@ module.exports = async function handler(req, res) {
   const seen = {}, out = [];
 
   elements.forEach(el => {
-    if (!el.tags?.name || seen[el.tags.name]) return;
-    seen[el.tags.name] = true;
+    const tags = el.tags || {};
+    // name → brand → operator → amenity as display name (petrol stations often have brand, not name)
+    const displayName = tags.name || tags.brand || tags.operator || tags.amenity || null;
+    if (!displayName || seen[displayName]) return;
+    seen[displayName] = true;
 
-    // "out center tags" gives:
-    // nodes: el.lat + el.lon
-    // ways:  el.center.lat + el.center.lon
     const elLat = el.lat ?? el.center?.lat;
-    const elLon = el.lon ?? el.center?.lon;
+    const elLon = el.lon  ?? el.center?.lon;
     if (!elLat || !elLon) return;
 
     const dist = haversine(latN, lngN, parseFloat(elLat), parseFloat(elLon));
     if (dist > 15) return;
 
-    const street = el.tags['addr:street']
-      ? el.tags['addr:street'] + (el.tags['addr:housenumber'] ? ' ' + el.tags['addr:housenumber'] : '')
+    const street = tags['addr:street']
+      ? tags['addr:street'] + (tags['addr:housenumber'] ? ' '+tags['addr:housenumber'] : '')
       : null;
-
     out.push({
-      name:    el.tags.name,
-      lat:     parseFloat(elLat),
-      lng:     parseFloat(elLon),
-      dist:    Math.round(dist * 1000) / 1000,
-      addr:    [street, el.tags['addr:city'], el.tags['addr:postcode']].filter(Boolean).join(', ') || '',
-      phone:   el.tags.phone    || el.tags['contact:phone']   || '',
-      opening: el.tags.opening_hours || '',
-      website: el.tags.website  || el.tags['contact:website'] || '',
+      name:    displayName,
+      lat:     parseFloat(elLat), lng: parseFloat(elLon),
+      dist:    Math.round(dist*1000)/1000,
+      addr:    [street, tags['addr:city'], tags['addr:postcode']].filter(Boolean).join(', ') || '',
+      phone:   tags.phone    || tags['contact:phone']   || '',
+      opening: tags.opening_hours || '',
+      website: tags.website  || tags['contact:website'] || '',
     });
   });
 
-  out.sort((a, b) => a.dist - b.dist);
+  out.sort((a,b) => a.dist - b.dist);
   const results = out.slice(0, 25);
-  console.log(`[nearby] returning ${results.length} results to client`);
-  res.status(200).json({ results });
+  console.log(`[nearby] cat=${cat} raw=${elements.length} returned=${results.length}`);
+  res.status(200).json({ results, cat });
 };

@@ -4,15 +4,12 @@ import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalSt
 import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
 import { getQP } from './data/quickproblems.js';
 import { useLocation } from './hooks/useLocation.js';
-import { Analytics } from './analytics.js';
-import { useAuth } from './useAuth.js';
-import { checkUsage, incrementUsage, AUTH_AVAILABLE } from './auth.js';
 import { useAI } from './hooks/useAI.js';
 import { useNearby, MAP_CATS } from './hooks/useNearby.js';
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
+import { useAuth } from './useAuth.js';
+import { AUTH_AVAILABLE, checkUsage, incrementUsage } from './auth.js';
 
-// ── Build version — update this on each deploy to confirm cache bust ────────
-const BUILD_VERSION = '2025-06-04-v2';
 // ── localStorage helpers (prefixed fixit_) ────────────────────────────────────
 const LS = {
   get: k => { try { return JSON.parse(localStorage.getItem('fixit_'+k)); } catch { return null; } },
@@ -156,97 +153,8 @@ const CSS = `
 `;
 
 export default function App() {
-  // FIXIT_LANG_DETECT_V4
-  // Root cause of English bug: old splash confirm wrote lang_manually_set=true + lang_manually_set_to='en'
-  // to localStorage BEFORE auto-detection was fixed. That stale flag was blocking re-detection.
-  // Fix: version-stamp the detection. If version < 4, clear the stale flag once and re-detect.
-  // After clearing, navigator.languages picks up German/French/etc immediately.
-  // Future manual selections set the version to 4 and are always respected.
-  const LANG_DETECT_VERSION = 4;
-  const [lang, setLang]           = useState(() => {
-    const SUPPORTED = ['de','fr','it','es','pl','sr','hr','mk','tr'];
-    // Clear stale lang_manually_set written by old buggy code (before V4)
-    const storedVersion = LS.get('lang_detect_version') || 0;
-    if (storedVersion < LANG_DETECT_VERSION) {
-      // Wipe old state — will be re-set correctly if user confirms manually
-      LS.set('lang_detect_version', LANG_DETECT_VERSION);
-      LS.set('lang_manually_set', null);
-      LS.set('lang_manually_set_to', null);
-      SS.set('lang', null);
-      console.log('[FixIt] LANG_DETECT_V4 cleared stale lang state (version upgrade)');
-    }
-    // Only restore from storage if user explicitly chose manually IN THIS VERSION
-    if (LS.get('lang_manually_set')) {
-      const saved = LS.get('lang_manually_set_to');
-      if (saved && (saved === 'en' || SUPPORTED.includes(saved))) {
-        console.log('[FixIt] LANG_DETECT_V4 using manual selection:', saved);
-        return saved;
-      }
-    }
-    // Auto-detect from browser locale (navigator.languages[] preferred, then navigator.language)
-    const navLangs = (navigator.languages && navigator.languages.length)
-      ? Array.from(navigator.languages)
-      : [(navigator.language || 'en')];
-    console.log('[FixIt] LANG_DETECT navigator.language=' + navigator.language
-      + ' navigator.languages=' + JSON.stringify(navLangs.slice(0,3))
-      + ' lang_manually_set=' + LS.get('lang_manually_set'));
-    for (const nav of navLangs) {
-      const base = nav.toLowerCase().split('-')[0];
-      if (SUPPORTED.includes(base)) {
-        console.log('[FixIt] LANG_DETECT → selected: ' + base);
-        return base;
-      }
-      if (base === 'en') {
-        console.log('[FixIt] LANG_DETECT → selected: en (browser default)');
-        return 'en';
-      }
-    }
-    console.log('[FixIt] LANG_DETECT → fallback: en');
-    return 'en';
-  });
-  const [selLang, setSelLang]     = useState(() => {
-    // selLang mirrors lang — same version-aware logic, same result
-    const SUPPORTED = ['de','fr','it','es','pl','sr','hr','mk','tr'];
-    if (LS.get('lang_manually_set')) {
-      const saved = LS.get('lang_manually_set_to');
-      if (saved && (saved === 'en' || SUPPORTED.includes(saved))) return saved;
-    }
-    const navLangs = (navigator.languages && navigator.languages.length)
-      ? Array.from(navigator.languages) : [(navigator.language || 'en')];
-    for (const nav of navLangs) {
-      const base = nav.toLowerCase().split('-')[0];
-      if (SUPPORTED.includes(base) || base === 'en') return SUPPORTED.includes(base) ? base : 'en';
-    }
-    return 'en';
-  });
-  // Region detected from browser locale (e.g. 'CH' from 'de-CH')
-  // Used to override cc when GPS isn't available yet
-  // detectedRegion: timezone-based country (physical location proxy)
-  // Better than navigator.language suffix because timezone reflects where the device IS,
-  // not what language it uses. Croatian phone in Germany → 'Europe/Berlin' → 'DE'.
-  const [detectedRegion, setDetectedRegion] = useState(() => {
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-      const TZ_TO_CC = {
-        'Europe/Berlin':'DE','Europe/Vienna':'AT','Europe/Zurich':'CH',
-        'Europe/London':'GB','Europe/Dublin':'IE','Europe/Paris':'FR',
-        'Europe/Madrid':'ES','Europe/Rome':'IT','Europe/Warsaw':'PL',
-        'Europe/Zagreb':'HR','Europe/Belgrade':'RS','Europe/Skopje':'MK',
-        'Europe/Sarajevo':'BA','Europe/Istanbul':'TR','Europe/Bucharest':'RO',
-        'Europe/Sofia':'BG','Europe/Athens':'GR','Europe/Prague':'CZ',
-        'Europe/Budapest':'HU','Europe/Amsterdam':'NL','Europe/Brussels':'BE',
-        'Europe/Stockholm':'SE','Europe/Copenhagen':'DK','Europe/Helsinki':'FI',
-        'Europe/Oslo':'NO','Europe/Lisbon':'PT','Europe/Kiev':'UA',
-        'America/New_York':'US','America/Chicago':'US','America/Denver':'US',
-        'America/Los_Angeles':'US','America/Toronto':'CA','America/Vancouver':'CA',
-        'Australia/Sydney':'AU','Australia/Melbourne':'AU',
-        'Asia/Tokyo':'JP','Asia/Seoul':'KR','Asia/Shanghai':'CN',
-      };
-      const cc = TZ_TO_CC[tz] || null;
-      console.log('[FixIt] REGION_INIT timezone=' + tz + ' → cc=' + (cc||'null'));
-      return cc;
-    } catch (_) { return null; }
-  });
+  const [lang, setLang]           = useState(() => SS.get('lang') || 'en');
+  const [selLang, setSelLang]     = useState('en');
   const [showLP, setShowLP]       = useState(false);
   const [screen, setScreen]       = useState('splash'); // always start at splash; restore happens in boot effect
   const [prevScr, setPrevScr]     = useState('home');
@@ -260,27 +168,19 @@ export default function App() {
   const [pResults, setPResults]   = useState(null);
   const [hsnModel, setHsnModel]     = useState(''); // extra model field when HSN/TSN entered
   const [mapCat, setMapCat]       = useState('garage');
+  // ── Auth / paywall state ──────────────────────────────────────────────────
+  const [freeLimitHit,  setFreeLimitHit]  = useState(false); // paywall overlay
+  const [authScreen,    setAuthScreen]    = useState(null);  // null|'login'|'signup'|'account'
+  const [authEmail,     setAuthEmail]     = useState('');
+  const [authPwd,       setAuthPwd]       = useState('');
+  const [authErr,       setAuthErr]       = useState('');
+  const [authBusy,      setAuthBusy]      = useState(false);
+  const [checkoutBusy,  setCheckoutBusy]  = useState(false);
   const [emrgKey, setEmrgKey]     = useState(null);
   const [aiMsgIdx, setAiMsgIdx]   = useState(0);
   const [feedback, setFeedback]   = useState(null); // null | 'fixed' | 'broken'
-  const [freeLimitHit, setFreeLimitHit] = useState(false); // true = paywall shown
-  const [authScreen, setAuthScreen]   = useState(null);   // null | 'login' | 'signup' | 'account'
-  const [authEmail, setAuthEmail]     = useState('');
-  const [authPwd, setAuthPwd]         = useState('');
-  const [authErr, setAuthErr]         = useState('');
-  const [authBusy, setAuthBusy]       = useState(false);
-  const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [toast, setToast]         = useState(null);
-  const [history, setHistory]     = useState(() => {
-    // One-time migration: clean old corrupted/incomplete history entries on load
-    const raw = LS.get('history') || [];
-    const valid = raw.filter(h => h && h.problem && (h.diagnosis || h.confidence));
-    if (valid.length !== raw.length) {
-      // Silently persist the cleaned version
-      LS.set('history', valid);
-    }
-    return valid;
-  });
+  const [history, setHistory]     = useState(() => LS.get('history') || []);
   const [showHistory, setShowHistory] = useState(false);
   const [nearbyBump, setNearbyBump]   = useState(0); // increment to force nearby refresh
   const [isOnline, setIsOnline]   = useState(navigator.onLine);
@@ -300,8 +200,7 @@ export default function App() {
   const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
-  // cc: GPS country wins, then browser-detected region, then lang-based fallback
-  const cc  = getCC(lang, detectedRegion);
+  const cc  = getCC(lang);
   const cd  = getCountry(cc);
   const mu  = useCallback(q => mapsUrlFor(q, lat, lng, cc, lang), [lat, lng, cc, lang]);
 
@@ -311,8 +210,8 @@ export default function App() {
     style.textContent = CSS;
     document.head.appendChild(style);
 
-    // LANG: selLang already correctly initialised from navigator.languages in useState()
-    // Do NOT call setSelLang here — it would overwrite the correct value with a simpler check
+    const bl = (navigator.language||'en').substring(0,2).toLowerCase();
+    setSelLang(LANGS[bl] ? bl : 'en');
     const tm = setTimeout(() => {
       // Check onboarding
       if (!LS.get('onboarding_done')) {
@@ -385,10 +284,7 @@ export default function App() {
     if (screen === 'nearby' && lat && lng) {
       fetchBiz(mapCat, lat, lng);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nearbyBump, mapCat]); // lat/lng intentionally excluded — GPS updates must NOT auto-refetch
-  // Fetch is triggered by: category chip tap, refresh button, goto('nearby')
-  // lat/lng are read inside fetchBiz at call time, not as reactive deps
+  }, [nearbyBump, mapCat, lat, lng]); // mapCat in deps ensures chip + reset both trigger
 
   // Persist key UI state so returning from external store tab restores correctly
   useEffect(() => {
@@ -487,13 +383,7 @@ export default function App() {
     setPhoto(null); setPhotoB64(null); setPhotoMime(null);
   }
 
-  function confirmLang() {
-    setLang(selLang);
-    SS.set('lang', selLang);
-    LS.set('lang_manually_set', true);
-    LS.set('lang_manually_set_to', selLang); // persist across sessions
-    goto('loc-ask');
-  }
+  function confirmLang() { setLang(selLang); goto('loc-ask'); }
 
   function detectMime(b64) {
     // Detect real image type from base64 magic bytes — never trust browser MIME alone
@@ -509,52 +399,20 @@ export default function App() {
     const r = new FileReader();
     r.onload = ev => {
       const dataUrl = ev.target.result;
-      const rawB64  = dataUrl.split(',')[1];
-      const rawMime = detectMime(rawB64);
+      const b64 = dataUrl.split(',')[1];
+      const realMime = detectMime(b64);
 
-      if (!rawMime) {
-        // HEIC, TIFF, BMP, or other unsupported format
+      if (!realMime) {
+        // HEIC, TIFF, BMP or other unsupported format
         showToast(lang === 'de'
           ? '⚠️ Bildformat nicht unterstützt. Bitte JPG, PNG oder WebP verwenden.'
           : '⚠️ Image format not supported. Please upload JPG, PNG or WebP.');
         return;
       }
 
-      // ── Compress image before sending to Claude ──────────────────────────
-      // Anthropic's image limit: ~5MB base64 / ~3.75MB raw.
-      // Full-res iPhone photos can be 6-12MB → compression is required.
-      // Canvas resize to max 1500px on longest side, JPEG quality 0.85.
-      // This gives ≈ 200–600KB — well within limits and faster to process.
-      const img = new window.Image();
-      img.onload = () => {
-        const MAX = 1500;
-        let w = img.naturalWidth;
-        let h = img.naturalHeight;
-        if (w > MAX || h > MAX) {
-          if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
-          else         { w = Math.round(w * MAX / h); h = MAX; }
-        }
-        const canvas  = document.createElement('canvas');
-        canvas.width  = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        const compressed = canvas.toDataURL('image/jpeg', 0.85);
-        const b64        = compressed.split(',')[1];
-        console.log('[FixIt] PHOTO_COMPRESSED orig=%dKB compressed=%dKB (%dx%d)',
-          Math.round(rawB64.length * 3 / 4 / 1024),
-          Math.round(b64.length * 3 / 4 / 1024), w, h);
-        setPhoto(compressed);
-        setPhotoB64(b64);
-        setPhotoMime('image/jpeg'); // always JPEG after canvas compression
-      };
-      img.onerror = () => {
-        // Fallback: use original if canvas fails (should not happen for valid JPEG/PNG/WebP)
-        setPhoto(dataUrl);
-        setPhotoB64(rawB64);
-        setPhotoMime(rawMime);
-      };
-      img.src = dataUrl;
+      setPhoto(dataUrl);
+      setPhotoB64(b64);
+      setPhotoMime(realMime); // always use detected MIME, not browser's f.type
     };
     r.readAsDataURL(f);
   }
@@ -571,7 +429,23 @@ export default function App() {
       if (el && el.value.trim()) problemRef.current = el.value.trim();
     }
     const prob = override ?? problemRef.current;
-    if (!prob && !photoB64) { showToast(t('descProblem')); return; } // toast, never alert
+    if (!prob && !photoB64) { showToast(t('descProblem')); return; }
+
+    // ── Free limit check ─────────────────────────────────────────────────────
+    // Emergency keywords always bypass the limit
+    const EMERGENCY_BYPASS = /gas\s*(leak|geruch)|gasleitung|live\s*(wire|cable)|240v|230v|stromschlag|sicherungskasten|tragende\s+wand|asbestos|asbest|notfall|emergency/i;
+    const isEmergency = EMERGENCY_BYPASS.test(prob);
+
+    if (!isPro && !isEmergency) {
+      if (user && AUTH_AVAILABLE) {
+        // Logged-in user: check Supabase usage
+        const usage = await checkUsage(user.id);
+        if (usage && !usage.allowed) { setFreeLimitHit(true); return; }
+      } else {
+        // Guest: check localStorage
+        if (LS.get('free_diagnosis_used')) { setFreeLimitHit(true); return; }
+      }
+    }
     // For preset taps OR text-only runs: clear any stale photo state
     // Only keep photo if user has a visible photo AND no override text
     if (override || (!photo && photoB64)) clearPhoto();
@@ -582,43 +456,18 @@ export default function App() {
     setHsnModel('');
     diagCategoryRef.current = curFix;
     setPrevScr('fix-now');
-    // ── Free device limit check ─────────────────────────────────────────────
-    const EMERGENCY_BYPASS = /gas\s*(leak|geruch|smell|riecht)|riecht\s+nach\s+gas|gasleitung|live\s*(wire|cable)|240v|230v|stromschlag|sicherungskasten|load.?bearing|tragende\s+wand|asbest|asbestos|notfall|emergency/i;
-    const isEmergency = EMERGENCY_BYPASS.test(prob);
-
-    // Pro users: always allowed
-    if (!isPro) {
-      if (user && AUTH_AVAILABLE) {
-        // Logged-in free user: check Supabase usage count
-        const usage = await checkUsage(user.id);
-        if (usage && !usage.allowed) {
-          setFreeLimitHit(true); Analytics.limitReached(); Analytics.paywallViewed(); return;
-        }
-      } else {
-        // Guest: check localStorage
-        const freeUsed = LS.get('free_diagnosis_used');
-        if (freeUsed && !isEmergency) {
-          setFreeLimitHit(true); Analytics.limitReached(); Analytics.paywallViewed(); return;
-        }
-      }
-    }
     setFeedback(null);
-    // Clear stale SS.aiResult BEFORE entering result screen
-    // Without this, result screen shows old title while new diagnosis loads
-    SS.set('aiResult', null);
-    SS.set('aiProblem', prob);
-    Analytics.diagnosisStarted(curFix, !!(photoB64));
     goto('result');
     await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, userProfile: profile });
   }
 
   function saveToHistory(result, prob) {
     if (!result) return;
-    // Mark free diagnosis as used — only for real results (not safety blocks or fallbacks)
+    // Mark free diagnosis as used — only after real successful result
     if (!result.callPro && !result._fallback) {
-      LS.set('free_diagnosis_used', true);          // always mark locally
-      if (user && AUTH_AVAILABLE && !isPro) {       // also increment Supabase for logged-in users
-        incrementUsage(user.id).catch(() => {});    // fire-and-forget
+      LS.set('free_diagnosis_used', true);          // guest tracking
+      if (user && AUTH_AVAILABLE && !isPro) {
+        incrementUsage(user.id).catch(() => {});    // Supabase tracking (fire-and-forget)
       }
     }
     // Parse estimatedCost into a number for savings tracking
@@ -671,142 +520,26 @@ export default function App() {
     }
   }
 
-  // ── Stripe checkout ────────────────────────────────────────────────────────
-  async function startCheckout(plan) {
-    if (!user) { setAuthScreen('login'); return; }
-    setCheckoutBusy(true);
-    Analytics.track('checkout_started', { plan });
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, userId: user.id, userEmail: user.email }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.open(data.url, '_blank', 'noopener,noreferrer');
-      } else {
-        // Stripe not configured yet
-        showToast(data.message || (lang==='de'?'Zahlung noch nicht verfügbar':'Payment not available yet'));
-      }
-    } catch (_) {
-      showToast(lang==='de'?'Verbindungsfehler':'Connection error');
-    } finally {
-      setCheckoutBusy(false);
-    }
-  }
-
-  // ── Auth actions ─────────────────────────────────────────────────────────────
-  async function handleAuthSubmit() {
-    if (!authEmail.trim() || !authPwd.trim()) {
-      setAuthErr(lang==='de'?'Bitte E-Mail und Passwort eingeben':'Please enter email and password');
-      return;
-    }
-    setAuthBusy(true); setAuthErr('');
-    try {
-      if (authScreen === 'signup') {
-        Analytics.track('signup_started');
-        await signup(authEmail.trim(), authPwd);
-        Analytics.track('signup_success');
-      } else {
-        await login(authEmail.trim(), authPwd);
-        Analytics.track('login_success');
-        // If user logged in while paywall was showing, re-check Pro status
-        await refreshProfile();
-      }
-      setAuthScreen(null); setAuthEmail(''); setAuthPwd('');
-    } catch (err) {
-      const msg = err.message || '';
-      setAuthErr(
-        msg.includes('Invalid login') ? (lang==='de'?'Ungültige E-Mail oder Passwort':'Invalid email or password') :
-        msg.includes('already registered') ? (lang==='de'?'E-Mail bereits registriert':'Email already registered') :
-        msg.includes('auth_unavailable') ? (lang==='de'?'Auth nicht konfiguriert. Supabase-Schlüssel fehlen.':'Auth not configured. Supabase keys missing.') :
-        msg
-      );
-    } finally { setAuthBusy(false); }
-  }
-
-  // ── Check for successful Stripe redirect ─────────────────────────────────────
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const checkout = params.get('checkout');
-    if (checkout === 'success') {
-      window.history.replaceState({}, '', '/');
-      showToast(lang==='de'?'✅ Pro freigeschaltet! Vielen Dank.':'✅ Pro unlocked! Thank you.');
-      Analytics.track('checkout_success');
-      refreshProfile(); // reload profile to get is_pro=true
-      setFreeLimitHit(false);
-    } else if (checkout === 'cancelled') {
-      window.history.replaceState({}, '', '/');
-      Analytics.track('checkout_cancelled');
-    }
-  }, []); // eslint-disable-line
-
   async function handleShare() {
     const r = aiResult;
     if (!r) return;
-    Analytics.shareClicked();
 
-    // ── Build full diagnosis share text ──────────────────────────────────────
-    const APP_URL = 'https://www.fixit-app.com/';
-    const prob = (problemRef.current || '').trim();
-
-    // Labels per language
-    const L = {
-      header:    lang==='de' ? 'FIXIT — KI-Diagnose' : lang==='tr' ? 'FIXIT — Yapay Zeka Teşhisi' : lang==='pl' ? 'FIXIT — Diagnoza AI' : 'FIXIT — AI Diagnosis',
-      problem:   lang==='de' ? 'Problem'              : lang==='tr' ? 'Sorun'                       : lang==='pl' ? 'Problem'               : 'Problem',
-      confidence:lang==='de' ? 'Diagnose-Sicherheit'  : lang==='tr' ? 'Güven'                       : lang==='pl' ? 'Pewność'               : 'Confidence',
-      diagnosis: lang==='de' ? 'Diagnose'             : lang==='tr' ? 'Teşhis'                       : lang==='pl' ? 'Diagnoza'              : 'Diagnosis',
-      causes:    lang==='de' ? 'Mögliche Ursachen'    : lang==='tr' ? 'Olası nedenler'               : lang==='pl' ? 'Możliwe przyczyny'     : 'Possible causes',
-      steps:     lang==='de' ? 'Reparaturschritte'    : lang==='tr' ? 'Onarım adımları'              : lang==='pl' ? 'Kroki naprawy'         : 'Repair steps',
-      tools:     lang==='de' ? 'Werkzeug / Material'  : lang==='tr' ? 'Araçlar / Malzeme'            : lang==='pl' ? 'Narzędzia / Materiały' : 'Tools / Materials',
-      parts:     lang==='de' ? 'Ersatzteile'          : lang==='tr' ? 'Yedek parçalar'               : lang==='pl' ? 'Części zamienne'       : 'Parts needed',
-      tip:       lang==='de' ? 'Experten-Tipp'        : lang==='tr' ? 'Uzman ipucu'                  : lang==='pl' ? 'Porada eksperta'       : 'Expert tip',
-      safety:    lang==='de' ? 'Sicherheitshinweis'   : lang==='tr' ? 'Güvenlik uyarısı'             : lang==='pl' ? 'Ostrzeżenie'           : 'Safety warning',
-      savings:   lang==='de' ? 'Sparpotenzial ca.'    : lang==='tr' ? 'Tahmini tasarruf'             : lang==='pl' ? 'Potencjalne oszczędności' : 'Est. savings',
-      footer:    lang==='de' ? 'Erstellt mit FixIt'   : lang==='tr' ? 'FixIt ile oluşturuldu'        : lang==='pl' ? 'Utworzono w FixIt'     : 'Created with FixIt',
-    };
-
-    const lines = [];
-    lines.push(`🔧 ${L.header}`);
-    lines.push('─'.repeat(28));
-    if (prob)              lines.push(`${L.problem}: ${prob}`);
-    if (r.confidence)      lines.push(`${L.confidence}: ${r.confidence}%`);
-    if (r.estimatedCost)   lines.push(`💰 ${L.savings}: ${r.estimatedCost}`);
-    if (r.safetyWarning)   lines.push(`⚠️ ${L.safety}: ${r.safetyWarning}`);
-    lines.push('');
-    if (r.diagnosis)       lines.push(`📋 ${L.diagnosis}\n${r.diagnosis}`);
-    if (r.causes?.length) {
-      lines.push('');
-      lines.push(`🔍 ${L.causes}:`);
-      r.causes.forEach(c => lines.push(`• ${c}`));
-    }
-    if (r.steps?.length) {
-      lines.push('');
-      lines.push(`🛠 ${L.steps}:`);
-      r.steps.forEach((s, i) => {
-        lines.push(`${i + 1}. ${s.title}`);
-        if (s.description) lines.push(`   ${s.description}`);
-      });
-    }
-    if (r.tools?.length) {
-      lines.push('');
-      lines.push(`🔩 ${L.tools}:`);
-      r.tools.forEach(t => lines.push(`• ${t}`));
-    }
-    if (r.partsNeeded?.length) {
-      lines.push('');
-      lines.push(`📦 ${L.parts}:`);
-      r.partsNeeded.forEach(p => lines.push(`• ${p}`));
-    }
-    if (r.proTip) {
-      lines.push('');
-      lines.push(`💡 ${L.tip}: ${r.proTip}`);
-    }
-    lines.push('');
-    lines.push(`${L.footer}: ${APP_URL}`);
-
-    const shareText = lines.join('\n');
+    // Build share text
+    const savedLine = r.estimatedCost ? (
+      lang==='de' ? `Mögliches Sparpotenzial: ca. ${r.estimatedCost}` :
+      lang==='tr' ? `Tahmini tasarruf: yaklaşık ${r.estimatedCost}` :
+      lang==='pl' ? `Potencjalne oszczędności: ok. ${r.estimatedCost}` :
+      `Estimated savings: approx. ${r.estimatedCost}`
+    ) : '';
+    const shareText = [
+      lang==='de' ? '🔧 Gerade selbst repariert mit FixIt!' :
+      lang==='tr' ? '🔧 FixIt ile kendim tamir ettim!' :
+      lang==='pl' ? '🔧 Sam naprawiłem z FixIt!' :
+      '🔧 Just fixed it myself with FixIt!',
+      savedLine,
+      r.status || '',
+      `fixit-app.vercel.app`,
+    ].filter(Boolean).join('\n');
 
     // Try canvas share card first, fall back to text share
     try {
@@ -1065,93 +798,172 @@ export default function App() {
     setPResults({ q: cleanPart, vehicle: vInput, hsnModel: hsnModel.trim(), searchQ, isHSN, category: vType });
   }
 
+  // ── Stripe checkout ────────────────────────────────────────────────────────
+  async function startCheckout(plan) {
+    if (!user) { setAuthScreen('signup'); return; }
+    setCheckoutBusy(true);
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan, userId: user.id, userEmail: user.email }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      } else {
+        showToast(data.message || (lang==='de'?'Zahlung noch nicht konfiguriert':'Payment not configured yet'));
+      }
+    } catch (_) { showToast(lang==='de'?'Verbindungsfehler':'Connection error'); }
+    finally { setCheckoutBusy(false); }
+  }
+
+  // ── Auth actions ──────────────────────────────────────────────────────────
+  async function handleAuthSubmit() {
+    if (!authEmail.trim() || !authPwd.trim()) {
+      setAuthErr(lang==='de'?'Bitte E-Mail und Passwort eingeben':'Please enter email and password');
+      return;
+    }
+    setAuthBusy(true); setAuthErr('');
+    try {
+      if (authScreen === 'signup') {
+        await signup(authEmail.trim(), authPwd);
+      } else {
+        await login(authEmail.trim(), authPwd);
+        await refreshProfile();
+      }
+      setAuthScreen(null); setAuthEmail(''); setAuthPwd('');
+    } catch (err) {
+      const msg = err.message || '';
+      setAuthErr(
+        msg.includes('Invalid login') ? (lang==='de'?'Ungültige E-Mail oder Passwort':'Invalid email or password') :
+        msg.includes('already registered') ? (lang==='de'?'E-Mail bereits registriert':'Email already registered') :
+        msg.includes('auth_unavailable') ? (lang==='de'?'Supabase nicht konfiguriert — App läuft im Gastmodus.':'Supabase not configured — app runs in guest mode.') :
+        msg
+      );
+    } finally { setAuthBusy(false); }
+  }
+
+  // ── Check Stripe redirect on app load ────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get('checkout');
+    if (checkout === 'success') {
+      window.history.replaceState({}, '', '/');
+      showToast(lang==='de'?'✅ Pro freigeschaltet! Vielen Dank.':'✅ Pro unlocked! Thank you.');
+      refreshProfile();
+      setFreeLimitHit(false);
+    } else if (checkout === 'cancelled') {
+      window.history.replaceState({}, '', '/');
+    }
+  }, []); // eslint-disable-line
+
   const hr = new Date().getHours();
   const greeting = hr < 12 ? t('goodMorning') : hr < 18 ? t('goodAfternoon') : t('goodEvening');
   const aiMsgs = AI_MSGS[lang] || AI_MSGS.en;
 
-  // ── ONBOARDING ───────────────────────────────────────────────────────────────
-  // ── GLOBAL AUTH MODALS — render on top of any screen ─────────────────────────
-  const authModal = (
+
+  // ── Auth & Paywall modals — defined before screen returns, rendered as siblings ──
+  const AUTH_MODAL = (
     <>
-      {/* Login / Signup */}
+      {/* ── Paywall overlay ── */}
+      {freeLimitHit && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>
+          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
+          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>
+          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>
+          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>
+          <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>
+          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8'}}>{lang==='de'?'Kostenlose Analyse genutzt':lang==='mk'?'Бесплатната анализа е искористена':'Free diagnosis used'}</div>
+          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.45)',textAlign:'center',lineHeight:1.65,marginBottom:24,maxWidth:300}}>{lang==='de'?'Du hast deine kostenlose KI-Analyse genutzt. Nearby, Ersatzteile und Notfall bleiben verfügbar.':lang==='mk'?'Ја искористивте вашата бесплатна AI анализа. Сервиси во близина, делови и итни случаи остануваат достапни.':'You have used your free AI diagnosis. Nearby, parts and emergency remain available.'}</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:24}}>
+            {[['✅','Nearby'],['✅',lang==='de'?'Teile':'Parts'],['✅',lang==='de'?'Notfall':'Emergency'],['🔒',lang==='de'?'Unbegrenzte KI':'Unlimited AI']].map(([ic,lb])=>(
+              <div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>
+            ))}
+          </div>
+          {!user ? (
+            <button onClick={()=>{setFreeLimitHit(false);setAuthScreen('signup');}} style={{width:'100%',maxWidth:340,background:'rgba(232,82,26,0.9)',border:'none',borderRadius:14,padding:'14px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',cursor:'pointer',marginBottom:10}}>
+              🔑 {lang==='de'?'Konto erstellen & upgraden':lang==='mk'?'Создај сметка и надгради':'Create account & upgrade'}
+              <div style={{fontSize:'0.72rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren':'Free to sign up'}</div>
+            </button>
+          ) : (
+            <div style={{width:'100%',maxWidth:340,display:'flex',flexDirection:'column',gap:8}}>
+              <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>
+                <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · {lang==='de'?'EMPFOHLEN':'RECOMMENDED'}</div>
+                <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 {lang==='de'?'einmalig':'one-time'}</div>
+                <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{lang==='de'?'Ein Werkstattbesuch kostet €120–€300':'One visit costs €120–€300'}</div>
+              </button>
+              <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1}}>
+                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.5)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>MONTHLY</div>
+                <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / {lang==='de'?'Monat':'month'}</div>
+              </button>
+            </div>
+          )}
+          <button onClick={()=>setFreeLimitHit(false)} style={{marginTop:14,width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'12px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':lang==='mk'?'Назад кон апликацијата':'Back to app'}</button>
+        </div>
+      )}
+      {/* ── Login / Signup modal ── */}
       {(authScreen === 'login' || authScreen === 'signup') && (
         <div onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
           <div onClick={e=>e.stopPropagation()} style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
               <div>
-                <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>
-                  {authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}
-                </div>
-                <div style={{fontSize:'0.68rem',color:C.m,marginTop:2}}>
-                  {authScreen==='signup'?(lang==='de'?'Kostenlos — keine Kreditkarte nötig':'Free — no credit card needed'):(lang==='de'?'Willkommen zurück':'Welcome back')}
-                </div>
+                <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}</div>
+                <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.4)',marginTop:2}}>{authScreen==='signup'?(lang==='de'?'Kostenlos — keine Kreditkarte nötig':'Free — no credit card needed'):(lang==='de'?'Willkommen zurück':'Welcome back')}</div>
               </div>
               <button onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
             </div>
             {!AUTH_AVAILABLE && (
-              <div style={{background:'rgba(232,178,26,0.1)',border:'1px solid rgba(232,178,26,0.25)',borderRadius:10,padding:'10px 12px',fontSize:'0.73rem',color:'rgba(232,178,26,0.85)',marginBottom:14,lineHeight:1.5}}>
-                ⚙️ {lang==='de'?'Auth nicht konfiguriert — Supabase-Umgebungsvariablen fehlen. App läuft im Gastmodus.':'Auth not configured — Supabase environment variables missing. App runs in guest mode.'}
+              <div style={{background:'rgba(232,178,26,0.1)',border:'1px solid rgba(232,178,26,0.3)',borderRadius:10,padding:'10px 12px',fontSize:'0.73rem',color:'rgba(232,178,26,0.85)',marginBottom:14,lineHeight:1.5}}>
+                ⚙️ {lang==='de'?'Auth nicht konfiguriert — Supabase-Variablen fehlen. App läuft im Gastmodus.':'Auth not configured — Supabase env vars missing. App runs in guest mode.'}
               </div>
             )}
             <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email"
               placeholder={lang==='de'?'E-Mail-Adresse':'Email address'}
-              style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'12px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.2)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:10,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none',cursor:AUTH_AVAILABLE?'text':'not-allowed'}}
-              autoComplete="email" disabled={authBusy||!AUTH_AVAILABLE} readOnly={!AUTH_AVAILABLE}/>
+              style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:10,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none'}}
+              autoComplete="email" disabled={!AUTH_AVAILABLE||authBusy} readOnly={!AUTH_AVAILABLE}/>
             <input value={authPwd} onChange={e=>setAuthPwd(e.target.value)} type="password"
               placeholder={lang==='de'?'Passwort (min. 6 Zeichen)':'Password (min. 6 chars)'}
-              style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'12px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.2)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:authErr?8:16,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none',cursor:AUTH_AVAILABLE?'text':'not-allowed'}}
+              style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:authErr?8:16,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none'}}
               autoComplete={authScreen==='signup'?'new-password':'current-password'}
-              disabled={authBusy||!AUTH_AVAILABLE} readOnly={!AUTH_AVAILABLE}
-              onKeyDown={e=>e.key==='Enter'&&handleAuthSubmit()}/>
+              disabled={!AUTH_AVAILABLE||authBusy} readOnly={!AUTH_AVAILABLE}
+              onKeyDown={e=>e.key==='Enter'&&AUTH_AVAILABLE&&handleAuthSubmit()}/>
             {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:12,lineHeight:1.45}}>{authErr}</div>}
-            <button onClick={handleAuthSubmit} disabled={authBusy||!AUTH_AVAILABLE}
-              style={{background:AUTH_AVAILABLE?C.o:'rgba(255,255,255,0.08)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:AUTH_AVAILABLE?'#fff':'rgba(255,255,255,0.3)',fontFamily:'inherit',width:'100%',cursor:AUTH_AVAILABLE&&!authBusy?'pointer':'not-allowed',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+            <button onClick={handleAuthSubmit} disabled={!AUTH_AVAILABLE||authBusy}
+              style={{background:AUTH_AVAILABLE?'#E8521A':'rgba(255,255,255,0.06)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:AUTH_AVAILABLE?'#fff':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',cursor:AUTH_AVAILABLE&&!authBusy?'pointer':'not-allowed',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
               {authBusy?<Spinner/>:authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}
             </button>
             <button onClick={()=>{setAuthScreen(authScreen==='login'?'signup':'login');setAuthErr('');}}
-              style={{background:'none',border:'none',color:C.m,fontSize:'0.75rem',cursor:'pointer',width:'100%',textAlign:'center',padding:'4px',fontFamily:'inherit'}}>
-              {authScreen==='login'
-                ?(lang==='de'?'Noch kein Konto? Registrieren →':'No account? Sign up →')
-                :(lang==='de'?'Bereits registriert? Anmelden →':'Already have an account? Sign in →')}
+              style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:'0.75rem',cursor:'pointer',width:'100%',textAlign:'center',padding:'4px',fontFamily:'inherit'}}>
+              {authScreen==='login'?(lang==='de'?'Noch kein Konto? Registrieren →':'No account? Sign up →'):(lang==='de'?'Bereits registriert? Anmelden →':'Already have an account? Sign in →')}
             </button>
           </div>
         </div>
       )}
-      {/* Account */}
+      {/* ── Account modal ── */}
       {authScreen === 'account' && (
-        <div onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
+        <div onClick={()=>setAuthScreen(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
               <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{lang==='de'?'Mein Konto':'My Account'}</div>
               <button onClick={()=>setAuthScreen(null)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
             </div>
             {user ? (<>
               <div style={{background:'rgba(255,255,255,0.04)',borderRadius:12,padding:'13px 14px',marginBottom:10}}>
-                <div style={{fontSize:'0.6rem',color:C.m,marginBottom:2,letterSpacing:'0.08em'}}>E-MAIL</div>
+                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.4)',marginBottom:2,letterSpacing:'0.08em'}}>E-MAIL</div>
                 <div style={{fontSize:'0.88rem',color:'#F0EDE8',wordBreak:'break-all'}}>{user.email}</div>
               </div>
               <div style={{background:isPro?'rgba(232,82,26,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${isPro?'rgba(232,82,26,0.25)':'rgba(255,255,255,0.08)'}`,borderRadius:12,padding:'13px 14px',marginBottom:18}}>
-                <div style={{fontSize:'0.6rem',color:C.m,marginBottom:4,letterSpacing:'0.08em'}}>{lang==='de'?'STATUS':'STATUS'}</div>
-                {isPro
-                  ? <div style={{fontSize:'0.9rem',color:'#E8521A',fontWeight:700}}>✅ FIXIT PRO {authProfile?.plan==='lifetime'?'· Lifetime':'· Monthly'}</div>
-                  : <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.5)'}}>{lang==='de'?'Free — 1 kostenlose Diagnose':'Free — 1 free diagnosis'}</div>}
+                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.4)',marginBottom:4,letterSpacing:'0.08em'}}>STATUS</div>
+                {isPro ? <div style={{fontSize:'0.9rem',color:'#E8521A',fontWeight:700}}>✅ FIXIT PRO {authProfile?.plan==='lifetime'?'· Lifetime':'· Monthly'}</div>
+                       : <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.5)'}}>{lang==='de'?'Free — 1 kostenlose Diagnose':'Free — 1 free diagnosis'}</div>}
               </div>
-              {!isPro && (
-                <button onClick={()=>{setAuthScreen(null);setFreeLimitHit(true);}}
-                  style={{background:'rgba(232,82,26,0.85)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.88rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',cursor:'pointer',marginBottom:10}}>
-                  🚀 {lang==='de'?'Auf Pro upgraden':'Upgrade to Pro'}
-                </button>
-              )}
-              <button onClick={async()=>{await logout();Analytics.track('logout');setAuthScreen(null);}}
-                style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'11px',color:'rgba(255,255,255,0.4)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit',width:'100%'}}>
-                {lang==='de'?'Abmelden':'Sign out'}
-              </button>
+              {!isPro && <button onClick={()=>{setAuthScreen(null);setFreeLimitHit(true);}} style={{background:'rgba(232,82,26,0.85)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.88rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',cursor:'pointer',marginBottom:10}}>🚀 {lang==='de'?'Auf Pro upgraden':'Upgrade to Pro'}</button>}
+              <button onClick={async()=>{await logout();setAuthScreen(null);}} style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'11px',color:'rgba(255,255,255,0.4)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit',width:'100%'}}>{lang==='de'?'Abmelden':'Sign out'}</button>
             </>) : (
               <div style={{textAlign:'center',padding:'20px 0'}}>
-                <div style={{color:C.m,fontSize:'0.85rem',marginBottom:16}}>{lang==='de'?'Nicht angemeldet':'Not signed in'}</div>
-                <button onClick={()=>setAuthScreen('login')} style={{...s.btn,width:'100%'}}>
-                  {lang==='de'?'Anmelden':'Sign in'}
-                </button>
+                <div style={{color:'rgba(255,255,255,0.5)',fontSize:'0.85rem',marginBottom:16}}>{lang==='de'?'Nicht angemeldet':'Not signed in'}</div>
+                <button onClick={()=>setAuthScreen('login')} style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px',fontSize:'0.88rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',cursor:'pointer'}}>{lang==='de'?'Anmelden':'Sign in'}</button>
               </div>
             )}
           </div>
@@ -1160,7 +972,7 @@ export default function App() {
     </>
   );
 
-
+  // ── ONBOARDING ───────────────────────────────────────────────────────────────
   if (screen === 'onboarding') {
     const slides = [
       { icon:'🔍', title: t('describeYourProblem'), sub: lang==='de'?'Tippe oder fotografiere — die KI analysiert es sofort.':lang==='tr'?'Yaz veya fotoğrafla — yapay zeka hemen analiz eder.':lang==='pl'?'Wpisz lub sfotografuj — AI analizuje natychmiast.':'Type or photograph — AI analyses it instantly.' },
@@ -1205,30 +1017,6 @@ export default function App() {
           <div style={{fontSize:'2.8rem',marginBottom:8}}>{l.f}</div>
           <div style={{fontSize:'1.2rem',fontWeight:800,marginBottom:4}}>{l.n} — {l.na}</div>
         </div>
-        {ready && (() => {
-          // Show detected country/region separately from language
-          const regionCC  = country !== 'DEFAULT' ? country : detectedRegion;
-          const regionCD  = regionCC ? getCountry(regionCC) : null;
-          const regionLabel = regionCD ? `${regionCD.flag || ''} ${regionCD.name}` : null;
-          const locationSrc = country !== 'DEFAULT'
-            ? (selLang==='de'?'GPS':'GPS')
-            : detectedRegion
-            ? (selLang==='de'?'Zeitzone':'Timezone')
-            : null;
-          return (<>
-            {regionLabel && (
-              <div style={{display:'flex',alignItems:'center',gap:8,fontSize:'0.78rem',
-                color:'rgba(255,255,255,0.45)',marginBottom:4,marginTop:-8}}>
-                <span>📍</span>
-                <span>
-                  {selLang==='de'?'Standort erkannt':selLang==='fr'?'Emplacement détecté':selLang==='it'?'Posizione rilevata':selLang==='tr'?'Konum algılandı':selLang==='pl'?'Wykryto lokalizację':'Location detected'}:&nbsp;
-                  <strong style={{color:'rgba(255,255,255,0.7)'}}>{regionLabel}</strong>
-                  {locationSrc && <span style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.25)',marginLeft:4}}>({locationSrc})</span>}
-                </span>
-              </div>
-            )}
-          </>);
-        })()}
         {ready && <>
           <button onClick={confirmLang} style={{...s.btn,maxWidth:340,borderRadius:16,padding:16,fontSize:'1rem'}}>
             {ts('continueIn')} {l.na} →
@@ -1260,56 +1048,7 @@ export default function App() {
   if (screen === 'home') return (
     <>
     <Screen>
-      {freeLimitHit && (
-        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>
-          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
-          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>
-          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>
-          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>
-          <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>
-          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8',letterSpacing:'-0.02em'}}>{lang==='de'?'Kostenlose Analyse genutzt':lang==='tr'?'Ücretsiz analiz kullanıldı':lang==='pl'?'Darmowa analiza wykorzystana':'Free diagnosis used'}</div>
-          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.4)',textAlign:'center',lineHeight:1.65,marginBottom:28,maxWidth:300}}>{lang==='de'?'Du hast deine kostenlose KI-Analyse genutzt. Nearby, Ersatzteile und Notfall bleiben weiterhin verfügbar.':lang==='tr'?'Ücretsiz AI analizini kullandın. Yakındaki ve acil durum her zaman ücretsizdir.':lang==='pl'?'Wykorzystałeś swoją bezpłatną analizę AI. Usługi w pobliżu i nagłe przypadki są zawsze bezpłatne.':'You have used your free AI diagnosis. Nearby, parts and emergency remain available.'}</div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:28}}>{[['✅','Nearby & Maps'],['✅','Parts finder'],['✅','Emergency'],['🔒','Unlimited AI']].map(([ic,lb])=>(<div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>))}</div>
-          <div style={{width:'100%',maxWidth:340,background:'linear-gradient(135deg,rgba(232,82,26,0.12),rgba(232,82,26,0.04))',border:'1px solid rgba(232,82,26,0.25)',borderRadius:18,padding:'20px',marginBottom:14,textAlign:'center'}}>
-            <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>FIXIT PRO</div>
-            <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8',marginBottom:4}}>{lang==='de'?'Unbegrenzte KI-Analysen':'Unlimited AI Analyses'}</div>
-            <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.38)',marginBottom:14}}>€3.99/Monat · €17.99 {lang==='de'?'einmalig':'lifetime'}</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                {!user ? (
-                  // Not logged in — show login prompt instead of checkout
-                  <button onClick={()=>setAuthScreen('signup')} style={{background:'rgba(232,82,26,0.9)',border:'none',borderRadius:12,padding:'14px',cursor:'pointer',fontFamily:'inherit',color:'#fff',fontWeight:700,fontSize:'0.9rem',textAlign:'center'}}>
-                    🔑 {lang==='de'?'Konto erstellen & upgraden':'Create account & upgrade'}
-                    <div style={{fontSize:'0.7rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren — keine Kreditkarte nötig':'Free to sign up — no card needed yet'}</div>
-                  </button>
-                ) : (
-                  <>
-                    {/* Lifetime — highlighted */}
-                    <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                        <div>
-                          <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · {lang==='de'?'EMPFOHLEN':'RECOMMENDED'}</div>
-                          <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 {lang==='de'?'einmalig':'one-time'}</div>
-                          <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{lang==='de'?'Ein Werkstattbesuch kostet €120–€300':'One workshop visit costs €120–€300'}</div>
-                        </div>
-                        <div style={{fontSize:'1.1rem',marginTop:2}}>{checkoutBusy?'⏳':'→'}</div>
-                      </div>
-                    </button>
-                    {/* Monthly */}
-                    <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <div>
-                        <div style={{fontSize:'0.6rem',fontWeight:700,color:C.m,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{lang==='de'?'MONATLICH':'MONTHLY'}</div>
-                        <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / {lang==='de'?'Monat':'month'}</div>
-                      </div>
-                      <div style={{fontSize:'1.1rem'}}>{checkoutBusy?'⏳':'→'}</div>
-                    </button>
-                  </>
-                )}
-              </div>
-          </div>
-          <button onClick={()=>setFreeLimitHit(false)} style={{width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'13px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':'Back to app'}</button>
-        </div>
-      )}
-      {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
+      {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
       {/* Offline banner */}
       {!isOnline && <div style={{background:'rgba(232,178,26,0.15)',borderBottom:'1px solid rgba(232,178,26,0.3)',padding:'8px 16px',fontSize:'0.72rem',color:C.y,textAlign:'center',flexShrink:0}}>⚠️ Offline mode — emergency info still available</div>}
       {/* PWA install banner */}
@@ -1323,31 +1062,7 @@ export default function App() {
           <div style={{fontSize:'1.5rem',fontWeight:900}}>FIX<span style={{color:C.o}}>IT</span></div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             {lat && <div style={{fontSize:'0.7rem',color:C.g,background:'rgba(26,158,92,0.1)',border:'1px solid rgba(26,158,92,0.2)',borderRadius:100,padding:'4px 10px'}}>📍 {city||`${lat.toFixed(2)},${lng.toFixed(2)}`}</div>}
-            {/* Auth/Account button — always visible (handles guest mode gracefully) */}
-            <button onClick={()=>setAuthScreen(user?'account':'login')} style={{
-                background: user ? 'rgba(255,255,255,0.08)' : 'rgba(232,82,26,0.15)',
-                border: `1px solid ${user ? 'rgba(255,255,255,0.15)' : 'rgba(232,82,26,0.4)'}`,
-                borderRadius:22,padding:'8px 14px',fontSize:'0.72rem',fontWeight:600,
-                cursor:'pointer',color:user?C.t:'#E8521A',fontFamily:'inherit',
-                display:'flex',alignItems:'center',gap:6,minHeight:36,whiteSpace:'nowrap',
-              }}>
-                {user
-                  ? <><span style={{fontSize:'0.9rem'}}>👤</span>
-                      <span style={{maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>
-                      {isPro && <span style={{background:'#E8521A',color:'#fff',fontSize:'0.6rem',fontWeight:800,borderRadius:4,padding:'1px 5px',letterSpacing:'0.05em'}}>PRO</span>}
-                    </>
-                  : <><span style={{fontSize:'0.9rem'}}>🔑</span>
-                      <span>{lang==='de'?'Anmelden':lang==='tr'?'Giriş':lang==='pl'?'Zaloguj':'Login'}</span>
-                    </>}
-              </button>
-            {(() => {
-              const vhCount = history.filter(h=>h&&h.problem&&(h.diagnosis||h.confidence)).length;
-              return vhCount > 0 && (
-                <button onClick={()=>setShowHistory(true)} style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:100,padding:'5px 10px',fontSize:'0.7rem',cursor:'pointer',color:C.m,fontFamily:'inherit'}}>
-                  {lang==='de'?`🕐 ${vhCount} ${vhCount===1?'Diagnose':'Diagnosen'}`:`🕐 ${vhCount} ${vhCount===1?'repair':'repairs'}`}
-                </button>
-              );
-            })()}
+            {history.length > 0 && <button onClick={()=>setShowHistory(true)} style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:100,padding:'5px 10px',fontSize:'0.7rem',cursor:'pointer',color:C.m,fontFamily:'inherit'}}>🕐 {history.length}</button>}
             <button onClick={()=>setShowLP(true)} style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:100,padding:'5px 12px',fontSize:'0.8rem',cursor:'pointer',color:C.m,fontFamily:'inherit'}}>{LANGS[lang]?.f} {lang.toUpperCase()}</button>
           </div>
         </div>
@@ -1373,165 +1088,36 @@ export default function App() {
       </div>
       <Scroll>
         {/* History modal */}
-        {showHistory && (() => {
-          const validHistory = history.filter(h => h && h.problem && (h.diagnosis || h.confidence));
-          const CAT_IC = {home:'🏠',car:'🚗',tech:'📱',appliances:'⚙️',garden:'🌿',bike:'🚲',pets:'🐾'};
-          const fmtDate = (d) => {
-            if (!d || isNaN(new Date(d))) return lang==='de'?'Kürzlich':lang==='tr'?'Yakın zamanda':lang==='pl'?'Ostatnio':'Recently';
-            const dt = new Date(d), now = new Date();
-            const diffH = (now - dt) / 3600000;
-            if (diffH < 24) return lang==='de'?'Heute':lang==='tr'?'Bugün':lang==='pl'?'Dzisiaj':'Today';
-            if (diffH < 48) return lang==='de'?'Gestern':lang==='tr'?'Dün':lang==='pl'?'Wczoraj':'Yesterday';
-            return dt.toLocaleDateString(lang==='de'?'de-DE':lang==='tr'?'tr-TR':lang==='pl'?'pl-PL':'en-GB',{day:'numeric',month:'short'});
-          };
-          return (
-          <div onClick={()=>setShowHistory(false)} style={{
-            position:'fixed',inset:0,
-            background:'rgba(0,0,0,0.75)',
-            backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
-            zIndex:200,display:'flex',alignItems:'flex-end',
-            animation:'fadeIn .18s ease',
-          }}>
-            <div onClick={e=>e.stopPropagation()} style={{
-              background:'linear-gradient(180deg,#181412 0%,#111009 100%)',
-              borderRadius:'24px 24px 0 0',width:'100%',
-              boxShadow:'0 -8px 60px rgba(0,0,0,0.7),0 -1px 0 rgba(255,255,255,0.06)',
-              display:'flex',flexDirection:'column',
-              maxHeight:'82vh',
-              // Clear bottom nav + safe area
-              paddingBottom:'max(100px,calc(80px + env(safe-area-inset-bottom)))',
-            }}>
-              {/* Drag handle */}
-              <div style={{display:'flex',justifyContent:'center',paddingTop:12,paddingBottom:4,flexShrink:0}}>
-                <div style={{width:36,height:4,borderRadius:2,background:'rgba(255,255,255,0.12)'}}/>
-              </div>
-              {/* Sticky header */}
-              <div style={{
-                display:'flex',alignItems:'center',justifyContent:'space-between',
-                padding:'10px 20px 14px',
-                borderBottom:'1px solid rgba(255,255,255,0.06)',
-                flexShrink:0,
-              }}>
-                <div>
-                  <div style={{fontSize:'1rem',fontWeight:800,color:'#F0EDE8',letterSpacing:'-0.01em'}}>
-                    {lang==='de'?'Diagnosen':lang==='tr'?'Geçmiş':lang==='pl'?'Historia':'Diagnoses'}
-                  </div>
-                  <div style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.28)',marginTop:2}}>
-                    {validHistory.length} {lang==='de'?'gespeichert':lang==='tr'?'kayıtlı':lang==='pl'?'zapisanych':'saved'}
-                    {totalSaved > 0 && <span style={{marginLeft:8,color:'rgba(26,158,92,0.8)'}}>· ca. €{totalSaved} {lang==='de'?'gespart':'saved'}</span>}
+        {showHistory && (
+          <div onClick={()=>setShowHistory(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:100,display:'flex',alignItems:'flex-end'}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:'#151310',borderRadius:'26px 26px 0 0',width:'100%',maxHeight:'70vh',overflowY:'auto',padding:20}}>
+              <div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
+              {history.map(h=>(
+                <div key={h.id} style={{...s.card,marginBottom:8}}>
+                  <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
+                  <div style={{fontSize:'0.72rem',color:C.m,marginBottom:6}}>{h.diagnosis}</div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+              {/* Auth button — always visible */}
+              <button onClick={()=>setAuthScreen(user?'account':'login')} style={{background:user?'rgba(255,255,255,0.08)':'rgba(232,82,26,0.15)',border:`1px solid ${user?'rgba(255,255,255,0.15)':'rgba(232,82,26,0.4)'}`,borderRadius:22,padding:'7px 13px',fontSize:'0.72rem',fontWeight:600,cursor:'pointer',color:user?'#F0EDE8':'#E8521A',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,minHeight:34,whiteSpace:'nowrap'}}>
+                {user?<><span>👤</span><span style={{maxWidth:75,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.email.split('@')[0]}</span>{isPro&&<span style={{background:'#E8521A',color:'#fff',fontSize:'0.58rem',fontWeight:800,borderRadius:4,padding:'1px 4px',letterSpacing:'0.05em',marginLeft:3}}>PRO</span>}</>:<><span>🔑</span><span>{lang==='de'?'Anmelden':lang==='mk'?'Влез':'Login'}</span></>}
+              </button>
+                    <span style={{fontSize:'0.65rem',color:C.m}}>{new Date(h.date).toLocaleDateString()}</span>
+                    {h.fixed===true && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
+                    {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
+                    <button onClick={()=>{problemRef.current=h.problem;setCurFix('home');setShowHistory(false);goto('result');diagnose({problem:h.problem,category:'home',lang,countryName:cd.name});}} style={{marginLeft:'auto',background:C.o,border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:'0.65rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Erneut':'Try again'}</button>
                   </div>
                 </div>
-                <button onClick={()=>setShowHistory(false)} style={{
-                  background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',
-                  borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.6)',
-                  fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',
-                  fontFamily:'inherit',
-                }}>✕</button>
-              </div>
-              {/* Scrollable list */}
-              <div style={{overflowY:'auto',flex:1,padding:'12px 16px 0'}}>
-                {validHistory.length === 0 && (
-                  <div style={{textAlign:'center',padding:'48px 0'}}>
-                    <div style={{fontSize:'2.5rem',marginBottom:12,opacity:0.4}}>🔧</div>
-                    <div style={{fontSize:'0.85rem',fontWeight:600,color:'rgba(255,255,255,0.3)'}}>
-                      {lang==='de'?'Noch keine Diagnosen gespeichert':lang==='tr'?'Henüz tanı kaydedilmedi':lang==='pl'?'Brak zapisanych diagnoz':'No diagnoses saved yet'}
-                    </div>
-                  </div>
-                )}
-                {validHistory.map((h,idx2)=>(
-                  <div key={h.id} style={{
-                    background: idx2===0 ? 'rgba(232,82,26,0.05)' : 'rgba(255,255,255,0.03)',
-                    border:`1px solid ${idx2===0 ? 'rgba(232,82,26,0.18)' : 'rgba(255,255,255,0.06)'}`,
-                    borderRadius:16,padding:'14px 16px',marginBottom:10,
-                    cursor:'pointer',
-                    transition:'border-color .15s',
-                  }}
-                  onClick={()=>{
-                    // Restore this history entry as a pseudo-result via sessionStorage
-                    const pseudo = {
-                      confidence: h.confidence||75,
-                      status: h.problem,
-                      diagnosis: h.diagnosis||'',
-                      causes:[],steps:[],tools:[],partsNeeded:[],
-                      estimatedCost: h.estimatedCost||'',
-                      warningLevel:'low',safetyWarning:'',callPro:false,proReason:'',proTip:'',proSearchQuery:'',
-                      _fromHistory: true,
-                    };
-                    SS.set('aiResult', pseudo);
-                    SS.set('aiProblem', h.problem);
-                    problemRef.current = h.problem;
-                    setCurFix(h.category || 'home');
-                    setShowHistory(false);
-                    goto('result');
-                  }}>
-                    <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
-                      <div style={{
-                        width:38,height:38,borderRadius:10,flexShrink:0,
-                        background:'rgba(255,255,255,0.06)',
-                        display:'flex',alignItems:'center',justifyContent:'center',
-                        fontSize:'1.1rem',
-                      }}>{CAT_IC[h.category]||'🔧'}</div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{
-                          fontSize:'0.85rem',fontWeight:700,
-                          color:'#F0EDE8',marginBottom:3,
-                          overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
-                        }}>{h.problem}</div>
-                        {h.diagnosis && <div style={{
-                          fontSize:'0.72rem',color:'rgba(255,255,255,0.38)',
-                          lineHeight:1.5,marginBottom:8,
-                          display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',
-                        }}>{h.diagnosis}</div>}
-                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                          <span style={{
-                            fontSize:'0.6rem',fontWeight:700,
-                            color:h.confidence>79?'rgba(26,158,92,0.9)':h.confidence>59?'rgba(232,178,26,0.9)':'rgba(214,59,47,0.7)',
-                            background:h.confidence>79?'rgba(26,158,92,0.12)':h.confidence>59?'rgba(232,178,26,0.1)':'rgba(214,59,47,0.1)',
-                            border:`1px solid ${h.confidence>79?'rgba(26,158,92,0.2)':h.confidence>59?'rgba(232,178,26,0.2)':'rgba(214,59,47,0.15)'}`,
-                            borderRadius:6,padding:'2px 7px',
-                          }}>{h.confidence||'—'}%</span>
-                          <span style={{fontSize:'0.62rem',color:'rgba(255,255,255,0.22)'}}>{fmtDate(h.date)}</span>
-                          {h.fixed===true && <span style={{fontSize:'0.6rem',color:'rgba(26,158,92,0.8)'}}>✓ {lang==='de'?'Behoben':'Fixed'}</span>}
-                          {h.fixed===false && <span style={{fontSize:'0.6rem',color:'rgba(214,59,47,0.7)'}}>✗ {lang==='de'?'Nicht behoben':'Not fixed'}</span>}
-                          <span style={{
-                            marginLeft:'auto',fontSize:'0.6rem',fontWeight:700,
-                            color:'rgba(232,82,26,0.8)',
-                          }}>{lang==='de'?'Erneut öffnen →':lang==='tr'?'Yeniden aç →':lang==='pl'?'Otwórz ponownie →':'Open again →'}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {/* Savings summary */}
-                {totalSaved > 0 && (
-                  <div style={{
-                    background:'rgba(26,158,92,0.06)',border:'1px solid rgba(26,158,92,0.14)',
-                    borderRadius:14,padding:'14px 16px',marginBottom:10,
-                    display:'flex',alignItems:'center',gap:14,
-                  }}>
-                    <div style={{fontSize:'1.8rem'}}>💰</div>
-                    <div>
-                      <div style={{fontSize:'1.3rem',fontWeight:900,color:'rgba(26,158,92,0.9)'}}>ca. €{totalSaved}</div>
-                      <div style={{fontSize:'0.62rem',color:'rgba(255,255,255,0.25)',lineHeight:1.5,marginTop:2}}>
-                        {lang==='de'?'Mögliches Sparpotenzial mit FixIt':lang==='tr'?'FixIt ile tahmini tasarruf':lang==='pl'?'Potencjalne oszczędności z FixIt':'Est. savings with FixIt'}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {/* Clear */}
-                <button onClick={(e)=>{e.stopPropagation();setHistory([]);LS.set('history',[]);setTotalSaved(0);LS.set('totalSaved',0);}} style={{
-                  width:'100%',background:'none',border:'1px solid rgba(255,255,255,0.07)',
-                  borderRadius:12,padding:'11px',color:'rgba(255,255,255,0.25)',
-                  fontSize:'0.72rem',fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                  marginBottom:8,
-                }}>
-                  {lang==='de'?'Verlauf löschen':lang==='tr'?'Geçmişi temizle':lang==='pl'?'Wyczyść historię':'Clear history'}
-                </button>
-              </div>
+              ))}
+              {history.length === 0 && <div style={{textAlign:'center',color:C.m,padding:'20px 0'}}>No repairs yet</div>}
+              {totalSaved > 0 && <div style={{background:'rgba(26,158,92,0.08)',border:'1px solid rgba(26,158,92,0.18)',borderRadius:10,padding:'10px 14px',marginBottom:12,textAlign:'center'}}>
+                <div style={{fontSize:'0.65rem',color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{lang==='de'?'Mögliches Sparpotenzial mit FixIt':lang==='tr'?'FixIt ile tahmini tasarruf':lang==='pl'?'Potencjalne oszczędności z FixIt':'Estimated savings with FixIt'}</div>
+                <div style={{fontSize:'1.5rem',fontWeight:900,color:C.g}}>ca. €{totalSaved}</div>
+                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.22)',marginTop:4}}>{lang==='de'?'Schätzung basierend auf typischen Reparaturkosten. Keine Garantie.':lang==='tr'?'Tipik onarım maliyetlerine göre tahmin. Garanti yoktur.':lang==='pl'?'Szacunek oparty na typowych kosztach naprawy. Bez gwarancji.':'Estimate based on typical repair costs. No guarantee.'}</div>
+              </div>}
+              <button onClick={()=>{setHistory([]);LS.set('history',[]);setTotalSaved(0);LS.set('totalSaved',0);}} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{lang==='de'?'Verlauf löschen':lang==='tr'?'Geçmişi temizle':lang==='pl'?'Wyczyść historię':'Clear history'}</button>
             </div>
           </div>
-          );
-        })()}
+        )}
         {/* Emergency banner */}
         <div onClick={()=>goto('emergency')} style={{background:'linear-gradient(135deg,#2A0000,#1A0000)',border:'1px solid rgba(214,59,47,0.3)',borderRadius:18,padding:16,display:'flex',alignItems:'center',gap:14,marginBottom:22,cursor:'pointer',animation:'fadeIn .4s ease'}}>
           <span style={{width:8,height:8,background:C.r,borderRadius:'50%',flexShrink:0,animation:'blink 1.2s infinite'}}/>
@@ -1543,20 +1129,11 @@ export default function App() {
         </div>
         <div style={{fontSize:'0.68rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>{t('whatNeedsFixing')}</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:22}}>
-          {[['🏠',t('homeRepair'),'home',true],['🚗',t('carProblems'),'car',false],['🏍️',t('motorcycle'),'moto',false],['📱',t('techDevices'),'tech',false],['🌿',t('garden'),'garden',false],['🍳',t('appliances'),'appliances',false],['🐾',t('petHealth'),'pets',false]].map(([em,nm,cat,hi],i)=>(
+          {[['🏠',t('homeRepair'),'home',true],['🚗',t('carProblems'),'car',false],['📱',t('techDevices'),'tech',false],['🌿',t('garden'),'garden',false],['🍳',t('appliances'),'appliances',false],['🐾',t('petHealth'),'pets',false]].map(([em,nm,cat,hi],i)=>(
             <div key={cat} onClick={()=>openFix(cat)} style={{background:hi?'rgba(232,82,26,0.07)':C.c,border:`1px solid ${hi?'rgba(232,82,26,0.35)':C.b}`,borderRadius:18,padding:16,cursor:'pointer',animation:`fadeIn ${.3+i*.07}s ease`}}>
               <span style={{fontSize:'1.8rem',marginBottom:8,display:'block'}}>{em}</span>
               <div style={{fontSize:'0.85rem',fontWeight:700,marginBottom:3}}>{nm}</div>
-              <div style={{fontSize:'0.7rem',color:C.m}}>{
-                cat==='pets'      ? (lang==='de'?'Symptome analysieren →':lang==='fr'?'Analyser symptômes →':lang==='tr'?'Semptomları analiz et →':lang==='it'?'Analizza sintomi →':lang==='es'?'Analizar síntomas →':'Analyze symptoms →') :
-                cat==='moto'      ? (lang==='de'?'Motorrad prüfen →':lang==='fr'?'Vérifier moto →':lang==='tr'?'Motosiklet kontrol et →':lang==='it'?'Controlla moto →':lang==='es'?'Revisar moto →':'Inspect motorcycle →') :
-                cat==='car'       ? (lang==='de'?'Fahrzeug prüfen →':lang==='fr'?'Vérifier véhicule →':lang==='tr'?'Araç kontrol et →':lang==='it'?'Controlla veicolo →':lang==='es'?'Revisar vehículo →':'Inspect vehicle →') :
-                cat==='bike'      ? (lang==='de'?'Fahrrad prüfen →':lang==='fr'?'Vérifier vélo →':lang==='tr'?'Bisiklet kontrol et →':lang==='it'?'Controlla bici →':lang==='es'?'Revisar bici →':'Inspect bicycle →') :
-                cat==='garden'    ? (lang==='de'?'Problem erkennen →':lang==='fr'?'Identifier problème →':lang==='tr'?'Sorun tanımla →':lang==='it'?'Identifica problema →':lang==='es'?'Identificar problema →':'Identify issue →') :
-                cat==='appliances'? (lang==='de'?'Gerät diagnostizieren →':lang==='fr'?'Diagnostiquer appareil →':lang==='tr'?'Cihaz teşhis et →':lang==='it'?'Diagnostica dispositivo →':lang==='es'?'Diagnosticar dispositivo →':'Diagnose appliance →') :
-                cat==='tech'      ? (lang==='de'?'Fehler analysieren →':lang==='fr'?'Analyser panne →':lang==='tr'?'Hata analiz et →':lang==='it'?'Analizza il guasto →':lang==='es'?'Analizar fallo →':'Analyze fault →') :
-                /* home/default */  (lang==='de'?'Problem analysieren →':lang==='fr'?'Analyser le problème →':lang==='tr'?'Sorunu analiz et →':lang==='it'?'Analizza il problema →':lang==='es'?'Analizar problema →':'Analyze issue →')
-              }</div>
+              <div style={{fontSize:'0.7rem',color:C.m}}>{t('tapToFix')}</div>
             </div>
           ))}
         </div>
@@ -1572,16 +1149,9 @@ export default function App() {
         )}
       </Scroll>
       <NavBar screen={screen} t={t} goto={goto}/>
-      <div style={{position:'absolute',bottom:2,right:8,fontSize:'0.52rem',color:'rgba(255,255,255,0.1)',pointerEvents:'none',userSelect:'none',letterSpacing:'0.05em',fontFamily:'monospace',zIndex:1}}>{BUILD_VERSION}</div>
-      {/* iPhone PWA install hint — only show if not already installed */}
-      {typeof window !== 'undefined' && !/standalone/.test(window.navigator.userAgent) && /iPhone|iPad/.test(navigator.userAgent) && (
-        <div style={{textAlign:'center',fontSize:'0.65rem',color:'rgba(255,255,255,0.2)',padding:'6px 20px 0',letterSpacing:'0.02em'}}>
-          {lang==='de'?'📲 Tippe auf Teilen → Zum Home-Bildschirm':'📲 Tap Share → Add to Home Screen'}
-        </div>
-      )}
       <style>{CSS}</style>
     </Screen>
-    {authModal}
+    {AUTH_MODAL}
     </>
   );
 
@@ -1589,56 +1159,7 @@ export default function App() {
   if (screen === 'fix-now') return (
     <>
     <Screen>
-      {freeLimitHit && (
-        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>
-          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>
-          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>
-          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>
-          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>
-          <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>
-          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8',letterSpacing:'-0.02em'}}>{lang==='de'?'Kostenlose Analyse genutzt':lang==='tr'?'Ücretsiz analiz kullanıldı':lang==='pl'?'Darmowa analiza wykorzystana':'Free diagnosis used'}</div>
-          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.4)',textAlign:'center',lineHeight:1.65,marginBottom:28,maxWidth:300}}>{lang==='de'?'Du hast deine kostenlose KI-Analyse genutzt. Nearby, Ersatzteile und Notfall bleiben weiterhin verfügbar.':'You have used your free AI diagnosis. Nearby, parts and emergency remain available.'}</div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:28}}>{[['✅','Nearby & Maps'],['✅','Parts finder'],['✅','Emergency'],['🔒','Unlimited AI']].map(([ic,lb])=>(<div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>))}</div>
-          <div style={{width:'100%',maxWidth:340,background:'linear-gradient(135deg,rgba(232,82,26,0.12),rgba(232,82,26,0.04))',border:'1px solid rgba(232,82,26,0.25)',borderRadius:18,padding:'20px',marginBottom:14,textAlign:'center'}}>
-            <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>FIXIT PRO</div>
-            <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8',marginBottom:4}}>{lang==='de'?'Unbegrenzte KI-Analysen':'Unlimited AI Diagnoses'}</div>
-            <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.38)',marginBottom:14}}>€3.99/Monat · €17.99 {lang==='de'?'einmalig':'lifetime'}</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                {!user ? (
-                  // Not logged in — show login prompt instead of checkout
-                  <button onClick={()=>setAuthScreen('signup')} style={{background:'rgba(232,82,26,0.9)',border:'none',borderRadius:12,padding:'14px',cursor:'pointer',fontFamily:'inherit',color:'#fff',fontWeight:700,fontSize:'0.9rem',textAlign:'center'}}>
-                    🔑 {lang==='de'?'Konto erstellen & upgraden':'Create account & upgrade'}
-                    <div style={{fontSize:'0.7rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren — keine Kreditkarte nötig':'Free to sign up — no card needed yet'}</div>
-                  </button>
-                ) : (
-                  <>
-                    {/* Lifetime — highlighted */}
-                    <button onClick={()=>startCheckout('lifetime')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                        <div>
-                          <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>LIFETIME · {lang==='de'?'EMPFOHLEN':'RECOMMENDED'}</div>
-                          <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€17.99 {lang==='de'?'einmalig':'one-time'}</div>
-                          <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{lang==='de'?'Ein Werkstattbesuch kostet €120–€300':'One workshop visit costs €120–€300'}</div>
-                        </div>
-                        <div style={{fontSize:'1.1rem',marginTop:2}}>{checkoutBusy?'⏳':'→'}</div>
-                      </div>
-                    </button>
-                    {/* Monthly */}
-                    <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <div>
-                        <div style={{fontSize:'0.6rem',fontWeight:700,color:C.m,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{lang==='de'?'MONATLICH':'MONTHLY'}</div>
-                        <div style={{fontSize:'0.95rem',fontWeight:700}}>€3.99 / {lang==='de'?'Monat':'month'}</div>
-                      </div>
-                      <div style={{fontSize:'1.1rem'}}>{checkoutBusy?'⏳':'→'}</div>
-                    </button>
-                  </>
-                )}
-              </div>
-          </div>
-          <button onClick={()=>setFreeLimitHit(false)} style={{width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'13px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':'Back to app'}</button>
-        </div>
-      )}
-      {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
+      {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
       <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <BackBtn/>
         <div style={{fontSize:'1.35rem',fontWeight:800,letterSpacing:'-0.02em',marginBottom:4}}>{t('fixItNow')}</div>
@@ -1652,26 +1173,13 @@ export default function App() {
             <button onClick={clearPhoto} style={{position:'absolute',top:8,right:8,background:'rgba(0,0,0,0.65)',border:'none',color:'#fff',borderRadius:'50%',width:28,height:28,cursor:'pointer',fontFamily:'inherit'}}>✕</button>
           </div>
         )}
-        <div style={{display:'flex',gap:8,marginBottom:14}}>
-          {/* Button 1: Camera — opens rear camera directly on mobile */}
-          <label style={{flex:1,background:'rgba(232,82,26,0.06)',border:'2px dashed rgba(232,82,26,0.3)',borderRadius:16,padding:'14px 10px',textAlign:'center',cursor:'pointer',display:'block'}}>
-            <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:'none'}}/>
-            <div style={{fontSize:'1.5rem',marginBottom:4}}>📷</div>
-            <div style={{fontSize:'0.78rem',fontWeight:700,color:C.o}}>{lang==='de'?'Kamera':lang==='fr'?'Caméra':lang==='it'?'Fotocamera':lang==='tr'?'Kamera':lang==='pl'?'Aparat':'Camera'}</div>
-          </label>
-          {/* Button 2: Upload — opens gallery/file picker, no camera force */}
-          <label style={{flex:1,background:'rgba(255,255,255,0.03)',border:'2px dashed rgba(255,255,255,0.12)',borderRadius:16,padding:'14px 10px',textAlign:'center',cursor:'pointer',display:'block'}}>
-            <input type="file" accept="image/*" onChange={handlePhoto} style={{display:'none'}}/>
-            <div style={{marginBottom:4,display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="3"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
-              </svg>
-            </div>
-            <div style={{fontSize:'0.78rem',fontWeight:700,color:'rgba(255,255,255,0.55)'}}>{lang==='de'?'Foto hochladen':lang==='fr'?'Importer photo':lang==='it'?'Carica foto':lang==='tr'?'Fotoğraf yükle':lang==='pl'?'Prześlij zdjęcie':'Upload photo'}</div>
-          </label>
-        </div>
+        <label style={{background:'rgba(232,82,26,0.04)',border:'2px dashed rgba(232,82,26,0.25)',borderRadius:20,padding:'24px 20px',textAlign:'center',marginBottom:14,cursor:'pointer',display:'block'}}>
+          <input type="file" accept="image/*" onChange={handlePhoto} style={{display:'none'}}/>
+          <div style={{fontSize:'2rem',marginBottom:6}}>📸</div>
+          <div style={{fontSize:'0.92rem',fontWeight:700,marginBottom:4}}>{t('takePhoto')}</div>
+          <div style={{fontSize:'0.73rem',color:C.m,marginBottom:10}}>{t('photoDesc')}</div>
+          <span style={{background:C.o,color:'#fff',borderRadius:100,padding:'8px 20px',fontSize:'0.78rem',fontWeight:700}}>{t('cameraUpload')}</span>
+        </label>
         <div style={s.card}>
           <div style={{fontSize:'0.65rem',color:C.m,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>{t('describeWords')}</div>
           <textarea
@@ -1695,16 +1203,13 @@ export default function App() {
       <NavBar screen={screen} t={t} goto={goto}/>
       <style>{CSS}</style>
     </Screen>
-    {authModal}
+    {AUTH_MODAL}
     </>
   );
 
   // ── RESULT ───────────────────────────────────────────────────────────────────
   if (screen === 'result') {
-    // When reopening a history entry, aiResult (from useAI hook) may be null.
-    // Only use SS fallback when NOT loading a new diagnosis — prevents old title showing
-    // during new analysis. SS.aiResult is cleared at start of every new runFix().
-    const r   = aiResult || (!aiLoading ? SS.get('aiResult') : null);
+    const r   = aiResult;
     const pct = r?.confidence||0;
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
@@ -1721,33 +1226,27 @@ export default function App() {
       // If still too long (>40 chars), use category default
       if (q.length > 40) {
         const defaults = {
-          car:        isDE?'Autowerkstatt':'car mechanic near me',
-          moto:       lang==='de'?'Motorradwerkstatt in der Nähe':lang==='fr'?'Garage moto':lang==='it'?'Officina moto':lang==='es'?'Taller motos':lang==='tr'?'Motosiklet servisi':'motorcycle repair near me',
-          bike:       isDE?'Fahrradwerkstatt':'bike repair shop',
-          tech:       isDE?'Elektronik Reparatur':'electronics repair',
+          car: isDE?'Autowerkstatt':'car repair shop',
+          bike: isDE?'Fahrradwerkstatt':'bike repair shop',
+          tech: isDE?'Elektronik Reparatur':'electronics repair',
           appliances: isDE?'Gerätereparatur':'appliance repair',
-          home:       isDE?'Handwerker Klempner':'handyman plumber',
-          garden:     isDE?'Gärtner Gartencenter':'garden center',
-          pets:       isDE?'Tierarzt':'veterinarian',
+          home: isDE?'Handwerker Klempner':'handyman plumber',
+          garden: isDE?'Gärtner Gartencenter':'garden center',
+          pets: isDE?'Tierarzt':'veterinarian',
         };
-        q = defaults[cat] || (isDE?'Handwerker':'repair service near me');
+        q = defaults[cat] || (isDE?'Fachmann':'repair service');
       }
       return q;
     }
     const isDE = lang === 'de';
-    const proQ = normalizeProSearch(r?.proSearchQuery, curFix, isDE) || (
-      curFix==='moto' ? (lang==='de'?'Motorradwerkstatt in der Nähe':'motorcycle repair near me') :
-      curFix==='car'  ? (lang==='de'?'Autowerkstatt':'car mechanic near me') :
-      curFix==='bike' ? (lang==='de'?'Fahrradwerkstatt':'bike repair shop') :
-      (lang==='de'?'Handwerker':'repair service near me')
-    );
+    const proQ = normalizeProSearch(r?.proSearchQuery, curFix, isDE)||`${curFix} repair service`;
     const ct  = catTerms(curFix, lang);  // category-aware terminology
 
 
 
     return (
       <Screen>
-        {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
+        {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
         <div style={{padding:'52px 20px 14px',background:'linear-gradient(160deg,#001a0d,#0A0908 60%)',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
             <BackBtn/>
@@ -1966,7 +1465,7 @@ export default function App() {
             ) : (
               <div style={{display:'flex',gap:10}}>
                 <button onClick={()=>{
-                  const cat = curFix==='car'?'car':curFix==='moto'?'moto':curFix==='tech'?'tech':curFix==='appliances'?'appliances':curFix==='garden'?'garden':curFix==='bike'?'bike':curFix==='pets'?'pets':'home';
+                  const cat = curFix==='car'?'car':curFix==='tech'?'tech':curFix==='appliances'?'appliances':curFix==='garden'?'garden':curFix==='pets'?'pets':'home';
                   setVType(cat);
                   // Build query from CURRENT diagnosis — never reuse old parts search
                   const detectedVehicle = r._vehicleCtx;
@@ -1978,7 +1477,7 @@ export default function App() {
                   setPInput(diagQuery);
                   setVInput(vehicleLabel); // populate vehicle field with detected vehicle
                   setHsnModel('');
-                  // Keep cat as the correct type — do NOT override with 'car'
+                  setVType('car');
                   // Pre-populate pResults so parts are immediately visible
                   const fullSearchQ = diagQuery; // vehicle already in diagQuery via ensureVehicle
                   setPResults({ q: diagQuery, vehicle: vehicleLabel, hsnModel: '', searchQ: fullSearchQ, isHSN: false, category: cat, fromDiagnosis: true, vehicleCtx: detectedVehicle });
@@ -2000,7 +1499,7 @@ export default function App() {
   // ── EMERGENCY ────────────────────────────────────────────────────────────────
   if (screen === 'emergency') return (
     <Screen bg="#060000">
-      {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
+      {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
       {!isOnline && <div style={{background:'rgba(232,178,26,0.1)',borderBottom:'1px solid rgba(232,178,26,0.2)',padding:'8px 16px',fontSize:'0.72rem',color:C.y,textAlign:'center',flexShrink:0}}>⚠️ Offline mode — emergency numbers still available</div>}
       <div style={{padding:'52px 20px 14px',background:'linear-gradient(160deg,rgba(214,59,47,0.1),transparent 60%)',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:6,fontSize:'0.62rem',fontWeight:700,color:C.r,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>
@@ -2061,7 +1560,7 @@ export default function App() {
     );
     return (
       <Screen bg="#060000">
-        {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
+        {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
         <div style={{padding:'52px 20px 14px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
           <BackBtn onPress={()=>goto('emergency')}/>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -2076,13 +1575,7 @@ export default function App() {
             {ec.call==='vet'&&<>{cd.ph?.num&&<CallBtn icon="🐾" label={`${cd.ph.n}: ${cd.ph.num}`} num={cd.ph.num} type="s"/>}{cd.pa?.num&&cd.pa.num.length>3&&<CallBtn icon="🚑" label={`${cd.pa.n}: ${cd.pa.num}`} num={cd.pa.num} type="i"/>}<MapBtn icon="🗺️" label={t('emergencyVet')} query="emergency vet open now 24h"/><MapBtn icon="🏥" label={t('animalClinicNear')} query="animal clinic veterinarian near me"/></>}
             {ec.call==='fire'&&<><CallBtn icon="🚒" label={`Fire: ${cd.fire}`} num={cd.fire}/><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/></>}
             {ec.call==='plumber'&&<><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/><MapBtn icon="🔧" label={t('emergencyPlumber')} query={t('plumberQuery')}/></>}
-            {ec.call==='power'&&<>
-                  <CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/>
-                  <MapBtn icon="⚡" label={lang==='de'?'Stadtwerke suchen':lang==='fr'?'Fournisseur électricité':lang==='it'?'Fornitore elettricità':lang==='tr'?'Elektrik şirketi':'Local power utility'}
-                    query={cc==='DE'?'Stadtwerke in der Nähe':cc==='AT'?'Stadtwerke in der Nähe':cc==='CH'?'Elektrizitätswerk in der Nähe':cc==='FR'?'fournisseur électricité':cc==='GB'?'electricity supplier near me':cc==='US'?'electric utility near me':'electricity supplier near me'}/>
-                  <MapBtn icon="🔌" label={lang==='de'?'Stromversorger suchen':lang==='fr'?'Gestionnaire réseau':lang==='it'?'Gestore rete elettrica':lang==='tr'?'Şebeke operatörü':'Grid operator'}
-                    query={cc==='DE'?'Stromversorger in der Nähe':cc==='AT'?'Stromversorger in der Nähe':cc==='CH'?'Stromversorger in der Nähe':cc==='FR'?'gestionnaire réseau électrique':cc==='GB'?'grid operator near me':cc==='US'?'power company near me':'power company near me'}/>
-                </>}
+            {ec.call==='power'&&<><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/><MapBtn icon="⚡" label={t('electricityProvider')} query={cc==='DE'?'Stadtwerke Strom Störung Netzbetreiber Stromausfall':cc==='AT'?'Stromnetz Störung Stadtwerke':cc==='CH'?'Stromnetzbetreiber Störung':cc==='FR'?'panne électrique signaler fournisseur':cc==='GB'?'power cut report network operator':cc==='US'?'power outage report electric utility':'electricity power outage report'}/></>}
             {ec.call==='emergency'&&<CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/>}
           </div>
           <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding:14,marginBottom:12}}>
@@ -2134,11 +1627,11 @@ export default function App() {
       hardware: _isDE?'Baumarkt in der Nähe':_isTR?'Hırdavatçı yakınımda':_isHR?'Željezarija u blizini':_isMK?'Железарија во близина':'hardware store near me',
       vet:      _isDE?'Tierarzt in der Nähe':_isTR?'Veteriner yakınımda':_isHR?'Veterinar u blizini':_isMK?'Ветеринар во близина':'veterinarian near me',
       it:       _isDE?'Computer Reparatur in der Nähe':_isTR?'Bilgisayar tamiri yakınımda':_isHR?'Servis računala u blizini':_isMK?'Сервис компјутери во близина':'computer repair near me',
-      moto:     _isDE?'Motorradwerkstatt in der Nähe':_isTR?'Motosiklet servisi yakınımda':_isHR?'Servis motocikla u blizini':_isMK?'Сервис за мотор во близина':_isFR?'Garage moto près de moi':_isES?'Taller motos cerca de mí':_isIT?'Officina moto vicino':'motorcycle repair near me',
+      moto:     _isDE?'Motorradwerkstatt in der Nähe':_isTR?'Motosiklet servisi yakınımda':_isHR?'Servis motocikla u blizini':_isMK?'Мото сервис во близина':_isFR?'Garage moto près de moi':_isES?'Taller motos cerca de mí':_isIT?'Officina moto vicino':'motorcycle repair near me',
     };
     return (
       <Screen>
-        {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
+        {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
         <div style={{padding:'52px 20px 12px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <BackBtn/>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
@@ -2246,9 +1739,6 @@ export default function App() {
                 </div>
               </div>
             ))}
-            {bizStale && <div style={{fontSize:'0.62rem',color:'rgba(255,255,255,0.25)',textAlign:'center',padding:'4px 0 8px'}}>
-              {lang==='de'?'Letzte gespeicherte Ergebnisse':lang==='tr'?'Son önbellek sonuçları':lang==='pl'?'Ostatnie wyniki z pamięci':'Cached results'} · {lang==='de'?'Wird aktualisiert…':'Refreshing…'}
-            </div>}
             <div onClick={()=>window.open(mu(`${catMapsQ[mapCat]||catLabels[mapCat]}`), '_blank', 'noopener,noreferrer')} style={{...s.card,textAlign:'center',cursor:'pointer',marginTop:4,border:`1px solid rgba(26,95,232,0.2)`,background:'rgba(26,95,232,0.04)'}}>
               <div style={{fontSize:'0.88rem',fontWeight:700,marginBottom:3}}>{t('openGoogleMaps')}</div>
               <div style={{fontSize:'0.72rem',color:C.m}}>{t('allResultsMap')}</div>
@@ -2280,12 +1770,11 @@ export default function App() {
                 vType==='pets'?(t('vehicleInputPet')):t('vehicleInputDefault');
     return (
       <Screen>
-        {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);SS.set('lang',lc);LS.set('lang_manually_set',true);LS.set('lang_manually_set_to',lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
+        {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
         <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <BackBtn/>
           <div style={{fontSize:'1.35rem',fontWeight:800,letterSpacing:'-0.02em',marginBottom:4}}>
-            {vType==='moto'  ?(lang==='de'?'Motorrad-Teile finden':lang==='tr'?'Motosiklet Parçası Bul':lang==='pl'?'Znajdź części do motocykla':lang==='fr'?'Trouver des pièces moto':lang==='it'?'Trova ricambi moto':lang==='es'?'Buscar repuestos moto':'Find Motorcycle Parts'):
-             vType==='car'   ?(lang==='de'?'Auto-Teile finden':lang==='tr'?'Araba Parçası Bul':lang==='pl'?'Znajdź części do auta':'Find Auto Parts'):
+            {vType==='car'   ?(lang==='de'?'Auto-Teile finden':lang==='tr'?'Araba Parçası Bul':lang==='pl'?'Znajdź części do auta':'Find Auto Parts'):
              vType==='bike'  ?(lang==='de'?'Fahrrad-Teile finden':lang==='tr'?'Bisiklet Parçası Bul':lang==='pl'?'Znajdź części do roweru':'Find Bike Parts'):
              vType==='tech'  ?(lang==='de'?'Elektronik & Zubehör':lang==='tr'?'Elektronik & Aksesuar':lang==='pl'?'Elektronika & Akcesoria':'Electronics & Parts'):
              vType==='appliances'?(lang==='de'?'Geräte-Ersatzteile':lang==='tr'?'Cihaz Yedek Parçaları':lang==='pl'?'Części do AGD':'Appliance Parts'):
@@ -2299,7 +1788,7 @@ export default function App() {
           <div style={s.card}>
             <div style={{fontSize:'0.68rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>{t('searchingFor')}</div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
-              {[['car',t('catCar')],['moto',t('motorcycle')],['home',t('catHome')],['appliances',t('catAppliance')],['garden',t('catGarden')],['tech',t('catTech')],['bike',t('catBike')],['pets',t('catPets')]].map(([tp,lb])=>(
+              {[['car',t('catCar')],['home',t('catHome')],['appliances',t('catAppliance')],['garden',t('catGarden')],['tech',t('catTech')],['bike',t('catBike')],['pets',t('catPets')],['moto',t('motorcycle')]].map(([tp,lb])=>(
                 <button key={tp} onClick={()=>{setVType(tp);setVInput('');setHsnModel('');}} style={{padding:'7px 14px',borderRadius:100,fontSize:'0.76rem',fontWeight:600,cursor:'pointer',border:'none',background:vType===tp?C.bl:'rgba(255,255,255,0.06)',color:vType===tp?'#fff':C.m,fontFamily:'inherit'}}>{lb}</button>
               ))}
             </div>
@@ -2433,7 +1922,16 @@ export default function App() {
                 </div>
                 <div style={{color:C.g,fontWeight:700}}>→</div>
               </div>
-
+              {/* Also show a direct product search on Google Maps */}
+              {pResults?.searchQ && <div onClick={()=>window.open(mu(`${pResults.searchQ}`), '_blank', 'noopener,noreferrer')}
+                style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                <div style={{fontSize:'1.2rem'}}>🔍</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:'0.78rem',fontWeight:600}}>{lang==='de'?`"${pResults.searchQ}" in der Nähe`:'"'+pResults.searchQ+'" nearby'}</div>
+                  <div style={{fontSize:'0.62rem',color:C.m}}>{lang==='de'?'Produkt direkt in Google Maps suchen':'Search this product on Google Maps'}</div>
+                </div>
+                <div style={{color:C.g}}>→</div>
+              </div>}
             </div>
             {/* ONLINE-SHOPS — category-specific + generic */}
             <div style={s.card}>
@@ -2466,7 +1964,6 @@ export default function App() {
       </Screen>
     );
   }
-
 
   return null;
 }

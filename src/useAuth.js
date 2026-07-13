@@ -1,19 +1,15 @@
-// useAuth.js — React hook for auth state throughout the app
-// Provides: user, profile, authLoading, isPro, login, signup, logout
-// Works in guest mode (user=null) when Supabase env vars are missing.
+// src/useAuth.js — React hook for auth state
+// Returns: user, profile, isPro, authLoading, login, signup, logout, refreshProfile
+// Works in guest mode (user=null) when AUTH_AVAILABLE=false
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  AUTH_AVAILABLE, getSession, signIn, signUp, signOut,
-  onAuthStateChange, getProfile,
-} from './auth.js';
+import { AUTH_AVAILABLE, getSession, signIn, signUp, signOut, onAuthStateChange, getProfile } from './auth.js';
 
 export function useAuth() {
-  const [user, setUser]           = useState(null);
-  const [profile, setProfile]     = useState(null);
-  const [authLoading, setLoading] = useState(AUTH_AVAILABLE); // only true while checking session
+  const [user, setUser]         = useState(null);
+  const [profile, setProfile]   = useState(null);
+  const [authLoading, setLoading] = useState(AUTH_AVAILABLE); // false immediately if no Supabase
 
-  // Load session + profile on mount
   useEffect(() => {
     if (!AUTH_AVAILABLE) { setLoading(false); return; }
     let unsub = () => {};
@@ -35,35 +31,22 @@ export function useAuth() {
 
   const login = useCallback(async (email, password) => {
     const data = await signIn(email, password);
-    if (data?.user) {
-      setUser(data.user);
-      const p = await getProfile(data.user.id);
-      setProfile(p);
-    }
+    if (data?.user) { setUser(data.user); const p = await getProfile(data.user.id); setProfile(p); }
     return data;
   }, []);
 
   const signup = useCallback(async (email, password) => {
     const data = await signUp(email, password);
-    if (data?.user) {
-      setUser(data.user);
-      const p = await getProfile(data.user.id);
-      setProfile(p);
-    }
+    if (data?.user) { setUser(data.user); const p = await getProfile(data.user.id); setProfile(p); }
     return data;
   }, []);
 
   const logout = useCallback(async () => {
-    await signOut();
-    setUser(null);
-    setProfile(null);
+    await signOut(); setUser(null); setProfile(null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (user) {
-      const p = await getProfile(user.id);
-      setProfile(p);
-    }
+    if (user) { const p = await getProfile(user.id); setProfile(p); }
   }, [user]);
 
   return { user, profile, isPro, authLoading, login, signup, logout, refreshProfile };

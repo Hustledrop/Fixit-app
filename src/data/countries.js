@@ -2,7 +2,7 @@ export const LANG_TO_CC = {
   de:'DE',fr:'FR',it:'IT',es:'ES',pl:'PL',nl:'NL',pt:'PT',
   sr:'RS',hr:'HR',bs:'BA',sl:'SI',mk:'MK',bg:'BG',sq:'AL',
   ro:'RO',el:'GR',tr:'TR',uk:'UA',cs:'CZ',sv:'SE',da:'DK',
-  no:'NO',fi:'FI',en:'DEFAULT',ru:'RU',ar:'SA',he:'IL',zh:'CN',
+  no:'NO',fi:'FI',en:'GB',ru:'RU',ar:'SA',he:'IL',zh:'CN',
   ja:'JP',ko:'KR',hi:'IN',me:'ME',
 };
 
@@ -71,26 +71,26 @@ export function mapsUrlFor(q, lat, lng, cc, lang) {
 const STORES = {
   car: {
     DE:[
-      {n:"Autodoc.de 🚗",u:(q)=>`https://www.autodoc.de/search?keyword=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.de 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.de+${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
       {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
     ],
     AT:[
-      {n:"Autodoc.at 🚗",u:(q)=>`https://www.autodoc.at/search?keyword=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.at 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.de+${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Autodoc.ch 🚗",u:(q)=>`https://www.autodoc.ch/search?keyword=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.ch 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.de+${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
-      {n:"Autodoc.co.uk 🚗",u:(q)=>`https://www.autodoc.co.uk/search?keyword=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.co.uk 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.co.uk+${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Euro Car Parts 🔴",u:(q)=>`https://www.eurocarparts.com/search?q=${encodeURIComponent(q)}`},
       {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     FR:[
-      {n:"Autodoc.fr 🚗",u:(q)=>`https://www.autodoc.fr/search?keyword=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.fr 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.fr+${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.fr 📦",u:(q)=>`https://www.amazon.fr/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     US:[
@@ -99,16 +99,16 @@ const STORES = {
       {n:"RockAuto 🔩",u:(q)=>`https://www.rockauto.com/en/partsearch/?query=${encodeURIComponent(q)}`},
     ],
     DEFAULT:[
-      {n:"Autodoc 🚗",u:(q)=>`https://www.autodoc.co.uk/search?keyword=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.co.uk+${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
     ],
   },
   tech: {
     DE:[
-      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"MediaMarkt 🔴",u:(q)=>`https://www.mediamarkt.de/de/search.html?query=${encodeURIComponent(q)}`},
-      {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}`},
+      {n:"Saturn 🔵",u:(q)=>`https://www.saturn.de/de/search.html?query=${encodeURIComponent(q)}`},
+      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
     ],
     AT:[
@@ -116,15 +116,8 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Galaxus 🛍️",u:(q)=>`https://www.galaxus.ch/search?q=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Digitec 💻",u:(q)=>`https://www.digitec.ch/search?q=${encodeURIComponent(q)}`},
       {n:"MediaMarkt 🔴",u:(q)=>`https://www.mediamarkt.ch/de/search.html?query=${encodeURIComponent(q)}`},
-    ],
-    CH:[
-      {n:"Galaxus 🛍️",u:(q)=>`https://www.galaxus.ch/search?q=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Digitec 💻",u:(q)=>`https://www.digitec.ch/search?q=${encodeURIComponent(q)}`},
-      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}`},
     ],
     GB:[
       {n:"Currys 🔵",u:(q)=>`https://www.currys.co.uk/search?q=${encodeURIComponent(q)}`},
@@ -147,18 +140,17 @@ const STORES = {
   },
   home: {
     DE:[
-      {n:"OBI 🟡",u:(q)=>`https://www.obi.de/search/${encodeURIComponent(q)}/`},
-      {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.info/suche/produkte?text=${encodeURIComponent(q)}`},
+      {n:"OBI 🟡",u:(q)=>`https://www.google.com/search?q=site%3Aobi.de+${encodeURIComponent(q)}`},
+      {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.info/suche?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
     ],
     AT:[
-      {n:"OBI 🟡",u:(q)=>`https://www.obi.at/search/${encodeURIComponent(q)}/`},
+      {n:"OBI 🟡",u:(q)=>`https://www.google.com/search?q=site%3Aobi.at+${encodeURIComponent(q)}`},
       {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.at/suche?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Jumbo 🔨",u:(q)=>`https://www.jumbo.ch/search?q=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.ch/suche?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
@@ -199,15 +191,9 @@ const STORES = {
   appliances: {
     DE:[
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}`},
-      {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
       {n:"MediaMarkt 🔴",u:(q)=>`https://www.mediamarkt.de/de/search.html?query=${encodeURIComponent(q)}`},
-    ],
-    CH:[
-      {n:"Galaxus 🛍️",u:(q)=>`https://www.galaxus.ch/search?q=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Digitec 💻",u:(q)=>`https://www.digitec.ch/search?q=${encodeURIComponent(q)}`},
-      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}`},
+      {n:"Saturn 🔵",u:(q)=>`https://www.saturn.de/de/search.html?query=${encodeURIComponent(q)}`},
+      {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
     ],
     GB:[
       {n:"Currys 🔵",u:(q)=>`https://www.currys.co.uk/search?q=${encodeURIComponent(q)}`},
@@ -226,13 +212,8 @@ const STORES = {
   },
   garden: {
     DE:[
-      {n:"OBI Garten 🌿",u:(q)=>`https://www.obi.de/search/${encodeURIComponent(q)}/`},
-      {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.info/suche/produkte?text=${encodeURIComponent(q)}`},
-      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-    ],
-    CH:[
-      {n:"Jumbo Garten 🌿",u:(q)=>`https://www.jumbo.ch/de/search?searchTerm=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Galaxus 🛍️",u:(q)=>`https://www.galaxus.ch/search?q=${encodeURIComponent(q)}`},
+      {n:"OBI Garten 🌿",u:(q)=>`https://www.google.com/search?q=site%3Aobi.de+${encodeURIComponent(q)}`},
+      {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.info/suche?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -246,36 +227,6 @@ const STORES = {
     DEFAULT:[
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
-    ],
-  },
-  moto: {
-    // Motorcycle/scooter/moped — uses Autodoc for parts + Louis (largest EU motorcycle retailer)
-    DE:[
-      {n:"Louis Motorrad 🏍️",u:(q)=>`https://www.louis.de/search?q=${encodeURIComponent(q)}`,badge:"TOP"},
-      {n:"Polo Motorrad 🏪",u:(q)=>`https://www.polo-motorrad.de/search?q=${encodeURIComponent(q)}`},
-      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
-      {n:"Autodoc.de 🔧",u:(q)=>`https://www.autodoc.de/search?keyword=${encodeURIComponent(q)}`},
-    ],
-    AT:[
-      {n:"Louis Motorrad 🏍️",u:(q)=>`https://www.louis.de/search?q=${encodeURIComponent(q)}`,badge:"TOP"},
-      {n:"Polo Motorrad 🏪",u:(q)=>`https://www.polo-motorrad.de/search?q=${encodeURIComponent(q)}`},
-      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"Autodoc.at 🔧",u:(q)=>`https://www.autodoc.at/search?keyword=${encodeURIComponent(q)}`},
-    ],
-    CH:[
-      {n:"Autodoc.ch 🚗",u:(q)=>`https://www.autodoc.ch/search?keyword=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Louis 🏍️",u:(q)=>`https://www.louis.de/search?q=${encodeURIComponent(q)}`},
-      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-    ],
-    GB:[
-      {n:"Fowlers Parts 🏍️",u:(q)=>`https://www.fowlersparts.co.uk/search?q=${encodeURIComponent(q)}`,badge:"TOP"},
-      {n:"Autodoc.co.uk 🚗",u:(q)=>`https://www.autodoc.co.uk/search?keyword=${encodeURIComponent(q)}`},
-      {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-    ],
-    DEFAULT:[
-      {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
     ],
   },
   pets: {
@@ -333,7 +284,6 @@ export function getStores(category, cc) {
 // Local store search terms per category — used to open Google Maps nearby search
 export const LOCAL_STORE_SEARCH = {
   car:        { de:'Autoteile KFZ Teile',            en:'auto parts store' },
-  moto:       { de:'Motorrad Ersatzteile Händler',   en:'motorcycle parts shop' },
   bike:       { de:'Fahrradladen Fahrradgeschäft',   en:'bike shop bicycle store' },
   tech:       { de:'Elektronik Reparatur Handy',      en:'electronics repair phone shop' },
   appliances: { de:'Haushaltsgeräte Reparatur',       en:'appliance repair shop' },

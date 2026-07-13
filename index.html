@@ -2,33 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-  <meta http-equiv="Pragma" content="no-cache"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
-  <title>FIXIT — AI Emergency &amp; Repair Assistant</title>
-  <meta name="description" content="Instant repair guidance, emergency help, nearby services, and AI-powered repair support in 10 languages."/>
+  <title>FixIt — Fix Anything</title>
+  <meta name="description" content="AI-powered repair guide, emergency help, and nearby services worldwide. Fix anything in any language."/>
   <meta name="theme-color" content="#E8521A"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="FixIt"/>
-  <!-- Open Graph (WhatsApp, Telegram, Messenger, iMessage, Facebook) -->
-  <meta property="og:title" content="FIXIT — AI Emergency &amp; Repair Assistant"/>
-  <meta property="og:description" content="Instant repair guidance, emergency help &amp; nearby services worldwide. Fix anything yourself."/>
+  <!-- Open Graph -->
+  <meta property="og:title" content="FixIt — Fix Anything"/>
+  <meta property="og:description" content="AI-powered repair guide, emergency help, and nearby services worldwide."/>
   <meta property="og:type" content="website"/>
-  <meta property="og:url" content="https://www.fixit-app.com/"/>
-  <meta property="og:image" content="https://www.fixit-app.com/og-image.png"/>
-  <meta property="og:image:width" content="1200"/>
-  <meta property="og:image:height" content="630"/>
-  <meta property="og:image:alt" content="FixIt — AI-powered repair guide"/>
-  <meta property="og:site_name" content="FixIt"/>
-  <!-- Twitter Card (X, iMessage link preview) -->
-  <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="FIXIT — AI Emergency &amp; Repair Assistant"/>
-  <meta name="twitter:description" content="AI repair guide &amp; nearby services in 10 languages."/>
-  <meta name="twitter:image" content="https://www.fixit-app.com/og-image.png"/>
-  <meta name="twitter:image:alt" content="FixIt AI Repair Guide"/>
   <!-- PWA -->
-  <link rel="canonical" href="https://www.fixit-app.com/"/>
   <link rel="manifest" href="/manifest.json"/>
   <link rel="apple-touch-icon" href="/icon-192.png"/>
   <link rel="icon" type="image/png" href="/icon-192.png"/>
@@ -43,22 +28,9 @@
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
   <script>
-    // SW registration with updateViaCache:'none' — browser always fetches sw.js fresh (no cache)
-    // This ensures a new CACHE_VERSION in sw.js triggers immediate cache invalidation.
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
-          .then(reg => {
-            // Check for SW update when user returns to the tab
-            document.addEventListener('visibilitychange', () => {
-              if (document.visibilityState === 'visible') reg.update();
-            });
-            // If a new SW is waiting, reload to activate it
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-              window.location.reload();
-            });
-          })
-          .catch(() => {});
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
       });
     }
   </script>

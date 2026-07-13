@@ -169,7 +169,6 @@ export default function App() {
   const [emrgKey, setEmrgKey]     = useState(null);
   const [aiMsgIdx, setAiMsgIdx]   = useState(0);
   const [feedback, setFeedback]   = useState(null); // null | 'fixed' | 'broken'
-  const [freeLimitHit, setFreeLimitHit] = useState(false); // shown when free diagnosis already used
   const [toast, setToast]         = useState(null);
   const [history, setHistory]     = useState(() => LS.get('history') || []);
   const [showHistory, setShowHistory] = useState(false);
@@ -430,19 +429,6 @@ export default function App() {
     setHsnModel('');
     diagCategoryRef.current = curFix;
     setPrevScr('fix-now');
-    // ── Free device limit check ──────────────────────────────────────────────
-    // Safety/emergency prompts ALWAYS bypass this limit.
-    // A user smelling gas or seeing live wires must never hit a paywall.
-    const EMERGENCY_BYPASS = /gas\s*(leak|geruch|smell|riecht|ausströmt|ausströmend)|gas\s+im\s+(haus|raum|bad|keller|zimmer|küche)|riecht\s+nach\s+gas|gasleitung|gasherd\s*(aus|def|kaput|explod)|live\s*(wire|cable|mains)|240v|230v\s*(kabel|leitung|draht)|stromschlag|elektroschock|sicherungskasten|breaker\s*box|load.?bearing|tragende\s+wand|asbest|asbestos|notfall|emergency|feuerwehr|fire\s*(dept|depart)|notruf/i;
-    const probText = (prob || '').toLowerCase();
-    const isEmergency = EMERGENCY_BYPASS.test(probText);
-
-    const freeUsed = LS.get('free_diagnosis_used');
-    if (freeUsed && !isEmergency) {
-      setFreeLimitHit(true);
-      goto('home');
-      return;
-    }
     setFeedback(null);
     goto('result');
     await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, userProfile: profile });
@@ -450,11 +436,6 @@ export default function App() {
 
   function saveToHistory(result, prob) {
     if (!result) return;
-    // Mark free diagnosis as used ONLY for real repair guides (not safety hard-stops)
-    // callPro=true means it's a safety block — keep those free always
-    if (!result.callPro && !result._fallback) {
-      LS.set('free_diagnosis_used', true);
-    }
     // Parse estimatedCost into a number for savings tracking
     // Format: "€5–15", "£10–25", "$8" — extract midpoint
     function parseSaving(costStr) {
@@ -726,25 +707,6 @@ export default function App() {
     return ''; // no match found
   }
 
-  // ── Shop query cleaner ───────────────────────────────────────────────────────
-  // Applied before opening any shop URL. Removes "Satz", OEM codes, and
-  // overly specific terms that narrow results too much on Autodoc/Amazon.
-  function shopQueryClean(q) {
-    if (!q) return q;
-    let s = q.trim();
-    // Remove "Satz" (German for "set/kit" — often narrows too much)
-    s = s.replace(/\bSatz\b/gi, '').trim();
-    // Remove bare OEM/OE part number patterns (alphanumeric codes like "0250202132", "F026402062")
-    // Pattern: word that's mostly digits or looks like a part code (6+ chars, mixed alnum)
-    s = s.replace(/\b[A-Z0-9]{2,4}[0-9]{4,}\b/g, '').trim();      // Bosch-style codes
-    s = s.replace(/\b[0-9]{8,}\b/g, '').trim();                    // pure long numbers
-    s = s.replace(/\b[A-Z][0-9]{6,}\b/g, '').trim();               // F026402062 style
-    // Remove trailing/leading filler words left after stripping
-    s = s.replace(/\s{2,}/g, ' ').trim();
-    s = s.replace(/^(für|for|passend|kompatibel)\s+/i, '').trim();
-    return s || q; // never return empty
-  }
-
   function buildPartsQueryFromDiagnosis(result, problem, category, vehicleCtx) {
     const parts = result?.partsNeeded || [];
     const prob  = (problem || '').trim();
@@ -884,33 +846,6 @@ export default function App() {
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
       {/* Offline banner */}
       {!isOnline && <div style={{background:'rgba(232,178,26,0.15)',borderBottom:'1px solid rgba(232,178,26,0.3)',padding:'8px 16px',fontSize:'0.72rem',color:C.y,textAlign:'center',flexShrink:0}}>⚠️ Offline mode — emergency info still available</div>}
-      {/* Free diagnosis limit message */}
-      {freeLimitHit && (
-        <div style={{background:'rgba(232,178,26,0.1)',borderBottom:'1px solid rgba(232,178,26,0.2)',
-          padding:'16px 20px',display:'flex',alignItems:'flex-start',gap:12}}>
-          <span style={{fontSize:'1.2rem',flexShrink:0}}>🔒</span>
-          <div style={{flex:1}}>
-            <div style={{fontSize:'0.85rem',fontWeight:700,marginBottom:4,color:'rgba(232,178,26,0.9)'}}>
-              {lang==='de'?'Du hast deine kostenlose Analyse bereits genutzt.':
-               lang==='tr'?'Ücretsiz analizini zaten kullandın.':
-               lang==='pl'?'Wykorzystałeś już swoją bezpłatną analizę.':
-               'You have already used your free analysis.'}
-            </div>
-            <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.4)',marginBottom:10,lineHeight:1.5}}>
-              {lang==='de'?'Die kostenlose Testversion erlaubt aktuell eine Analyse pro Gerät.':
-               lang==='tr'?'Ücretsiz deneme şu anda cihaz başına bir analiz sağlar.':
-               lang==='pl'?'Bezpłatna wersja próbna umożliwia jedną analizę na urządzenie.':
-               'The free trial currently allows one analysis per device.'}
-            </div>
-            <button onClick={()=>setFreeLimitHit(false)} style={{
-              background:'transparent',border:'1px solid rgba(255,255,255,0.15)',
-              color:'rgba(255,255,255,0.6)',borderRadius:8,padding:'6px 14px',
-              fontSize:'0.75rem',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-              {lang==='de'?'Zurück':'Back'}
-            </button>
-          </div>
-        </div>
-      )}
       {/* PWA install banner */}
       {showPWA && <div style={{background:'rgba(232,82,26,0.1)',borderBottom:`1px solid ${C.b}`,padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
         <div style={{flex:1,fontSize:'0.78rem'}}>📲 {lang==='de'?'FixIt installieren für schnelleren Zugriff':lang==='tr'?'Daha hızlı erişim için FixIt yükle':lang==='pl'?'Zainstaluj FixIt dla szybszego dostępu':'Install FixIt for faster access'}</div>
@@ -1026,24 +961,13 @@ export default function App() {
             <button onClick={clearPhoto} style={{position:'absolute',top:8,right:8,background:'rgba(0,0,0,0.65)',border:'none',color:'#fff',borderRadius:'50%',width:28,height:28,cursor:'pointer',fontFamily:'inherit'}}>✕</button>
           </div>
         )}
-        <div style={{display:'flex',gap:8,marginBottom:14}}>
-          <label style={{flex:1,background:'rgba(232,82,26,0.06)',border:'2px dashed rgba(232,82,26,0.3)',borderRadius:16,padding:'16px 10px',textAlign:'center',cursor:'pointer',display:'block'}}>
-            <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:'none'}}/>
-            <div style={{fontSize:'1.6rem',marginBottom:4}}>📷</div>
-            <div style={{fontSize:'0.78rem',fontWeight:700,color:C.o}}>{lang==='de'?'Kamera':lang==='fr'?'Caméra':lang==='it'?'Fotocamera':lang==='tr'?'Kamera':lang==='pl'?'Aparat':'Camera'}</div>
-          </label>
-          <label style={{flex:1,background:'rgba(255,255,255,0.03)',border:'2px dashed rgba(255,255,255,0.12)',borderRadius:16,padding:'16px 10px',textAlign:'center',cursor:'pointer',display:'block'}}>
-            <input type="file" accept="image/*" onChange={handlePhoto} style={{display:'none'}}/>
-            <div style={{marginBottom:4,display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="3"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
-              </svg>
-            </div>
-            <div style={{fontSize:'0.78rem',fontWeight:700,color:'rgba(255,255,255,0.55)'}}>{lang==='de'?'Foto hochladen':lang==='fr'?'Importer photo':lang==='it'?'Carica foto':lang==='tr'?'Fotoğraf yükle':lang==='pl'?'Prześlij zdjęcie':'Upload photo'}</div>
-          </label>
-        </div>
+        <label style={{background:'rgba(232,82,26,0.04)',border:'2px dashed rgba(232,82,26,0.25)',borderRadius:20,padding:'24px 20px',textAlign:'center',marginBottom:14,cursor:'pointer',display:'block'}}>
+          <input type="file" accept="image/*" onChange={handlePhoto} style={{display:'none'}}/>
+          <div style={{fontSize:'2rem',marginBottom:6}}>📸</div>
+          <div style={{fontSize:'0.92rem',fontWeight:700,marginBottom:4}}>{t('takePhoto')}</div>
+          <div style={{fontSize:'0.73rem',color:C.m,marginBottom:10}}>{t('photoDesc')}</div>
+          <span style={{background:C.o,color:'#fff',borderRadius:100,padding:'8px 20px',fontSize:'0.78rem',fontWeight:700}}>{t('cameraUpload')}</span>
+        </label>
         <div style={s.card}>
           <div style={{fontSize:'0.65rem',color:C.m,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>{t('describeWords')}</div>
           <textarea
@@ -1284,15 +1208,15 @@ export default function App() {
               <div style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.25)',marginTop:8,lineHeight:1.5}}>
                 {r._vehicleCtx ? (
                   lang==='de'
-                    ? `Suchvorschläge für ${[r._vehicleCtx.make, r._vehicleCtx.model, r._vehicleCtx.engine].filter(Boolean).join(' ')}. Bitte OE-Nummer über VIN, HSN/TSN, Fahrzeugschein oder altes Teil prüfen.`
+                    ? `Suchvorschläge für ${[r._vehicleCtx.make, r._vehicleCtx.model, r._vehicleCtx.engine].filter(Boolean).join(' ')}. Bitte vor dem Kauf über Fahrgestellnummer, vorhandenes Teile-Etikett oder Fahrzeughandbuch prüfen.`
                     : lang==='tr'
-                    ? `${[r._vehicleCtx.make, r._vehicleCtx.model, r._vehicleCtx.engine].filter(Boolean).join(' ')} için arama önerileri. OE uyumluluğunu VIN veya araç belgesiyle doğrulayın.`
-                    : `Search suggestions for ${[r._vehicleCtx.make, r._vehicleCtx.model, r._vehicleCtx.engine].filter(Boolean).join(' ')}. Verify OE/OEM compatibility using VIN, registration data, or the original part.`
+                    ? `${[r._vehicleCtx.make, r._vehicleCtx.model, r._vehicleCtx.engine].filter(Boolean).join(' ')} için arama önerileri. Satın almadan önce şasi numarası veya mevcut parça etiketi ile doğrulayın.`
+                    : `Search suggestions for ${[r._vehicleCtx.make, r._vehicleCtx.model, r._vehicleCtx.engine].filter(Boolean).join(' ')}. Verify compatibility via VIN, existing part label, or vehicle manual before buying.`
                 ) : (
-                  lang==='de'?'Bitte OE-Nummer über VIN, HSN/TSN, Fahrzeugschein oder altes Teil prüfen.':
-                  lang==='tr'?'OE uyumluluğunu VIN, ruhsat belgesi veya orijinal parça ile doğrulayın.':
-                  lang==='pl'?'Sprawdź numer OE przez VIN, dane rejestracyjne lub oryginalną część.':
-                  'Please verify OE/OEM compatibility using VIN, registration data, or the original part.'
+                  lang==='de'?'Bitte Modellnummer prüfen oder altes Teil vergleichen, bevor Sie Ersatzteile kaufen.':
+                  lang==='tr'?'Satın almadan önce model numarasını veya eski parçayı kontrol edin.':
+                  lang==='pl'?'Sprawdź numer modelu lub porównaj stary element przed zakupem.':
+                  'Please verify your model number or compare the old part before buying.'
                 )}
               </div>
             </div>}
@@ -1783,7 +1707,17 @@ export default function App() {
                 </div>
                 <div style={{color:C.g,fontWeight:700}}>→</div>
               </div>
-
+              {/* Also show a direct product search on Google Maps */}
+              {pResults?.searchQ && <div onClick={()=>window.open(mu(`${pResults.searchQ}`), '_blank', 'noopener,noreferrer')}
+                style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                <div style={{fontSize:'1.2rem'}}>🔍</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:'0.78rem',fontWeight:600}}>{lang==='de'?`"${pResults.searchQ}" in der Nähe`:'"'+pResults.searchQ+'" nearby'}</div>
+                  <div style={{fontSize:'0.62rem',color:C.m}}>{lang==='de'?'Produkt direkt in Google Maps suchen':'Search this product on Google Maps'}</div>
+                </div>
+                <div style={{color:C.g}}>→</div>
+              </div>}
+            </div>
             {/* ONLINE-SHOPS — category-specific + generic */}
             <div style={s.card}>
               <div style={{fontSize:'0.62rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
@@ -1791,14 +1725,14 @@ export default function App() {
               </div>
               {/* Category-specific online stores (Autodoc for car, MediaMarkt for tech, etc.) */}
               {localStores.map((st,i)=>(
-                <div key={`cat-${i}`} onClick={()=>window.open(st.u(shopQueryClean(pResults.searchQ)), '_blank', 'noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`cat-${i}`} onClick={()=>window.open(st.u(pResults.searchQ), '_blank', 'noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700,display:'flex',alignItems:'center',gap:8}}>{st.n}{st.badge&&<span style={{background:C.o,color:'#fff',fontSize:'0.5rem',padding:'2px 7px',borderRadius:100,fontWeight:700}}>{st.badge}</span>}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
               ))}
               {/* Generic online stores (Amazon, eBay, Idealo) */}
               {onlineStores.map((st,i)=>(
-                <div key={`gen-${i}`} onClick={()=>window.open(st.u(shopQueryClean(pResults.searchQ)), '_blank', 'noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`gen-${i}`} onClick={()=>window.open(st.u(pResults.searchQ), '_blank', 'noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700}}>{st.n}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
