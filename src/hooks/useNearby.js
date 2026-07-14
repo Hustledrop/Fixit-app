@@ -23,11 +23,9 @@ const FAILCACHE = new Map();  // key → ts        (60s cooldown after endpoint 
 const CACHE_TTL   = 30 * 60 * 1000;  // 30 minutes
 const FAIL_TTL    =      60 * 1000;  // 60 seconds
 
-// Round to 2dp (~1km) for cache key — same location = same results
-// Cache version — increment when result structure or provider changes.
-// Changing this invalidates all cached results on next page load.
-const CACHE_VERSION = 'v8-mk-google-first'; // bumped: city-aware queries + radius fix // bumped: hybrid Google Places now active
+const CACHE_VERSION = 'v8-mk-google-first';
 
+// All cache helper functions share the same signature: (cat, lat, lng, city, cc)
 function cacheKey(cat, lat, lng, city, cc) {
   const c = (city || '').toLowerCase().trim().replace(/\s+/g,'_').slice(0, 20);
   return `${CACHE_VERSION}:${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}:${c}:${(cc||'').toUpperCase()}`;
@@ -41,8 +39,8 @@ function getCache(cat, lat, lng, city, cc) {
   return e.results;
 }
 
-function setCache(cat, lat, lng, city, cc, cc, results) {
-  CACHE.set(cacheKey(cat, lat, lng, city), { results, ts: Date.now() });
+function setCache(cat, lat, lng, city, cc, results) {
+  CACHE.set(cacheKey(cat, lat, lng, city, cc), { results, ts: Date.now() });
 }
 
 function inCooldown(cat, lat, lng, city, cc) {
@@ -67,10 +65,11 @@ export function useNearby() {
   const [fallback, setFallback] = useState(false);  // Overpass failed → show Maps link
   const reqId = useRef(0);
 
+  // fetchBiz(cat, lat, lng, forceRefresh, city, cc)
   const fetchBiz = useCallback(async (cat, lat, lng, forceRefresh = false, city = '', cc = '') => {
     if (!lat || !lng) { setError('loc'); setFallback(false); setLoading(false); return; }
 
-    const key = cacheKey(cat, lat, lng, city);
+    const key = cacheKey(cat, lat, lng, city, cc);
 
     // ── 1. Cache hit — show instantly, no network request ───────────────────
     if (!forceRefresh) {
@@ -88,8 +87,6 @@ export function useNearby() {
 
     // ── 2. Failure cooldown — do NOT block request; just note it ─────────────
     // We still call /api/nearby so Google Places can run even if OSM is in cooldown.
-    // The server-side OSM calls are protected by their own timeout budget.
-    // Only forceRefresh bypasses the cache; cooldown only affects OSM retry, not Google.
     const _inCooldown = !forceRefresh && inCooldown(cat, lat, lng, city, cc);
     if (_inCooldown) {
       console.log(`[nearby] COOLDOWN cat=${cat} — still calling API for Google results`);
@@ -100,7 +97,7 @@ export function useNearby() {
       console.log(`[nearby] IN-FLIGHT DEDUP cat=${cat}`);
       try {
         await INFLIGHT.get(key);
-        const fresh = getCache(cat, lat, lng);
+        const fresh = getCache(cat, lat, lng, city, cc);
         if (fresh !== null) {
           setBizs(fresh);
           setError(fresh.length === 0 ? 'empty' : null);
