@@ -305,15 +305,21 @@ module.exports = async function handler(req, res) {
   const totalMs = Date.now() - startMs;
   let results = allResults.slice(0, 25);
 
-  // ── Hybrid: call Google Places when OSM returns <3 results ───────────────
-  // Only call if: time budget allows, Places is configured, OSM was thin
-  const HYBRID_THRESHOLD = 5; // Call Google when OSM returns <5 useful results
+  // ── Hybrid: call Google Places ──────────────────────────────────────────────
+  // Categories with poor OSM coverage in MK (tyres/garage/vet) always get Google
+  // regardless of OSM count — OSM may return sparse/irrelevant results that look
+  // sufficient (≥5) but miss real local businesses like vulcanizers or workshops.
+  // Other categories use threshold: call Google only when OSM returns <5 results.
+  const ALWAYS_GOOGLE = new Set(['tyres', 'garage', 'vet']); // poor OSM coverage in MK
+  const HYBRID_THRESHOLD = 5;
   const timeLeft = GLOBAL_DEADLINE_MS - (Date.now() - startMs);
-  // Call Google when OSM result count is low OR OSM endpoint failed (results=0, timeLeft>2500)
-  // Lower time guard (2500ms) ensures petrol/vet get Google even after an 8s OSM timeout
-  const needsPlaces = results.length < HYBRID_THRESHOLD && timeLeft > 2500;
+  const needsPlaces = timeLeft > 2500 && (
+    ALWAYS_GOOGLE.has(cat) ||               // always augment with Google
+    results.length < HYBRID_THRESHOLD       // or OSM was thin
+  );
+  const osmFailed = results.length === 0;
 
-  console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN} osm_count=${results.length} threshold=${HYBRID_THRESHOLD} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
+  console.log(`[nearby] cat=${cat} osm_count=${results.length} osm_failed=${osmFailed} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
 
   if (needsPlaces) {
     console.log(`[nearby] google_called=true cat=${cat} osm_count=${results.length}`);

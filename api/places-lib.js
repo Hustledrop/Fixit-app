@@ -40,6 +40,8 @@ function buildQueries(cat, cityHint) {
       `Авто механика ${mk}`.trim(),
       `Авто сервис ${mk}`.trim(),
       `car repair ${en}`.trim(),
+      `Avto servis ${en}`.trim(),      // catches "Avto servis GALEVSKI Veles"
+      `auto mechanic ${en}`.trim(),
     ],
     parts: [
       `Автоделови ${mk}`.trim(),
@@ -54,6 +56,7 @@ function buildQueries(cat, cityHint) {
       `Гуми ${mk}`.trim(),
       `tyre service ${en}`.trim(),
       `tire shop ${en}`.trim(),
+      `vulcanizer ${en}`.trim(),       // Balkan-specific English term
     ],
     petrol: [
       `Бензинска пумпа ${mk}`.trim(),

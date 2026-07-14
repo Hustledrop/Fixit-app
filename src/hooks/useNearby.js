@@ -26,7 +26,7 @@ const FAIL_TTL    =      60 * 1000;  // 60 seconds
 // Round to 2dp (~1km) for cache key — same location = same results
 // Cache version — increment when result structure or provider changes.
 // Changing this invalidates all cached results on next page load.
-const CACHE_VERSION = 'v6-garage-tyres'; // bumped: city-aware queries + radius fix // bumped: hybrid Google Places now active
+const CACHE_VERSION = 'v7-google-fallback'; // bumped: city-aware queries + radius fix // bumped: hybrid Google Places now active
 
 function cacheKey(cat, lat, lng, city) {
   const c = (city || '').toLowerCase().trim().replace(/\s+/g,'_').slice(0, 20);
@@ -86,13 +86,13 @@ export function useNearby() {
       }
     }
 
-    // ── 2. Failure cooldown — show fallback immediately ──────────────────────
-    if (!forceRefresh && inCooldown(cat, lat, lng, city)) {
-      console.log(`[nearby] COOLDOWN cat=${cat} — showing Maps fallback`);
-      setFallback(true);
-      setError('empty');
-      setLoading(false);
-      return;
+    // ── 2. Failure cooldown — do NOT block request; just note it ─────────────
+    // We still call /api/nearby so Google Places can run even if OSM is in cooldown.
+    // The server-side OSM calls are protected by their own timeout budget.
+    // Only forceRefresh bypasses the cache; cooldown only affects OSM retry, not Google.
+    const _inCooldown = !forceRefresh && inCooldown(cat, lat, lng, city);
+    if (_inCooldown) {
+      console.log(`[nearby] COOLDOWN cat=${cat} — still calling API for Google results`);
     }
 
     // ── 3. In-flight dedup — attach to existing request ─────────────────────
@@ -133,7 +133,10 @@ export function useNearby() {
       const results = data.results || [];
 
       if (data.fallbackUsed) {
-        markFailed(cat, lat, lng, city);
+        // Only enter 60s cooldown when truly empty — not when we have partial results
+        if (!data.results || data.results.length === 0) {
+          markFailed(cat, lat, lng, city);
+        }
         setFallback(true);
         // If we had cached results, show them as stale while fallback is shown
         const cached = getCache(cat, lat, lng, city);
