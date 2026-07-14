@@ -262,7 +262,7 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   }).length;
 
   const nearest5 = results.slice(0, 5).map(r => `${r.name}(${r.dist}km)`).join(', ');
-  console.log(`[places] cat=${cat} city_hint="${_cityHint}" raw=${beforeFilter} after_30km_filter=${results.length} returned=${results.length} nearest=[${nearest5}]${errors.length ? ' errors='+errors.join(',') : ''}`);
+  console.log(`[places] cat=${cat} city_hint="${cityHint}" raw=${beforeFilter} after_30km_filter=${results.length} returned=${results.length} nearest=[${nearest5}]${errors.length ? ' errors='+errors.join(',') : ''}`);
 
   return { configured: true, results, partialErrors: errors.length ? errors : undefined };
 }
