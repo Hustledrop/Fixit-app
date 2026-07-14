@@ -25,67 +25,65 @@ const NEARBY_CATS = {
 // Build city-aware text queries.
 // cityHint = reverse-geocoded nearest town (e.g. "Велес" or "Veles") — may be empty.
 // Using the city name in the query dramatically improves local relevance for Google Places.
-function buildQueries(cat, cityHint) {
-  const mk = cityHint || '';   // Macedonian city name e.g. "Велес"
-  const en = cityHint || '';   // Same or transliterated e.g. "Veles"
+function buildQueries(cat, _cityHint) {
+  // We do NOT append city name to queries.
+  // Reason: for village users (e.g. Kumarino), city = "Куманово" (the village),
+  // not "Велес" (the nearest useful town). Adding "Куманово" to queries would
+  // return 0 results because vulcanizers/garages are in Велес, not the village.
+  // Location is handled by the GPS-based locationBias circle (30km radius).
+  // These language-specific terms + GPS coordinates correctly target local businesses.
   const q = {
-    // Each category gets ≤6 focused queries run in parallel.
-    // City name in query dramatically improves local relevance vs distant capitals.
     garage: [
-      `Автосервис ${mk}`.trim(),
-      `Автомеханичар ${mk}`.trim(),
-      `Авто електричар ${mk}`.trim(),
-      `Авто механика ${mk}`.trim(),
-      `car repair ${en}`.trim(),
-      `auto mechanic ${en}`.trim(),
+      'Автосервис',
+      'Автомеханичар',
+      'Авто електричар',
+      'Авто механика',
+      'Авто сервис',
+      'car repair auto mechanic',
     ],
     parts: [
-      `Автоделови ${mk}`.trim(),
-      `Продавница за автоделови ${mk}`.trim(),
-      `Резервни делови ${mk}`.trim(),
-      `auto parts store ${en}`.trim(),
+      'Автоделови',
+      'Продавница за автоделови',
+      'Резервни делови за автомобили',
+      'auto parts store',
     ],
     tyres: [
-      // More queries = more chances to find local vulcanizers
-      `Вулканизер ${mk}`.trim(),
-      `Вулканизерски сервис ${mk}`.trim(),
-      `Сервис за гуми ${mk}`.trim(),
-      `Гуми ${mk}`.trim(),
-      `tyre service ${en}`.trim(),
-      `tire shop ${en}`.trim(),
+      'Вулканизер',
+      'Вулканизерски сервис',
+      'Сервис за гуми',
+      'Гуми монтажа',
+      'tyre service tire shop',
+      'vulcanizer',
     ],
     petrol: [
-      `Бензинска пумпа ${mk}`.trim(),
-      `Бензинска ${mk}`.trim(),
-      `petrol station ${en}`.trim(),
-      `gas station ${en}`.trim(),
+      'Бензинска пумпа',
+      'Бензинска',
+      'petrol station gas station',
     ],
     hardware: [
-      `Железарија ${mk}`.trim(),
-      `Градежни материјали ${mk}`.trim(),
-      `Електроматеријали ${mk}`.trim(),
-      `Алати ${mk}`.trim(),
-      `Дом и градина ${mk}`.trim(),
+      'Железарија',
+      'Градежни материјали',
+      'Електроматеријали',
+      'Алати Дом и градина',
+      'hardware store building materials',
     ],
     vet: [
-      `Ветеринар ${mk}`.trim(),
-      `Ветеринарна станица ${mk}`.trim(),
-      `Ветеринарна амбуланта ${mk}`.trim(),
-      `veterinary clinic ${en}`.trim(),
+      'Ветеринар',
+      'Ветеринарна станица',
+      'Ветеринарна амбуланта',
+      'veterinary clinic',
     ],
     it: [
-      `Компјутерски сервис ${mk}`.trim(),
-      `Поправка на компјутери ${mk}`.trim(),
-      `computer repair ${en}`.trim(),
+      'Компјутерски сервис',
+      'Поправка на компјутери',
+      'computer repair',
     ],
     moto: [
-      `Мото сервис ${mk}`.trim(),
-      `Сервис за мотори ${mk}`.trim(),
-      `Мото делови ${mk}`.trim(),
-      `Мото продавница ${mk}`.trim(),
-      `Скутер сервис ${mk}`.trim(),
-      `motorcycle repair ${en}`.trim(),
-      `motorcycle parts ${en}`.trim(),
+      'Мото сервис',
+      'Сервис за мотори',
+      'Мото делови продавница',
+      'Скутер сервис',
+      'motorcycle repair parts',
     ],
   };
   return (q[cat] || q.garage).filter((v, i, a) => v && a.indexOf(v) === i);
@@ -226,7 +224,11 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   for (const q of queries) {
     tasks.push(
       searchText(latN, lngN, radiusM, q)
-        .then(d => allPlaces.push(...(d.places || [])))
+        .then(d => {
+          const places = d.places || [];
+          console.log(`[places] query="${q}" returned=${places.length}${places.length>0?' first='+places[0]?.displayName?.text:''}`);
+          allPlaces.push(...places);
+        })
         .catch(e => { errors.push(`text:${e.message}`); console.warn(`[places] text "${q}": ${e.message}`); })
     );
   }
@@ -256,7 +258,8 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
     return haversine(latN, lngN, loc.latitude || 0, loc.longitude || 0) > MAX_DIST_KM;
   }).length;
 
-  console.log(`[places] cat=${cat} raw=${beforeFilter} removed_over_30km=${removedOver30} returned=${results.length}${errors.length ? ' errors='+errors.join(',') : ''}`);
+  const nearest5 = results.slice(0, 5).map(r => `${r.name}(${r.dist}km)`).join(', ');
+  console.log(`[places] cat=${cat} city_hint="${_cityHint}" raw=${beforeFilter} after_30km_filter=${results.length} returned=${results.length} nearest=[${nearest5}]${errors.length ? ' errors='+errors.join(',') : ''}`);
 
   return { configured: true, results, partialErrors: errors.length ? errors : undefined };
 }

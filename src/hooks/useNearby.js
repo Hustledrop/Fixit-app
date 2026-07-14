@@ -26,7 +26,7 @@ const FAIL_TTL    =      60 * 1000;  // 60 seconds
 // Round to 2dp (~1km) for cache key — same location = same results
 // Cache version — increment when result structure or provider changes.
 // Changing this invalidates all cached results on next page load.
-const CACHE_VERSION = 'v5-category-policy'; // bumped: city-aware queries + radius fix // bumped: hybrid Google Places now active
+const CACHE_VERSION = 'v6-garage-tyres'; // bumped: city-aware queries + radius fix // bumped: hybrid Google Places now active
 
 function cacheKey(cat, lat, lng, city) {
   const c = (city || '').toLowerCase().trim().replace(/\s+/g,'_').slice(0, 20);

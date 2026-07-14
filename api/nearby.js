@@ -326,7 +326,8 @@ module.exports = async function handler(req, res) {
         console.log('[nearby] google_called=true configured=false — OSM only');
       } else if (placesData?.results?.length >= 0) {
         const googleRaw = placesData.results || [];
-        console.log(`[nearby] google_called=true google_count=${googleRaw.length}`);
+        const gNames = googleRaw.slice(0,8).map(r=>`${r.name}(${r.dist}km)`).join(', ');
+        console.log(`[nearby] google_called=true google_count=${googleRaw.length} google_names=[${gNames}]`);
         // Merge: dedup by normalized name & close proximity (~50m)
         const osmNames = new Set(results.map(r => r.name.toLowerCase().trim()));
         const SCRAP_RE = /отпад|auto.?otpad|schrottplatz|autoverwertung|junkyard|salvage.?yard|wrecking|dismantl|recycl/i;
@@ -342,7 +343,8 @@ module.exports = async function handler(req, res) {
         });
         results = [...results, ...deduped].sort((a, b) => a.dist - b.dist).slice(0, 25);
         if (results.length > 0) {
-          console.log(`[nearby] merged_count=${results.length} filtered_scrap=${filteredScrap} nearest_name="${results[0].name}" nearest_dist=${results[0].dist}km`);
+          const finalNames = results.slice(0,8).map(r=>`${r.name}(${r.dist}km)`).join(', ');
+          console.log(`[nearby] merged_count=${results.length} filtered_scrap=${filteredScrap} dedup_removed=${googleRaw.length-deduped.length} final_names=[${finalNames}]`);
         }
       }
     } catch (err) {
