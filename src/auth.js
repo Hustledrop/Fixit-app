@@ -44,14 +44,16 @@ export async function signUp(email, password) {
   if (error) throw error;
   // Ensure profile + usage rows exist (trigger handles this, but belt-and-suspenders)
   if (data?.user) {
-    await c.from('profiles').upsert({
+    // Belt-and-suspenders: trigger handles this, but we ensure rows exist.
+    // ignoreDuplicates=true = INSERT ... ON CONFLICT DO NOTHING (never overwrites is_pro).
+    await c.from('profiles').insert({
       id: data.user.id, email: data.user.email,
       is_pro: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
-    await c.from('usage').upsert({
+    }, { ignoreDuplicates: true });
+    await c.from('usage').insert({
       user_id: data.user.id, diagnosis_count: 0, free_limit: 1,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
+    }, { ignoreDuplicates: true });
   }
   return data;
 }
@@ -96,15 +98,12 @@ export async function checkUsage(userId) {
 
 export async function incrementUsage(userId) {
   const c = await sb(); if (!c || !userId) return { allowed: false };
-  const profile = await getProfile(userId);
-  if (profile?.is_pro) return { allowed: true, is_pro: true };
-  const { data: usage } = await c.from('usage').select('*').eq('user_id', userId).single();
-  const count = usage?.diagnosis_count ?? 0;
-  const limit = usage?.free_limit ?? 1;
-  if (count >= limit) return { allowed: false, diagnosis_count: count };
-  await c.from('usage').upsert({
-    user_id: userId, diagnosis_count: count + 1, free_limit: limit,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id' });
-  return { allowed: true, diagnosis_count: count + 1 };
+  // Use secure server-side RPC — prevents client from resetting or spoofing count.
+  // consume_free_diagnosis() re-checks is_pro and increments atomically.
+  const { data, error } = await c.rpc('consume_free_diagnosis', { p_user_id: userId });
+  if (error) {
+    console.error('[auth] consume_free_diagnosis error:', error.message);
+    return { allowed: false };
+  }
+  return data; // { allowed, is_pro, diagnosis_count }
 }
