@@ -1,19 +1,35 @@
-// api/nearby.js — FixIt Overpass proxy  FIXIT_NEARBY_RURAL_V6
-// Progressive radius: 5km → 15km → 30km (stops when ≥3 results found)
-// Scrapyard/recycling excluded from garage results
-// Global category queries, MK-aware fallback
+// api/nearby.js — FixIt Overpass proxy  FIXIT_NEARBY_BUDGET_V7
+//
+// ── EXECUTION BUDGET ─────────────────────────────────────────────────────────
+// Vercel maxDuration = 25s. We target ≤ 18s worst case.
+//
+// Per-attempt timeout: 8s
+// Endpoint strategy: TRY ONE at a time. If primary fails → try secondary ONCE.
+//   But only ONE attempt per radius pass (not 2+2+2 = 6 sequential waits).
+//
+// WORST CASE timeline:
+//   Pass 1 primary (8s fail) + Pass 1 secondary (8s fail) = 16s → return fallback
+//
+// BEST CASE (radius expansion needed):
+//   Pass 1 primary succeeds (2s) but 0 results → Pass 2 primary succeeds (4s) = 6s
+//
+// The key fix: on endpoint failure we do NOT try 3 passes × 2 endpoints = 6 waits.
+// We try 1 pass × 2 endpoints = 2 waits max, then return fallback.
+//
+// Radius passes only expand when OSM DATA is missing (0 results),
+// NOT when endpoints are failing. Endpoint failure = stop and fallback immediately.
+// ─────────────────────────────────────────────────────────────────────────────
 
-const OVERPASS_ENDPOINTS = [
-  'overpass-api.de',
-  'overpass.kumi.systems',
-];
+const ENDPOINTS = ['overpass-api.de', 'overpass.kumi.systems'];
+const SOCKET_TIMEOUT_MS = 8000;    // 8s per endpoint attempt
+const GLOBAL_DEADLINE_MS = 18000;  // 18s total — stop everything after this
+const MIN_RESULTS = 3;             // expand radius only if fewer than this many results
 
 // ── Query builder ─────────────────────────────────────────────────────────────
 function buildQuery(cat, south, west, north, east) {
   const b = `${south},${west},${north},${east}`;
   const parts = {
     garage: [
-      // Include all common car-repair tags globally
       `node["shop"="car_repair"](${b})`,
       `way["shop"="car_repair"](${b})`,
       `relation["shop"="car_repair"](${b})`,
@@ -29,18 +45,14 @@ function buildQuery(cat, south, west, north, east) {
       `way["shop"="auto_parts"](${b})`,
     ],
     tyres: [
-      // Global tyre shop tags
       `node["shop"="tyres"](${b})`,
       `way["shop"="tyres"](${b})`,
       `node["shop"="tires"](${b})`,
       `way["shop"="tires"](${b})`,
-      // Eastern Europe / Balkans: vulcanizer
       `node["shop"="vulcanizer"](${b})`,
       `way["shop"="vulcanizer"](${b})`,
-      // UK tyre fitting
       `node["craft"="tyre_fitting"](${b})`,
       `way["craft"="tyre_fitting"](${b})`,
-      // Service subtags on car_repair
       `node["service:vehicle:tyres"="yes"](${b})`,
       `way["service:vehicle:tyres"="yes"](${b})`,
       `node["service:vehicle:tires"="yes"](${b})`,
@@ -52,20 +64,16 @@ function buildQuery(cat, south, west, north, east) {
       `way["amenity"="fuel"](${b})`,
     ],
     hardware: [
-      // Global: hardware, DIY, building materials
       `node["shop"="hardware"](${b})`,
       `way["shop"="hardware"](${b})`,
       `node["shop"="doityourself"](${b})`,
       `way["shop"="doityourself"](${b})`,
       `node["shop"="building_materials"](${b})`,
       `way["shop"="building_materials"](${b})`,
-      // Tools
       `node["shop"="tools"](${b})`,
       `way["shop"="tools"](${b})`,
-      // Garden / home improvement
       `node["shop"="garden_centre"](${b})`,
       `way["shop"="garden_centre"](${b})`,
-      // Electrical supplies (common in MK/Balkans for this category)
       `node["shop"="electrical"](${b})`,
       `way["shop"="electrical"](${b})`,
     ],
@@ -88,38 +96,33 @@ function buildQuery(cat, south, west, north, east) {
       `way["craft"="motorcycle_repair"](${b})`,
       `node["service:vehicle:motorcycle"="yes"](${b})`,
       `way["service:vehicle:motorcycle"="yes"](${b})`,
-      // Scooters (common in Balkans)
       `node["shop"="scooter"](${b})`,
       `way["shop"="scooter"](${b})`,
     ],
   };
   const lines = (parts[cat] || parts.garage).join(';\n  ');
-  return `[out:json][timeout:25];\n(\n  ${lines};\n);\nout center tags;`;
+  // Overpass internal timeout set to 7s — aligns with our 8s socket timeout
+  return `[out:json][timeout:7];\n(\n  ${lines};\n);\nout center tags;`;
 }
 
-// ── Scrapyard / junkyard filter — exclude from garage results ──────────────────
-// OSM tags and name patterns that indicate dismantlers/recyclers, not repair shops
+// ── Scrapyard filter ──────────────────────────────────────────────────────────
 const SCRAP_TAGS = new Set(['scrap_yard','recycling','second_hand','salvage']);
-const SCRAP_NAME_RE = /auto[\s-]?otpad|авто[\s-]?отпад|schrottplatz|autoverwertung|junkyard|salvage\s+yard|wrecking\s+yard|vehicle\s+dismantl|recycl/i;
+const SCRAP_RE   = /auto[\s-]?otpad|авто[\s-]?отпад|schrottplatz|autoverwertung|junkyard|salvage\s+yard|wrecking|vehicle\s+dismantl|recycl/i;
 
 function isScrapyard(tags) {
-  if (SCRAP_TAGS.has(tags.shop))      return true;
-  if (SCRAP_TAGS.has(tags.amenity))   return true;
-  if (tags.recycling_type)             return true;
-  if (tags['craft'] === 'salvage')     return true;
-  const name = [tags.name, tags.operator, tags.description].filter(Boolean).join(' ');
-  return SCRAP_NAME_RE.test(name);
+  if (SCRAP_TAGS.has(tags.shop) || SCRAP_TAGS.has(tags.amenity)) return true;
+  if (tags.recycling_type || tags.craft === 'salvage') return true;
+  return SCRAP_RE.test([tags.name, tags.operator, tags.description].filter(Boolean).join(' '));
 }
 
-// ── Haversine distance ─────────────────────────────────────────────────────────
+// ── Haversine ─────────────────────────────────────────────────────────────────
 function haversine(la1, lo1, la2, lo2) {
-  const R = 6371;
-  const dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
+  const R = 6371, dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
   const a = Math.sin(dLa/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-// ── Overpass HTTP request ─────────────────────────────────────────────────────
+// ── Single Overpass request ───────────────────────────────────────────────────
 function fetchOverpass(host, query) {
   return new Promise((resolve, reject) => {
     const https   = require('https');
@@ -133,42 +136,76 @@ function fetchOverpass(host, query) {
         'User-Agent':     'FixItApp/1.0 Vercel-Proxy',
         'Accept':         'application/json',
       },
-      timeout: 11000,   // 11s × (up to 3 passes × 2 hosts) — exits early when results found
+      timeout: SOCKET_TIMEOUT_MS,
     }, res => {
       let data = '';
       res.on('data', c => { data += c; });
       res.on('end', () => {
-        if (res.statusCode === 429) { reject(new Error(`HTTP 429 rate-limited from ${host}`)); return; }
-        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode} from ${host}`)); return; }
+        if (res.statusCode === 429) { reject(new Error('rate_limited')); return; }
+        if (res.statusCode !== 200) { reject(new Error(`http_${res.statusCode}`)); return; }
         try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error(`JSON parse error from ${host}`)); }
+        catch (_) { reject(new Error('json_parse')); }
       });
     });
-    req.on('error',   e  => reject(new Error(`${host}: ${e.message}`)));
-    req.on('timeout', () => { req.destroy(); reject(new Error(`${host} timeout`)); });
+    req.on('error',   e  => reject(new Error(`net_${e.code||e.message}`)));
+    req.on('timeout', () => { req.destroy(); reject(new Error('socket_timeout')); });
     req.write(body); req.end();
   });
 }
 
-// ── Process raw elements into result objects ───────────────────────────────────
+// ── Attempt one radius with endpoint failover ─────────────────────────────────
+// Returns { data, endpointFailed }
+// endpointFailed=true means ALL endpoints failed (don't try wider radius)
+// endpointFailed=false means Overpass responded (possibly with 0 elements)
+async function fetchWithFailover(query, startMs, radiusKm) {
+  for (let ei = 0; ei < ENDPOINTS.length; ei++) {
+    const host    = ENDPOINTS[ei];
+    const elapsed = Date.now() - startMs;
+    const remain  = GLOBAL_DEADLINE_MS - elapsed;
+
+    console.log(`[nearby] endpoint=${host} radius=${radiusKm}km deadline_remaining=${remain}ms`);
+
+    if (remain < SOCKET_TIMEOUT_MS + 500) {
+      // Not enough budget for another full attempt
+      console.warn(`[nearby] deadline_remaining=${remain}ms < ${SOCKET_TIMEOUT_MS+500}ms — aborting`);
+      return { data: null, endpointFailed: true };
+    }
+
+    const t0 = Date.now();
+    try {
+      const d = await fetchOverpass(host, query);
+      const ms = Date.now() - t0;
+      console.log(`[nearby] pass_success endpoint=${host} raw=${(d.elements||[]).length} durationMs=${ms}`);
+      return { data: d, endpointFailed: false };
+    } catch (err) {
+      const ms = Date.now() - t0;
+      console.warn(`[nearby] endpoint_failure endpoint=${host} reason=${err.message} durationMs=${ms}`);
+      // Only try secondary endpoint if error is NOT timeout/rate-limit
+      // (timeout means network is struggling — secondary unlikely to help)
+      if (err.message === 'socket_timeout' || err.message === 'rate_limited') {
+        console.warn(`[nearby] skipping secondary endpoint after ${err.message}`);
+        return { data: null, endpointFailed: true };
+      }
+      // For other errors (http_503, net_ECONNRESET etc) → try next endpoint
+      // but only if we have budget
+    }
+  }
+  return { data: null, endpointFailed: true };
+}
+
+// ── Process elements ──────────────────────────────────────────────────────────
 function processElements(elements, cat, latN, lngN, distLimitKm, seen) {
   const results = [];
   for (const el of elements) {
     const tags = el.tags || {};
-
-    // Skip scrapyards when searching for car repair
     if (cat === 'garage' && isScrapyard(tags)) continue;
-
     const displayName = tags.name || tags.brand || tags.operator || tags.amenity || null;
     if (!displayName || seen.has(displayName)) continue;
-
     const elLat = el.lat ?? el.center?.lat;
-    const elLon = el.lon ?? el.center?.lon;
+    const elLon = el.lon  ?? el.center?.lon;
     if (!elLat || !elLon) continue;
-
     const dist = haversine(latN, lngN, parseFloat(elLat), parseFloat(elLon));
     if (dist > distLimitKm) continue;
-
     seen.add(displayName);
     const street = tags['addr:street']
       ? tags['addr:street'] + (tags['addr:housenumber'] ? ' '+tags['addr:housenumber'] : '')
@@ -196,83 +233,134 @@ module.exports = async function handler(req, res) {
   const latN = parseFloat(lat), lngN = parseFloat(lng);
   if (isNaN(latN) || isNaN(lngN)) { res.status(400).json({ error: 'Invalid lat/lng' }); return; }
 
-  // ── Progressive radius: 5km → 15km → 30km ────────────────────────────────
-  // Stops as soon as ≥3 useful results found.
-  // Covers: city users (pass 1), suburban users (pass 2), rural/village users (pass 3)
-  // Kumarino→Veles is ~16km → caught by pass 2 (15km half-width = 30km diameter)
+  const startMs = Date.now();
+
+  // ── Radius passes ─────────────────────────────────────────────────────────
+  // Pass 1: ~5km  — city users, fast single query
+  // Pass 2: ~30km — rural users (Kumarino→Veles=16km fits here)
+  //
+  // Pass 2 only runs when:
+  //   a) Pass 1 returned 0 or <3 results (data gap, not endpoint failure)
+  //   b) Sufficient time budget remains (≥ 9s left)
+  //
+  // Each pass tries primary endpoint; on timeout/rate-limit → no secondary.
+  // On non-timeout HTTP error → try secondary endpoint once.
+  //
+  // Budget proof (worst case):
+  //   Pass 1 primary: 8s timeout → no secondary (timeout) → 8s
+  //   Deadline check: 18-8=10s remaining ≥ 9s → try pass 2
+  //   Pass 2 primary: 8s timeout → no secondary → 8s
+  //   Total: 16s << 25s ✓
+  //
+  //   Pass 1 primary: http_503 → try secondary: 8s fail → 16s
+  //   Deadline check: 18-16=2s < 9s → STOP → return fallback
+  //   Total: 16s << 25s ✓
+
   const PASSES = [
-    { ns: 0.045, ew: 0.060 },  // ~5km radius
-    { ns: 0.135, ew: 0.180 },  // ~15km radius
-    { ns: 0.270, ew: 0.360 },  // ~30km radius
+    { ns: 0.045, ew: 0.060, radiusKm: 5  },
+    { ns: 0.270, ew: 0.360, radiusKm: 30 },
   ];
-  const MIN_RESULTS = 3;        // stop expanding when we have this many
 
-  const seen    = new Set();    // dedup across passes by display name
-  let allResults = [];
-  let failedDueToEndpoint = false;
+  const seen       = new Set();
+  let   allResults = [];
 
-  for (let pass = 0; pass < PASSES.length; pass++) {
-    const { ns, ew } = PASSES[pass];
-    const distLimitKm = Math.round(Math.sqrt(ns*ns + ew*ew) * 111); // approx km radius
+  for (let pi = 0; pi < PASSES.length; pi++) {
+    const { ns, ew, radiusKm } = PASSES[pi];
+    const elapsed = Date.now() - startMs;
+    const remain  = GLOBAL_DEADLINE_MS - elapsed;
+
+    console.log(`[nearby] PASS${pi+1} cat=${cat} radiusKm=${radiusKm} deadline_remaining=${remain}ms`);
+
+    // Abort if not enough budget for a meaningful attempt (8s + 1s overhead)
+    if (remain < SOCKET_TIMEOUT_MS + 1000) {
+      console.warn(`[nearby] deadline_remaining=${remain}ms — skipping PASS${pi+1}, returning fallback`);
+      break;
+    }
 
     const south = (latN - ns).toFixed(6);
     const north = (latN + ns).toFixed(6);
     const west  = (lngN - ew).toFixed(6);
     const east  = (lngN + ew).toFixed(6);
-
     const query = buildQuery(cat, south, west, north, east);
-    console.log(`[nearby] PASS${pass+1} cat=${cat} radius≈${distLimitKm}km`);
 
-    let passData = null;
-    for (const host of OVERPASS_ENDPOINTS) {
-      try {
-        passData = await fetchOverpass(host, query);
-        console.log(`[nearby] ${host} OK — ${(passData.elements||[]).length} elements`);
-        break;
-      } catch (err) {
-        console.warn(`[nearby] ${host} failed: ${err.message}`);
-        if (err.message.includes('429') || err.message.includes('timeout')) {
-          failedDueToEndpoint = true;
-        }
-      }
-    }
+    const { data, endpointFailed } = await fetchWithFailover(query, startMs, radiusKm);
 
-    if (!passData) {
-      // Both endpoints failed — stop expanding, show fallback
-      console.error(`[nearby] PASS${pass+1}: all endpoints failed, stopping`);
-      failedDueToEndpoint = true;
+    if (endpointFailed || !data) {
+      // Endpoint failure — do NOT try wider radius (Overpass is unavailable, not data-empty)
+      console.warn(`[nearby] endpoint_failure on PASS${pi+1} — stopping, will return fallback`);
       break;
     }
 
-    const newResults = processElements(passData.elements || [], cat, latN, lngN, distLimitKm + 5, seen);
-    allResults = [...allResults, ...newResults];
-    allResults.sort((a, b) => a.dist - b.dist);
+    const newResults = processElements(data.elements || [], cat, latN, lngN, radiusKm + 5, seen);
+    allResults = [...allResults, ...newResults].sort((a,b) => a.dist - b.dist);
+    console.log(`[nearby] PASS${pi+1} raw=${(data.elements||[]).length} new=${newResults.length} total=${allResults.length}`);
 
-    console.log(`[nearby] PASS${pass+1} returned=${newResults.length} total=${allResults.length}`);
-
-    // Stop if we have enough results
     if (allResults.length >= MIN_RESULTS) {
-      console.log(`[nearby] ≥${MIN_RESULTS} results found, stopping at pass ${pass+1}`);
+      console.log(`[nearby] ≥${MIN_RESULTS} results — stopping at PASS${pi+1}`);
       break;
     }
-
-    // If endpoints are failing, don't try more passes
-    if (failedDueToEndpoint) break;
+    // < MIN_RESULTS but endpoint worked → expand radius on next iteration
   }
 
-  const results = allResults.slice(0, 25);
+  const totalMs = Date.now() - startMs;
+  let results = allResults.slice(0, 25);
 
-  if (results.length === 0 || failedDueToEndpoint) {
-    console.log(`[nearby] returning fallback: results=${results.length} endpointFailed=${failedDueToEndpoint}`);
-    res.status(200).json({
-      results,
-      fallbackUsed: results.length === 0,
-      fallbackReason: failedDueToEndpoint ? 'endpoint_failure' : 'no_results',
-      cat,
-    });
-    return;
+  // ── Hybrid: call Google Places when OSM returns <3 results ───────────────
+  // Only call if: time budget allows, Places is configured, OSM was thin
+  const HYBRID_THRESHOLD = 3;
+  const timeLeft = GLOBAL_DEADLINE_MS - (Date.now() - startMs);
+  const needsPlaces = results.length < HYBRID_THRESHOLD && timeLeft > 4000;
+
+  if (needsPlaces) {
+    console.log(`[nearby] OSM returned ${results.length} results (< ${HYBRID_THRESHOLD}) — querying Google Places`);
+    try {
+      // Call our own /api/places endpoint (server-to-server on same Vercel project)
+      // Using localhost/loopback isn't reliable on Vercel; use the APP_URL
+      const APP_URL   = process.env.VITE_APP_URL || 'https://www.fixit-app.com';
+      const RADIUS_M  = 30000; // 30km — matches our OSM pass2 radius
+      const placeUrl  = `${APP_URL}/api/places?cat=${encodeURIComponent(cat)}&lat=${latN}&lng=${lngN}&radius=${RADIUS_M}`;
+
+      const https = require('https');
+      const placesData = await new Promise((resolve, reject) => {
+        const req = https.get(placeUrl, { timeout: 7000, headers: { 'User-Agent': 'FixIt-Internal/1.0' } }, res => {
+          let d = '';
+          res.on('data', c => { d += c; });
+          res.on('end', () => { try { resolve(JSON.parse(d)); } catch(_) { resolve(null); } });
+        });
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => { req.destroy(); resolve(null); });
+      });
+
+      if (placesData?.configured === false) {
+        console.log('[nearby] Google Places not configured — OSM only results');
+      } else if (placesData?.results?.length > 0) {
+        // Merge: deduplicate by normalized name & proximity
+        const osmNames = new Set(results.map(r => r.name.toLowerCase().trim()));
+        const deduped  = (placesData.results || []).filter(p => {
+          const pname = p.name.toLowerCase().trim();
+          if (osmNames.has(pname)) return false; // exact name match
+          // Proximity dedup: if within 50m of an OSM result, skip
+          const tooClose = results.some(r => {
+            const dlat = Math.abs(r.lat - p.lat), dlng = Math.abs(r.lng - p.lng);
+            return dlat < 0.0005 && dlng < 0.0005; // ~50m
+          });
+          return !tooClose;
+        });
+
+        results = [...results, ...deduped].sort((a, b) => a.dist - b.dist).slice(0, 25);
+        console.log(`[nearby] Places added ${deduped.length} new results, total=${results.length}`);
+      }
+    } catch (err) {
+      console.warn(`[nearby] Places hybrid failed: ${err.message}`);
+    }
   }
 
-  console.log(`[nearby] cat=${cat} final=${results.length} results`);
-  res.status(200).json({ results, cat });
+  console.log(`[nearby] total_duration_ms=${Date.now()-startMs} cat=${cat} returned=${results.length}`);
+
+  res.status(200).json({
+    results,
+    fallbackUsed: results.length === 0,
+    fallbackReason: results.length === 0 ? 'no_results_or_endpoint_failure' : undefined,
+    cat,
+  });
 };

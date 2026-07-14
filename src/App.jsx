@@ -1728,7 +1728,7 @@ export default function App() {
               <div key={i} onClick={()=>b.phone?(window.location=`tel:${b.phone}`):window.open(mu(`${b.name} ${b.addr}`), '_blank', 'noopener,noreferrer')} style={{...s.card,display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',background:i===0?'rgba(26,158,92,0.04)':C.c,borderColor:i===0?'rgba(26,158,92,0.35)':C.b,animation:`fadeIn ${.3+i*.04}s ease`}}>
                 <div style={{width:44,height:44,borderRadius:13,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.3rem',flexShrink:0,background:'rgba(26,158,92,0.1)'}}>{i===0?'🏆':MAP_CATS[mapCat]?.icon||'📍'}</div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:'0.88rem',fontWeight:700,marginBottom:3}}>{i===0?'🏆 ':''}{b.name}</div>
+                  <div style={{fontSize:'0.88rem',fontWeight:700,marginBottom:3,display:'flex',alignItems:'center',gap:6}}><span>{i===0?'🏆 ':''}{b.name}</span>{b.source==='google'&&<span style={{fontSize:'0.52rem',background:'rgba(26,95,232,0.15)',color:'rgba(26,95,232,0.7)',borderRadius:4,padding:'1px 4px',letterSpacing:'0.04em',flexShrink:0}}>G</span>}</div>
                   <div style={{fontSize:'0.7rem',color:C.m,lineHeight:1.5}}>
                     {b.addr}
                     {b.phone&&<><br/><a href={`tel:${b.phone}`} onClick={e=>e.stopPropagation()} style={{color:C.bl}}>📞 {b.phone}</a></>}
@@ -1738,6 +1738,7 @@ export default function App() {
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
                   <div style={{fontSize:'0.9rem',fontWeight:800,color:C.g}}>{b.dist<1?Math.round(b.dist*1000)+'m':b.dist.toFixed(1)+'km'}</div>
+                  {b.rating&&<div style={{fontSize:'0.62rem',color:'rgba(232,178,26,0.8)',marginTop:2}}>★ {b.rating.toFixed(1)}</div>}
                   {b.phone&&<div style={{fontSize:'0.65rem',fontWeight:700,color:C.bl,marginTop:4}}>📞 {t('call')}</div>}
                 </div>
               </div>
