@@ -229,7 +229,8 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'GET')     { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const { cat = 'garage', lat, lng, city = '' } = req.query;
+  const { cat = 'garage', lat, lng, city = '', cc = '' } = req.query;
+  const countryCode = (cc || '').toUpperCase();
   const latN = parseFloat(lat), lngN = parseFloat(lng);
   if (isNaN(latN) || isNaN(lngN)) { res.status(400).json({ error: 'Invalid lat/lng' }); return; }
 
@@ -256,6 +257,15 @@ module.exports = async function handler(req, res) {
   //   Deadline check: 18-16=2s < 9s → STOP → return fallback
   //   Total: 16s << 25s ✓
 
+  // ── Google-first policy for countries with thin OSM coverage ────────────────
+  // For MK garage and tyres: skip OSM entirely; Google Places is the primary source.
+  // OSM is still used for other categories and other countries as normal.
+  const MK_GOOGLE_FIRST = countryCode === 'MK' && (cat === 'tyres' || cat === 'garage');
+
+  if (MK_GOOGLE_FIRST) {
+    console.log(`[nearby] cat=${cat} country=${countryCode} provider_policy=google_first`);
+  }
+
   const PASSES = [
     { ns: 0.045, ew: 0.060, radiusKm: 5  },
     { ns: 0.270, ew: 0.360, radiusKm: 30 },
@@ -264,7 +274,7 @@ module.exports = async function handler(req, res) {
   const seen       = new Set();
   let   allResults = [];
 
-  for (let pi = 0; pi < PASSES.length; pi++) {
+  for (let pi = 0; pi < PASSES.length && !MK_GOOGLE_FIRST; pi++) {
     const { ns, ew, radiusKm } = PASSES[pi];
     const elapsed = Date.now() - startMs;
     const remain  = GLOBAL_DEADLINE_MS - elapsed;
@@ -314,19 +324,20 @@ module.exports = async function handler(req, res) {
   const HYBRID_THRESHOLD = 5;
   const timeLeft = GLOBAL_DEADLINE_MS - (Date.now() - startMs);
   const needsPlaces = timeLeft > 2500 && (
+    MK_GOOGLE_FIRST ||                      // Google-first for MK tyres/garage
     ALWAYS_GOOGLE.has(cat) ||               // always augment with Google
     results.length < HYBRID_THRESHOLD       // or OSM was thin
   );
   const osmFailed = results.length === 0;
 
-  console.log(`[nearby] cat=${cat} osm_count=${results.length} osm_failed=${osmFailed} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
+  console.log(`[nearby] cat=${cat} country=${countryCode} osm_count=${results.length} osm_failed=${osmFailed} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
 
   if (needsPlaces) {
     console.log(`[nearby] google_called=true cat=${cat} osm_count=${results.length}`);
     try {
       // Direct require — no HTTP hop, no domain dependency, no deployment mismatch
       const { fetchPlacesForCategory } = require('./places-lib.js');
-      const placesData = await fetchPlacesForCategory(cat, latN, lngN, 30000, city);
+      const placesData = await fetchPlacesForCategory(cat, latN, lngN, 30000, city, countryCode);
 
       if (!placesData?.configured) {
         console.log('[nearby] google_called=true configured=false — OSM only');

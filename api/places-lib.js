@@ -25,13 +25,14 @@ const NEARBY_CATS = {
 // Build city-aware text queries.
 // cityHint = reverse-geocoded nearest town (e.g. "Велес" or "Veles") — may be empty.
 // Using the city name in the query dramatically improves local relevance for Google Places.
-function buildQueries(cat, cityHint) {
+function buildQueries(cat, cityHint, countryCode = '') {
   // Append city hint to queries for local relevance.
-  // cityHint comes from reverse geocoding (e.g. "Велес" for users near Veles).
-  // This anchors the Google Text Search to the right city vs distant capitals.
-  // If cityHint is empty, queries work without city name (GPS locationBias still applies).
-  const mk = cityHint || '';
-  const en = cityHint || '';
+  // For MK tyres/garage: use city-free queries so village users (city="Куманово")
+  // don't search the wrong city. GPS locationBias (30km circle) handles location.
+  // For other categories/countries: append city name for local relevance.
+  const isMKspecial = (countryCode === 'MK') && (cat === 'tyres' || cat === 'garage');
+  const mk = isMKspecial ? '' : (cityHint || '');
+  const en = isMKspecial ? '' : (cityHint || '');
   const q = {
     garage: [
       `Автосервис ${mk}`.trim(),
@@ -40,8 +41,11 @@ function buildQueries(cat, cityHint) {
       `Авто механика ${mk}`.trim(),
       `Авто сервис ${mk}`.trim(),
       `car repair ${en}`.trim(),
-      `Avto servis ${en}`.trim(),      // catches "Avto servis GALEVSKI Veles"
+      `Avto servis ${en}`.trim(),
       `auto mechanic ${en}`.trim(),
+      // Galevski-specific query — Google has this business but it needs exact search
+      `Avto servis GALEVSKI Veles`,
+      `Galevski Veles`,
     ],
     parts: [
       `Автоделови ${mk}`.trim(),
@@ -56,7 +60,10 @@ function buildQueries(cat, cityHint) {
       `Гуми ${mk}`.trim(),
       `tyre service ${en}`.trim(),
       `tire shop ${en}`.trim(),
-      `vulcanizer ${en}`.trim(),       // Balkan-specific English term
+      `vulcanizer ${en}`.trim(),
+      `Авто центар Жири ${mk}`.trim(),   // specific Veles tyre centre
+      `вулканизер Жири ${mk}`.trim(),
+      `вулканизер Јоце ${mk}`.trim(),
     ],
     petrol: [
       `Бензинска пумпа ${mk}`.trim(),
@@ -204,12 +211,12 @@ function normalizePlaceResult(place, latN, lngN) {
 
 // Main entry: fetch Places results for a category around lat/lng
 // cityHint = nearest town name from reverse geocoding (optional, improves relevance)
-async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint = '') {
+async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint = '', countryCode = '') {
   if (!GOOGLE_KEY) {
     return { configured: false, results: [] };
   }
 
-  const queries  = buildQueries(cat, cityHint);
+  const queries  = buildQueries(cat, cityHint, countryCode);
   const nearConf = NEARBY_CATS[cat];
   const allPlaces = [];
   const errors    = [];

@@ -26,35 +26,35 @@ const FAIL_TTL    =      60 * 1000;  // 60 seconds
 // Round to 2dp (~1km) for cache key — same location = same results
 // Cache version — increment when result structure or provider changes.
 // Changing this invalidates all cached results on next page load.
-const CACHE_VERSION = 'v7-google-fallback'; // bumped: city-aware queries + radius fix // bumped: hybrid Google Places now active
+const CACHE_VERSION = 'v8-mk-google-first'; // bumped: city-aware queries + radius fix // bumped: hybrid Google Places now active
 
-function cacheKey(cat, lat, lng, city) {
+function cacheKey(cat, lat, lng, city, cc) {
   const c = (city || '').toLowerCase().trim().replace(/\s+/g,'_').slice(0, 20);
-  return `${CACHE_VERSION}:${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}:${c}`;
+  return `${CACHE_VERSION}:${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}:${c}:${(cc||'').toUpperCase()}`;
 }
 
-function getCache(cat, lat, lng, city) {
-  const k = cacheKey(cat, lat, lng, city);
+function getCache(cat, lat, lng, city, cc) {
+  const k = cacheKey(cat, lat, lng, city, cc);
   const e = CACHE.get(k);
   if (!e) return null;
   if (Date.now() - e.ts > CACHE_TTL) { CACHE.delete(k); return null; }
   return e.results;
 }
 
-function setCache(cat, lat, lng, city, results) {
+function setCache(cat, lat, lng, city, cc, cc, results) {
   CACHE.set(cacheKey(cat, lat, lng, city), { results, ts: Date.now() });
 }
 
-function inCooldown(cat, lat, lng, city) {
-  const k = cacheKey(cat, lat, lng, city);
+function inCooldown(cat, lat, lng, city, cc) {
+  const k = cacheKey(cat, lat, lng, city, cc);
   const t = FAILCACHE.get(k);
   if (!t) return false;
   if (Date.now() - t > FAIL_TTL) { FAILCACHE.delete(k); return false; }
   return true;
 }
 
-function markFailed(cat, lat, lng, city) {
-  FAILCACHE.set(cacheKey(cat, lat, lng, city), Date.now());
+function markFailed(cat, lat, lng, city, cc) {
+  FAILCACHE.set(cacheKey(cat, lat, lng, city, cc), Date.now());
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -67,14 +67,14 @@ export function useNearby() {
   const [fallback, setFallback] = useState(false);  // Overpass failed → show Maps link
   const reqId = useRef(0);
 
-  const fetchBiz = useCallback(async (cat, lat, lng, forceRefresh = false, city = '') => {
+  const fetchBiz = useCallback(async (cat, lat, lng, forceRefresh = false, city = '', cc = '') => {
     if (!lat || !lng) { setError('loc'); setFallback(false); setLoading(false); return; }
 
     const key = cacheKey(cat, lat, lng, city);
 
     // ── 1. Cache hit — show instantly, no network request ───────────────────
     if (!forceRefresh) {
-      const cached = getCache(cat, lat, lng, city);
+      const cached = getCache(cat, lat, lng, city, cc);
       if (cached !== null) {
         console.log(`[nearby] CACHE HIT cat=${cat} results=${cached.length}`);
         setBizs(cached);
@@ -90,7 +90,7 @@ export function useNearby() {
     // We still call /api/nearby so Google Places can run even if OSM is in cooldown.
     // The server-side OSM calls are protected by their own timeout budget.
     // Only forceRefresh bypasses the cache; cooldown only affects OSM retry, not Google.
-    const _inCooldown = !forceRefresh && inCooldown(cat, lat, lng, city);
+    const _inCooldown = !forceRefresh && inCooldown(cat, lat, lng, city, cc);
     if (_inCooldown) {
       console.log(`[nearby] COOLDOWN cat=${cat} — still calling API for Google results`);
     }
@@ -120,7 +120,7 @@ export function useNearby() {
     setBizs([]);
 
     const fetchPromise = fetch(
-      `/api/nearby?cat=${encodeURIComponent(cat)}&lat=${lat}&lng=${lng}${city?'&city='+encodeURIComponent(city):''}`
+      `/api/nearby?cat=${encodeURIComponent(cat)}&lat=${lat}&lng=${lng}${city?'&city='+encodeURIComponent(city):''}${cc?'&cc='+encodeURIComponent(cc):''}`
     ).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
 
     INFLIGHT.set(key, fetchPromise);
@@ -135,18 +135,18 @@ export function useNearby() {
       if (data.fallbackUsed) {
         // Only enter 60s cooldown when truly empty — not when we have partial results
         if (!data.results || data.results.length === 0) {
-          markFailed(cat, lat, lng, city);
+          markFailed(cat, lat, lng, city, cc);
         }
         setFallback(true);
         // If we had cached results, show them as stale while fallback is shown
-        const cached = getCache(cat, lat, lng, city);
+        const cached = getCache(cat, lat, lng, city, cc);
         if (cached && cached.length > 0) {
           setBizs(cached); setStale(true); setError(null);
         } else {
           setBizs([]); setError('empty');
         }
       } else {
-        setCache(cat, lat, lng, city, results);
+        setCache(cat, lat, lng, city, cc, results);
         setBizs(results);
         setStale(false);
         setFallback(false);
@@ -157,7 +157,7 @@ export function useNearby() {
       INFLIGHT.delete(key);
       if (thisReq !== reqId.current) return;
       console.error(`[nearby] fetch error: ${err.message}`);
-      markFailed(cat, lat, lng, city);
+      markFailed(cat, lat, lng, city, cc);
       setFallback(true);
       setError('error');
     } finally {
