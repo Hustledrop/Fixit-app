@@ -229,7 +229,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'GET')     { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const { cat = 'garage', lat, lng } = req.query;
+  const { cat = 'garage', lat, lng, city = '' } = req.query;
   const latN = parseFloat(lat), lngN = parseFloat(lng);
   if (isNaN(latN) || isNaN(lngN)) { res.status(400).json({ error: 'Invalid lat/lng' }); return; }
 
@@ -314,26 +314,13 @@ module.exports = async function handler(req, res) {
   console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN} osm_count=${results.length} threshold=${HYBRID_THRESHOLD} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
 
   if (needsPlaces) {
-    console.log(`[nearby] OSM returned ${results.length} results (< ${HYBRID_THRESHOLD}) — querying Google Places`);
+    console.log(`[nearby] google_called=true cat=${cat} osm_count=${results.length}`);
     try {
-      // Call our own /api/places endpoint (server-to-server on same Vercel project)
-      // Using localhost/loopback isn't reliable on Vercel; use the APP_URL
-      const APP_URL   = process.env.VITE_APP_URL || 'https://www.fixit-app.com';
-      const RADIUS_M  = 30000; // 30km — matches our OSM pass2 radius
-      const placeUrl  = `${APP_URL}/api/places?cat=${encodeURIComponent(cat)}&lat=${latN}&lng=${lngN}&radius=${RADIUS_M}`;
+      // Direct require — no HTTP hop, no domain dependency, no deployment mismatch
+      const { fetchPlacesForCategory } = require('./places-lib.js');
+      const placesData = await fetchPlacesForCategory(cat, latN, lngN, 30000, city);
 
-      const https = require('https');
-      const placesData = await new Promise((resolve, reject) => {
-        const req = https.get(placeUrl, { timeout: 7000, headers: { 'User-Agent': 'FixIt-Internal/1.0' } }, res => {
-          let d = '';
-          res.on('data', c => { d += c; });
-          res.on('end', () => { try { resolve(JSON.parse(d)); } catch(_) { resolve(null); } });
-        });
-        req.on('error', () => resolve(null));
-        req.on('timeout', () => { req.destroy(); resolve(null); });
-      });
-
-      if (placesData?.configured === false) {
+      if (!placesData?.configured) {
         console.log('[nearby] google_called=true configured=false — OSM only');
       } else if (placesData?.results?.length >= 0) {
         const googleRaw = placesData.results || [];

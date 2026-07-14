@@ -26,34 +26,35 @@ const FAIL_TTL    =      60 * 1000;  // 60 seconds
 // Round to 2dp (~1km) for cache key — same location = same results
 // Cache version — increment when result structure or provider changes.
 // Changing this invalidates all cached results on next page load.
-const CACHE_VERSION = 'v3-google'; // bumped: hybrid Google Places now active
+const CACHE_VERSION = 'v4-city'; // bumped: city-aware queries + radius fix // bumped: hybrid Google Places now active
 
-function cacheKey(cat, lat, lng) {
-  return `${CACHE_VERSION}:${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}`;
+function cacheKey(cat, lat, lng, city) {
+  const c = (city || '').toLowerCase().trim().replace(/\s+/g,'_').slice(0, 20);
+  return `${CACHE_VERSION}:${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}:${c}`;
 }
 
-function getCache(cat, lat, lng) {
-  const k = cacheKey(cat, lat, lng);
+function getCache(cat, lat, lng, city) {
+  const k = cacheKey(cat, lat, lng, city);
   const e = CACHE.get(k);
   if (!e) return null;
   if (Date.now() - e.ts > CACHE_TTL) { CACHE.delete(k); return null; }
   return e.results;
 }
 
-function setCache(cat, lat, lng, results) {
-  CACHE.set(cacheKey(cat, lat, lng), { results, ts: Date.now() });
+function setCache(cat, lat, lng, city, results) {
+  CACHE.set(cacheKey(cat, lat, lng, city), { results, ts: Date.now() });
 }
 
-function inCooldown(cat, lat, lng) {
-  const k = cacheKey(cat, lat, lng);
+function inCooldown(cat, lat, lng, city) {
+  const k = cacheKey(cat, lat, lng, city);
   const t = FAILCACHE.get(k);
   if (!t) return false;
   if (Date.now() - t > FAIL_TTL) { FAILCACHE.delete(k); return false; }
   return true;
 }
 
-function markFailed(cat, lat, lng) {
-  FAILCACHE.set(cacheKey(cat, lat, lng), Date.now());
+function markFailed(cat, lat, lng, city) {
+  FAILCACHE.set(cacheKey(cat, lat, lng, city), Date.now());
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -66,14 +67,14 @@ export function useNearby() {
   const [fallback, setFallback] = useState(false);  // Overpass failed → show Maps link
   const reqId = useRef(0);
 
-  const fetchBiz = useCallback(async (cat, lat, lng, forceRefresh = false) => {
+  const fetchBiz = useCallback(async (cat, lat, lng, forceRefresh = false, city = '') => {
     if (!lat || !lng) { setError('loc'); setFallback(false); setLoading(false); return; }
 
-    const key = cacheKey(cat, lat, lng);
+    const key = cacheKey(cat, lat, lng, city);
 
     // ── 1. Cache hit — show instantly, no network request ───────────────────
     if (!forceRefresh) {
-      const cached = getCache(cat, lat, lng);
+      const cached = getCache(cat, lat, lng, city);
       if (cached !== null) {
         console.log(`[nearby] CACHE HIT cat=${cat} results=${cached.length}`);
         setBizs(cached);
@@ -86,7 +87,7 @@ export function useNearby() {
     }
 
     // ── 2. Failure cooldown — show fallback immediately ──────────────────────
-    if (!forceRefresh && inCooldown(cat, lat, lng)) {
+    if (!forceRefresh && inCooldown(cat, lat, lng, city)) {
       console.log(`[nearby] COOLDOWN cat=${cat} — showing Maps fallback`);
       setFallback(true);
       setError('empty');
@@ -119,7 +120,7 @@ export function useNearby() {
     setBizs([]);
 
     const fetchPromise = fetch(
-      `/api/nearby?cat=${encodeURIComponent(cat)}&lat=${lat}&lng=${lng}`
+      `/api/nearby?cat=${encodeURIComponent(cat)}&lat=${lat}&lng=${lng}${city?'&city='+encodeURIComponent(city):''}`
     ).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
 
     INFLIGHT.set(key, fetchPromise);
@@ -132,17 +133,17 @@ export function useNearby() {
       const results = data.results || [];
 
       if (data.fallbackUsed) {
-        markFailed(cat, lat, lng);
+        markFailed(cat, lat, lng, city);
         setFallback(true);
         // If we had cached results, show them as stale while fallback is shown
-        const cached = getCache(cat, lat, lng);
+        const cached = getCache(cat, lat, lng, city);
         if (cached && cached.length > 0) {
           setBizs(cached); setStale(true); setError(null);
         } else {
           setBizs([]); setError('empty');
         }
       } else {
-        setCache(cat, lat, lng, results);
+        setCache(cat, lat, lng, city, results);
         setBizs(results);
         setStale(false);
         setFallback(false);
@@ -153,7 +154,7 @@ export function useNearby() {
       INFLIGHT.delete(key);
       if (thisReq !== reqId.current) return;
       console.error(`[nearby] fetch error: ${err.message}`);
-      markFailed(cat, lat, lng);
+      markFailed(cat, lat, lng, city);
       setFallback(true);
       setError('error');
     } finally {

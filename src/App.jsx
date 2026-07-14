@@ -283,7 +283,7 @@ export default function App() {
   // also by GPS arrival. nearbyBump guarantees re-fetch even if screen hasn't changed.
   useEffect(() => {
     if (screen === 'nearby' && lat && lng) {
-      fetchBiz(mapCat, lat, lng, nearbyForce);
+      fetchBiz(mapCat, lat, lng, nearbyForce, city);
       if (nearbyForce) setNearbyForce(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
