@@ -22,16 +22,20 @@ const NEARBY_FIELDS  = 'places.id,places.displayName,places.location,places.form
 const TEXT_FIELDS    = 'places.id,places.displayName,places.location,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.regularOpeningHours,places.rating,places.googleMapsUri,places.types,places.primaryType';
 
 // Categories that work well with Nearby Search type filters
+// Maps FixIt category to confirmed Table A types for searchNearby.
+// tire_shop was added Feb 2026 and may not be recognized by all API key configurations
+//   → tyres uses Text Search only (вулканизер / tyre shop works perfectly)
+// home_goods_store NOT confirmed Table A → hardware uses hardware_store only
+// motorcycle_dealer is Table A but rare in Balkans → moto leans on Text Search
 const NEARBY_CATS = {
-  garage:  { types: ['car_repair'] },
-  parts:   { types: ['auto_parts_store'] },
-  tyres:   { types: ['tire_shop'] },
-  petrol:  { types: ['gas_station'] },
-  vet:     { types: ['veterinary_care'] },
-  moto:    { types: ['motorcycle_dealer'] },
-  // hardware: electronics_store is Table A; use BOTH nearby + text for better MK coverage
-  hardware: { types: ['hardware_store', 'home_goods_store'] },
-  it:      { types: ['electronics_store'] },
+  garage:   { types: ['car_repair'] },
+  parts:    { types: ['auto_parts_store'] },
+  // tyres: omitted — tire_shop too new; Text Search handles вулканизер perfectly
+  petrol:   { types: ['gas_station'] },
+  vet:      { types: ['veterinary_care'] },
+  moto:     { types: ['motorcycle_dealer'] },
+  hardware: { types: ['hardware_store'] },  // confirmed Table A
+  it:       { types: ['electronics_store'] },
 };
 
 // Local MK text queries — used for Text Search to fill gaps from Nearby Search
