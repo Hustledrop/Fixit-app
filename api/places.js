@@ -1,49 +1,50 @@
-// api/places.js — Google Places Nearby Search (server-side, key never exposed to client)
+// api/places.js — Google Places API (New) — server-side, key NEVER in client bundle
 //
-// SETUP (owner must do):
-//  1. console.cloud.google.com → New project
-//  2. Enable "Places API (New)" (or classic Places API)
-//  3. APIs & Services → Credentials → Create API Key
-//  4. Restrict key: Application restrictions = None (server use)
-//     API restrictions = restrict to "Places API" only
-//  5. Billing → set budget alert at €5–10/month
-//  6. Vercel → Environment Variables → GOOGLE_MAPS_API_KEY = AIza...
-//  7. Redeploy → Places hybrid search activates automatically
+// Strategy: Use Nearby Search (New) for categories with clean Table A types.
+//           Use Text Search (New) for categories that need local MK terms or lack exact types.
 //
-// Pricing (2024): ~$17/1000 requests. With 30-min cache, real cost is very low.
-// Budget estimate: 1000 users/day × 2 category taps = 2000 OSM requests, 
-//   Places only called when OSM returns <3 results — maybe 20% = 400 Places calls/day = $6.80/day.
-//   Set billing alert at $10/day to be safe.
+// GOOGLE_MAPS_API_KEY must NOT be a VITE_ variable.
 //
-// GOOGLE_MAPS_API_KEY must NOT be a VITE_ variable — Vite would embed it in the JS bundle.
+// Verified Table A types (valid for includedTypes in searchNearby):
+//   car_repair, auto_parts_store, tire_shop, gas_station,
+//   hardware_store, veterinary_care, electronics_store, motorcycle_dealer
+//
+// Types NOT valid in searchNearby includedTypes (would cause 400):
+//   home_improvement_store, motorcycle_repair, computer_store, computer_repair_service
+//   → Use Text Search for these categories instead.
 
-const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY;
-const PLACES_URL  = 'https://places.googleapis.com/v1/places:searchNearby';
+const GOOGLE_KEY  = process.env.GOOGLE_MAPS_API_KEY;
+const NEARBY_URL  = 'https://places.googleapis.com/v1/places:searchNearby';
+const TEXTSRCH_URL = 'https://places.googleapis.com/v1/places:searchText';
 
-// Category → Google Places type mapping
-// Uses official Google Places types: https://developers.google.com/maps/documentation/places/web-service/place-types
-const CAT_TO_TYPES = {
-  garage:   ['car_repair'],
-  parts:    ['auto_parts_store'],
-  tyres:    ['tire_shop'],             // Google Places has a dedicated tire_shop type
-  petrol:   ['gas_station'],
-  hardware: ['hardware_store', 'home_improvement_store'],
-  vet:      ['veterinary_care'],
-  it:       ['electronics_store', 'computer_store'],  // no specific IT repair type; filter later
-  moto:     ['motorcycle_dealer', 'motorcycle_repair'],
+// Field masks — regularOpeningHours (NOT currentOpeningHours, which is a different field)
+const NEARBY_FIELDS  = 'places.id,places.displayName,places.location,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.regularOpeningHours,places.rating,places.googleMapsUri,places.types,places.primaryType';
+const TEXT_FIELDS    = 'places.id,places.displayName,places.location,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.regularOpeningHours,places.rating,places.googleMapsUri,places.types,places.primaryType';
+
+// Categories that work well with Nearby Search type filters
+const NEARBY_CATS = {
+  garage:  { types: ['car_repair'] },
+  parts:   { types: ['auto_parts_store'] },
+  tyres:   { types: ['tire_shop'] },
+  petrol:  { types: ['gas_station'] },
+  vet:     { types: ['veterinary_care'] },
+  moto:    { types: ['motorcycle_dealer'] },
+  // hardware: electronics_store is Table A; use BOTH nearby + text for better MK coverage
+  hardware: { types: ['hardware_store', 'home_goods_store'] },
+  it:      { types: ['electronics_store'] },
 };
 
-// Category → text query for Places Text Search (fallback when type returns nothing)
-// These are the localized MK terms + English fallback
-const CAT_TO_QUERY = {
-  garage:   'Автосервис OR Автомеханичар OR car repair OR auto mechanic',
-  parts:    'Автоделови OR Резервни делови OR auto parts store',
-  tyres:    'Вулканизер OR вулканизерски сервис OR tyre service OR tire shop',
-  petrol:   'Бензинска пумпа OR gas station OR petrol station',
-  hardware: 'Железарија OR Градежни материјали OR hardware store OR building materials',
-  vet:      'Ветеринар OR Ветеринарна станица OR veterinary clinic',
-  it:       'Компјутерски сервис OR Поправка на компјутери OR computer repair',
-  moto:     'Мото сервис OR Сервис за мотори OR motorcycle repair OR motorcycle parts',
+// Local MK text queries — used for Text Search to fill gaps from Nearby Search
+// Text Search covers local language names that Google Maps knows about but aren't categorised cleanly
+const TEXT_QUERIES = {
+  garage:  'автосервис OR авто сервис OR автомеханичар OR auto mechanic',
+  parts:   'автоделови OR авто делови OR auto parts',
+  tyres:   'вулканизер OR гуми OR tyre shop OR tire shop',
+  petrol:  'бензинска пумпа OR petrol station OR gas station',
+  hardware:'железарија OR градежни материјали OR электроматеријали OR hardware store',
+  vet:     'ветеринар OR ветеринарна станица OR veterinary clinic',
+  it:      'компјутерски сервис OR поправка компјутери OR computer repair',
+  moto:    'мото сервис OR сервис мотори OR motorcycle repair OR мото продавница',
 };
 
 function haversine(la1, lo1, la2, lo2) {
@@ -52,85 +53,120 @@ function haversine(la1, lo1, la2, lo2) {
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-async function nearbySearch(lat, lng, radiusM, cat) {
-  const types = CAT_TO_TYPES[cat] || ['establishment'];
-  const body  = JSON.stringify({
-    includedTypes:      types,
-    maxResultCount:     20,
-    locationRestriction: {
-      circle: { center: { latitude: lat, longitude: lng }, radiusMeters: radiusM }
-    },
-  });
-
-  const https = require('https');
+function httpsPost(hostname, path, body, headers) {
   return new Promise((resolve, reject) => {
-    const opts = {
-      hostname: 'places.googleapis.com',
-      path:     '/v1/places:searchNearby',
-      method:   'POST',
-      headers:  {
-        'Content-Type':     'application/json',
-        'X-Goog-Api-Key':   GOOGLE_KEY,
-        'X-Goog-FieldMask': 'places.displayName,places.location,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.currentOpeningHours,places.rating,places.id',
-        'Content-Length':   Buffer.byteLength(body),
-      },
+    const https = require('https');
+    const buf   = Buffer.from(JSON.stringify(body), 'utf8');
+    const req   = https.request({
+      hostname, path, method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': buf.length },
       timeout: 8000,
-    };
-    const req = https.request(opts, res => {
+    }, res => {
       let d = '';
       res.on('data', c => { d += c; });
       res.on('end', () => {
-        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+        if (res.statusCode !== 200) {
+          // Log error body for debugging (safe — no key in d)
+          let errInfo = {};
+          try { errInfo = JSON.parse(d); } catch(_) {}
+          console.error(`[places] HTTP ${res.statusCode} status=${errInfo?.error?.status} code=${errInfo?.error?.code} message=${errInfo?.error?.message}`);
+          reject(new Error(`HTTP_${res.statusCode}`));
+          return;
+        }
         try { resolve(JSON.parse(d)); }
         catch (_) { reject(new Error('json_parse')); }
       });
     });
-    req.on('error',   e  => reject(new Error(`net_${e.code}`)));
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-    req.write(body); req.end();
+    req.on('error',   e  => reject(new Error(`net_${e.code||e.message}`)));
+    req.on('timeout', () => { req.destroy(); reject(new Error('socket_timeout')); });
+    req.write(buf); req.end();
   });
 }
 
-function normalizePlacesResult(place, latN, lngN, cat) {
-  const loc = place.location || {};
+// ── Nearby Search (New) ───────────────────────────────────────────────────────
+async function nearbySearch(latN, lngN, radiusM, types) {
+  const body = {
+    includedTypes:       types,
+    maxResultCount:      20,
+    rankPreference:      'DISTANCE',
+    locationRestriction: {
+      circle: { center: { latitude: latN, longitude: lngN }, radiusMeters: radiusM }
+    },
+  };
+  return httpsPost('places.googleapis.com', '/v1/places:searchNearby', body, {
+    'X-Goog-Api-Key':   GOOGLE_KEY,
+    'X-Goog-FieldMask': NEARBY_FIELDS,
+  });
+}
+
+// ── Text Search (New) ─────────────────────────────────────────────────────────
+async function textSearch(latN, lngN, radiusM, textQuery) {
+  const body = {
+    textQuery,
+    maxResultCount:   20,
+    rankPreference:   'DISTANCE',
+    locationRestriction: {
+      rectangle: {
+        low:  { latitude: latN - 0.27, longitude: lngN - 0.36 },
+        high: { latitude: latN + 0.27, longitude: lngN + 0.36 },
+      }
+    },
+  };
+  return httpsPost('places.googleapis.com', '/v1/places:searchText', body, {
+    'X-Goog-Api-Key':   GOOGLE_KEY,
+    'X-Goog-FieldMask': TEXT_FIELDS,
+  });
+}
+
+function normalizePlaceResult(place, latN, lngN) {
+  const loc  = place.location || {};
   const plat = loc.latitude  || 0;
   const plng = loc.longitude || 0;
   const name = place.displayName?.text || '';
   if (!name) return null;
   return {
-    id:          `google_${place.id}`,
-    source:      'google',
+    id:      `google_${place.id}`,
+    source:  'google',
     name,
-    lat:         plat,
-    lng:         plng,
-    dist:        Math.round(haversine(latN, lngN, plat, plng) * 1000) / 1000,
-    addr:        place.formattedAddress || '',
-    phone:       place.nationalPhoneNumber || '',
-    website:     place.websiteUri || '',
-    opening:     place.currentOpeningHours?.weekdayDescriptions?.join('; ') || '',
-    rating:      place.rating || null,
-    mapsUrl:     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}&query_place_id=${place.id}`,
+    lat:     plat,
+    lng:     plng,
+    dist:    Math.round(haversine(latN, lngN, plat, plng) * 1000) / 1000,
+    addr:    place.formattedAddress || '',
+    phone:   place.nationalPhoneNumber || '',
+    website: place.websiteUri || '',
+    opening: place.regularOpeningHours?.weekdayDescriptions?.slice(0,2).join('; ') || '',
+    rating:  place.rating || null,
+    mapsUrl: place.googleMapsUri || '',
   };
 }
 
-// Handler: GET /api/places?cat=garage&lat=41.7&lng=21.8&radius=30000
+function dedup(arr) {
+  const seen = new Set();
+  return arr.filter(p => {
+    const key = p.name.toLowerCase().trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// ── Handler ───────────────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'GET')     { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   if (!GOOGLE_KEY) {
-    // No crash — return a clear not-configured response
     return res.status(200).json({
       configured: false,
       results: [],
-      message: 'Google Places not configured. Add GOOGLE_MAPS_API_KEY in Vercel environment variables.',
+      message: 'Add GOOGLE_MAPS_API_KEY to Vercel environment variables to enable Places search.',
     });
   }
 
   const { cat = 'garage', lat, lng, radius = '30000' } = req.query;
   const latN    = parseFloat(lat);
   const lngN    = parseFloat(lng);
-  const radiusM = Math.min(parseInt(radius), 50000); // cap at 50km
+  const radiusM = Math.min(parseInt(radius) || 30000, 50000);
 
   if (isNaN(latN) || isNaN(lngN)) {
     return res.status(400).json({ error: 'Invalid lat/lng' });
@@ -138,20 +174,46 @@ module.exports = async function handler(req, res) {
 
   console.log(`[places] cat=${cat} lat=${latN} lng=${lngN} radius=${radiusM}m`);
 
-  try {
-    const data    = await nearbySearch(latN, lngN, radiusM, cat);
-    const places  = data.places || [];
+  const allPlaces = [];
+  const errors    = [];
 
-    const results = places
-      .map(p => normalizePlacesResult(p, latN, lngN, cat))
+  // Strategy: run Nearby Search (type-based) AND Text Search (local query) in parallel
+  // Text Search covers MK local names that may not be properly categorised in Google's type system
+  const nearbyConf = NEARBY_CATS[cat];
+  const textQuery  = TEXT_QUERIES[cat];
+
+  const tasks = [];
+
+  if (nearbyConf) {
+    tasks.push(
+      nearbySearch(latN, lngN, radiusM, nearbyConf.types)
+        .then(d => { allPlaces.push(...(d.places || [])); })
+        .catch(e => { errors.push(`nearby:${e.message}`); console.warn(`[places] nearby failed: ${e.message}`); })
+    );
+  }
+
+  if (textQuery) {
+    tasks.push(
+      textSearch(latN, lngN, radiusM, textQuery)
+        .then(d => { allPlaces.push(...(d.places || [])); })
+        .catch(e => { errors.push(`text:${e.message}`); console.warn(`[places] text failed: ${e.message}`); })
+    );
+  }
+
+  await Promise.all(tasks);
+
+  const results = dedup(
+    allPlaces
+      .map(p => normalizePlaceResult(p, latN, lngN))
       .filter(Boolean)
       .sort((a, b) => a.dist - b.dist)
-      .slice(0, 20);
+  ).slice(0, 20);
 
-    console.log(`[places] returned=${results.length} cat=${cat}`);
-    res.status(200).json({ configured: true, results });
-  } catch (err) {
-    console.error(`[places] error: ${err.message}`);
-    res.status(200).json({ configured: true, results: [], error: err.message });
-  }
+  console.log(`[places] cat=${cat} results=${results.length} errors=${errors.length}`);
+
+  res.status(200).json({
+    configured: true,
+    results,
+    ...(errors.length ? { partialErrors: errors } : {}),
+  });
 };
