@@ -309,7 +309,9 @@ module.exports = async function handler(req, res) {
   // Only call if: time budget allows, Places is configured, OSM was thin
   const HYBRID_THRESHOLD = 5; // Call Google when OSM returns <5 useful results
   const timeLeft = GLOBAL_DEADLINE_MS - (Date.now() - startMs);
-  const needsPlaces = results.length < HYBRID_THRESHOLD && timeLeft > 4000;
+  // Call Google when OSM result count is low OR OSM endpoint failed (results=0, timeLeft>2500)
+  // Lower time guard (2500ms) ensures petrol/vet get Google even after an 8s OSM timeout
+  const needsPlaces = results.length < HYBRID_THRESHOLD && timeLeft > 2500;
 
   console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN} osm_count=${results.length} threshold=${HYBRID_THRESHOLD} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
 

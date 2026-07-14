@@ -7,15 +7,18 @@ const NEARBY_FIELDS = 'places.id,places.displayName,places.location,places.forma
 const TEXT_FIELDS   = NEARBY_FIELDS;
 const MAX_DIST_KM   = 30;
 
-// Confirmed Table A types for searchNearby (excludes tire_shop — added Feb 2026, causes 400)
+// Confirmed Table A types for searchNearby.
+// Excluded: tire_shop (added Feb 2026 — causes 400 on pre-2026 keys)
+//           motorcycle_dealer (causes HTTP 400 INVALID_ARGUMENT on current key)
+// moto and tyres use Text Search only.
 const NEARBY_CATS = {
   garage:   { types: ['car_repair'] },
   parts:    { types: ['auto_parts_store'] },
   petrol:   { types: ['gas_station'] },
   vet:      { types: ['veterinary_care'] },
-  moto:     { types: ['motorcycle_dealer'] },
   hardware: { types: ['hardware_store'] },
   it:       { types: ['electronics_store'] },
+  // moto: removed motorcycle_dealer — causes HTTP 400; Text Search only
   // tyres: no confirmed type → Text Search only
 };
 
@@ -23,13 +26,17 @@ const NEARBY_CATS = {
 // cityHint = reverse-geocoded nearest town (e.g. "Велес" or "Veles") — may be empty.
 // Using the city name in the query dramatically improves local relevance for Google Places.
 function buildQueries(cat, cityHint) {
-  const mk = cityHint || '';
-  const en = cityHint || '';
+  const mk = cityHint || '';   // Macedonian city name e.g. "Велес"
+  const en = cityHint || '';   // Same or transliterated e.g. "Veles"
   const q = {
+    // Each category gets ≤6 focused queries run in parallel.
+    // City name in query dramatically improves local relevance vs distant capitals.
     garage: [
       `Автосервис ${mk}`.trim(),
       `Автомеханичар ${mk}`.trim(),
-      `Авто сервис ${mk}`.trim(),
+      `Авто електричар ${mk}`.trim(),
+      `Авто механика ${mk}`.trim(),
+      `car repair ${en}`.trim(),
       `auto mechanic ${en}`.trim(),
     ],
     parts: [
@@ -39,13 +46,18 @@ function buildQueries(cat, cityHint) {
       `auto parts store ${en}`.trim(),
     ],
     tyres: [
+      // More queries = more chances to find local vulcanizers
       `Вулканизер ${mk}`.trim(),
       `Вулканизерски сервис ${mk}`.trim(),
       `Сервис за гуми ${mk}`.trim(),
+      `Гуми ${mk}`.trim(),
       `tyre service ${en}`.trim(),
+      `tire shop ${en}`.trim(),
     ],
     petrol: [
       `Бензинска пумпа ${mk}`.trim(),
+      `Бензинска ${mk}`.trim(),
+      `petrol station ${en}`.trim(),
       `gas station ${en}`.trim(),
     ],
     hardware: [
@@ -58,6 +70,7 @@ function buildQueries(cat, cityHint) {
     vet: [
       `Ветеринар ${mk}`.trim(),
       `Ветеринарна станица ${mk}`.trim(),
+      `Ветеринарна амбуланта ${mk}`.trim(),
       `veterinary clinic ${en}`.trim(),
     ],
     it: [
@@ -69,7 +82,10 @@ function buildQueries(cat, cityHint) {
       `Мото сервис ${mk}`.trim(),
       `Сервис за мотори ${mk}`.trim(),
       `Мото делови ${mk}`.trim(),
+      `Мото продавница ${mk}`.trim(),
+      `Скутер сервис ${mk}`.trim(),
       `motorcycle repair ${en}`.trim(),
+      `motorcycle parts ${en}`.trim(),
     ],
   };
   return (q[cat] || q.garage).filter((v, i, a) => v && a.indexOf(v) === i);
