@@ -307,9 +307,11 @@ module.exports = async function handler(req, res) {
 
   // ── Hybrid: call Google Places when OSM returns <3 results ───────────────
   // Only call if: time budget allows, Places is configured, OSM was thin
-  const HYBRID_THRESHOLD = 3;
+  const HYBRID_THRESHOLD = 5; // Call Google when OSM returns <5 useful results
   const timeLeft = GLOBAL_DEADLINE_MS - (Date.now() - startMs);
   const needsPlaces = results.length < HYBRID_THRESHOLD && timeLeft > 4000;
+
+  console.log(`[nearby] cat=${cat} lat=${latN} lng=${lngN} osm_count=${results.length} threshold=${HYBRID_THRESHOLD} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
 
   if (needsPlaces) {
     console.log(`[nearby] OSM returned ${results.length} results (< ${HYBRID_THRESHOLD}) — querying Google Places`);
@@ -332,23 +334,27 @@ module.exports = async function handler(req, res) {
       });
 
       if (placesData?.configured === false) {
-        console.log('[nearby] Google Places not configured — OSM only results');
-      } else if (placesData?.results?.length > 0) {
-        // Merge: deduplicate by normalized name & proximity
+        console.log('[nearby] google_called=true configured=false — OSM only');
+      } else if (placesData?.results?.length >= 0) {
+        const googleRaw = placesData.results || [];
+        console.log(`[nearby] google_called=true google_count=${googleRaw.length}`);
+        // Merge: dedup by normalized name & close proximity (~50m)
         const osmNames = new Set(results.map(r => r.name.toLowerCase().trim()));
-        const deduped  = (placesData.results || []).filter(p => {
-          const pname = p.name.toLowerCase().trim();
-          if (osmNames.has(pname)) return false; // exact name match
-          // Proximity dedup: if within 50m of an OSM result, skip
-          const tooClose = results.some(r => {
-            const dlat = Math.abs(r.lat - p.lat), dlng = Math.abs(r.lng - p.lng);
-            return dlat < 0.0005 && dlng < 0.0005; // ~50m
-          });
-          return !tooClose;
+        const SCRAP_RE = /отпад|auto.?otpad|schrottplatz|autoverwertung|junkyard|salvage.?yard|wrecking|dismantl|recycl/i;
+        let filteredScrap = 0;
+        const deduped = googleRaw.filter(p => {
+          const pname = (p.name || '').toLowerCase().trim();
+          // Exclude scrapyards from garage even in Google results
+          if (cat === 'garage' && SCRAP_RE.test(pname)) { filteredScrap++; return false; }
+          // Skip if OSM already has same name
+          if (osmNames.has(pname)) return false;
+          // Skip if within 50m of existing OSM result (same business)
+          return !results.some(r => Math.abs(r.lat - p.lat) < 0.0005 && Math.abs(r.lng - p.lng) < 0.0005);
         });
-
         results = [...results, ...deduped].sort((a, b) => a.dist - b.dist).slice(0, 25);
-        console.log(`[nearby] Places added ${deduped.length} new results, total=${results.length}`);
+        if (results.length > 0) {
+          console.log(`[nearby] merged_count=${results.length} filtered_scrap=${filteredScrap} nearest_name="${results[0].name}" nearest_dist=${results[0].dist}km`);
+        }
       }
     } catch (err) {
       console.warn(`[nearby] Places hybrid failed: ${err.message}`);

@@ -24,8 +24,12 @@ const CACHE_TTL   = 30 * 60 * 1000;  // 30 minutes
 const FAIL_TTL    =      60 * 1000;  // 60 seconds
 
 // Round to 2dp (~1km) for cache key — same location = same results
+// Cache version — increment when result structure or provider changes.
+// Changing this invalidates all cached results on next page load.
+const CACHE_VERSION = 'v3-google'; // bumped: hybrid Google Places now active
+
 function cacheKey(cat, lat, lng) {
-  return `${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}`;
+  return `${CACHE_VERSION}:${cat}:${lat.toFixed(2)}:${lng.toFixed(2)}`;
 }
 
 function getCache(cat, lat, lng) {

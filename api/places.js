@@ -40,15 +40,23 @@ const NEARBY_CATS = {
 
 // Local MK text queries — used for Text Search to fill gaps from Nearby Search
 // Text Search covers local language names that Google Maps knows about but aren't categorised cleanly
+// Text Search queries — concise, focused local terms.
+// Google interprets shorter queries better than large OR chains.
+// We run MULTIPLE text searches per category (see tasks below) for better coverage.
 const TEXT_QUERIES = {
-  garage:  'автосервис OR авто сервис OR автомеханичар OR auto mechanic',
-  parts:   'автоделови OR авто делови OR auto parts',
-  tyres:   'вулканизер OR гуми OR tyre shop OR tire shop',
-  petrol:  'бензинска пумпа OR petrol station OR gas station',
-  hardware:'железарија OR градежни материјали OR электроматеријали OR hardware store',
-  vet:     'ветеринар OR ветеринарна станица OR veterinary clinic',
-  it:      'компјутерски сервис OR поправка компјутери OR computer repair',
-  moto:    'мото сервис OR сервис мотори OR motorcycle repair OR мото продавница',
+  garage:   'автосервис автомеханичар auto mechanic car repair',
+  garage2:  'авто сервис авто електричар авто механика',
+  parts:    'автоделови резервни делови auto parts store',
+  parts2:   'продавница автоделови car parts',
+  tyres:    'вулканизер вулканизерски сервис гуми',
+  tyres2:   'сервис за гуми tyre service tire shop',
+  petrol:   'бензинска пумпа gas station',
+  hardware: 'железарија градежни материјали',
+  hardware2:'електроматеријали алати дом и градина',
+  vet:      'ветеринар ветеринарна станица veterinary',
+  it:       'компјутерски сервис поправка компјутери computer repair',
+  moto:     'мото сервис сервис мотори мото делови',
+  moto2:    'скутер сервис motorcycle repair motorcycle parts',
 };
 
 function haversine(la1, lo1, la2, lo2) {
@@ -105,14 +113,16 @@ async function nearbySearch(latN, lngN, radiusM, types) {
 
 // ── Text Search (New) ─────────────────────────────────────────────────────────
 async function textSearch(latN, lngN, radiusM, textQuery) {
+  // Use locationBias (circle) — Text Search (New) does NOT support circle in locationRestriction
+  // (only rectangle is supported there). locationBias + server-side dist filter = 30km hard cap.
   const body = {
     textQuery,
     maxResultCount:   20,
     rankPreference:   'DISTANCE',
-    locationRestriction: {
-      rectangle: {
-        low:  { latitude: latN - 0.27, longitude: lngN - 0.36 },
-        high: { latitude: latN + 0.27, longitude: lngN + 0.36 },
+    locationBias: {
+      circle: {
+        center:       { latitude: latN, longitude: lngN },
+        radiusMeters: radiusM,
       }
     },
   };
@@ -120,6 +130,17 @@ async function textSearch(latN, lngN, radiusM, textQuery) {
     'X-Goog-Api-Key':   GOOGLE_KEY,
     'X-Goog-FieldMask': TEXT_FIELDS,
   });
+}
+
+// Scrapyard/junkyard exclusion — same logic as OSM filter, applied to Google results
+const SCRAP_RE_G = /отпад|auto.?otpad|schrottplatz|autoverwertung|junkyard|salvage.yard|wrecking|dismantl|recycl/i;
+function isScrapResult(place, cat) {
+  if (cat !== 'garage') return false; // only filter garage category
+  const name  = (place.displayName?.text || '').toLowerCase();
+  const types = place.types || [];
+  if (SCRAP_RE_G.test(name)) return true;
+  if (types.some(t => ['recycling','junkyard','scrap_yard'].includes(t))) return true;
+  return false;
 }
 
 function normalizePlaceResult(place, latN, lngN) {
@@ -184,10 +205,11 @@ module.exports = async function handler(req, res) {
   // Strategy: run Nearby Search (type-based) AND Text Search (local query) in parallel
   // Text Search covers MK local names that may not be properly categorised in Google's type system
   const nearbyConf = NEARBY_CATS[cat];
-  const textQuery  = TEXT_QUERIES[cat];
 
   const tasks = [];
+  const MAX_DIST_KM = 30; // hard cap — never show results beyond 30km
 
+  // Nearby Search (type-based) — fast, category-specific
   if (nearbyConf) {
     tasks.push(
       nearbySearch(latN, lngN, radiusM, nearbyConf.types)
@@ -196,22 +218,34 @@ module.exports = async function handler(req, res) {
     );
   }
 
+  // Text Search — primary query (local MK terms)
+  const textQuery  = TEXT_QUERIES[cat];
+  const textQuery2 = TEXT_QUERIES[cat + '2']; // second focused query if defined
   if (textQuery) {
     tasks.push(
       textSearch(latN, lngN, radiusM, textQuery)
         .then(d => { allPlaces.push(...(d.places || [])); })
-        .catch(e => { errors.push(`text:${e.message}`); console.warn(`[places] text failed: ${e.message}`); })
+        .catch(e => { errors.push(`text1:${e.message}`); console.warn(`[places] text1 failed: ${e.message}`); })
+    );
+  }
+  if (textQuery2) {
+    tasks.push(
+      textSearch(latN, lngN, radiusM, textQuery2)
+        .then(d => { allPlaces.push(...(d.places || [])); })
+        .catch(e => { errors.push(`text2:${e.message}`); console.warn(`[places] text2 failed: ${e.message}`); })
     );
   }
 
   await Promise.all(tasks);
 
-  const results = dedup(
-    allPlaces
-      .map(p => normalizePlaceResult(p, latN, lngN))
-      .filter(Boolean)
-      .sort((a, b) => a.dist - b.dist)
-  ).slice(0, 20);
+  // Normalize, filter scrapyards, enforce 30km hard cap, dedup, sort
+  const normalized = allPlaces
+    .filter(p => !isScrapResult(p, cat))          // exclude scrapyards from garage
+    .map(p => normalizePlaceResult(p, latN, lngN))
+    .filter(p => p && p.dist <= MAX_DIST_KM);     // hard 30km cap
+
+  const results = dedup(normalized.sort((a, b) => a.dist - b.dist)).slice(0, 20);
+  console.log(`[places] cat=${cat} nearby=${nearbyConf?'yes':'no'} raw=${allPlaces.length} after_filter=${normalized.length} returned=${results.length}`);
 
   console.log(`[places] cat=${cat} results=${results.length} errors=${errors.length}`);
 
