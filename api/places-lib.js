@@ -43,11 +43,7 @@ function buildQueries(cat, cityHint, countryCode = '') {
       `car repair ${en}`.trim(),
       `Avto servis ${en}`.trim(),
       `auto mechanic ${en}`.trim(),
-      // Galevski debug queries — exact searches required by task
-      'Avto servis GALEVSKI Veles',
-      'GALEVSKI Veles',
-      'Авто сервис Галевски Велес',
-      'Автосервис Галевски Велес',
+
     ],
     parts: [
       `Автоделови ${mk}`.trim(),
@@ -244,12 +240,7 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
           const names  = places.map(p => p.displayName?.text || '').join(', ');
           const ids    = places.map(p => p.id || '').join(', ');
           console.log(`[places] query="${q}" returned=${places.length}${places.length>0?' names=['+names+'] ids=['+ids+']':''}`);
-          // Galevski-specific debug
-          const isGalevskiQuery = /galevski|галевски/i.test(q);
-          if (isGalevskiQuery || places.some(p => /galevski|галевски/i.test(p.displayName?.text || ''))) {
-            const galFound = places.filter(p => /galevski|галевски/i.test(p.displayName?.text || ''));
-            console.log(`[places] galevski_found_raw=${galFound.length > 0} query="${q}" galevski_names=[${galFound.map(p=>p.displayName?.text).join(',')}] galevski_ids=[${galFound.map(p=>p.id).join(',')}]`);
-          }
+
           allPlaces.push(...places);
         })
         .catch(e => { errors.push(`text:${e.message}`); console.warn(`[places] text "${q}": ${e.message}`); })
@@ -261,24 +252,19 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   // Normalize, filter scrap, enforce 30km hard cap, dedup by name, sort by dist
   const beforeFilter = allPlaces.length;
   const seen = new Set();
-  let galevskiRemovedReason = null;
 
   const results = allPlaces
     .map(p => normalizePlaceResult(p, latN, lngN))
     .filter(p => {
       if (!p) return false;
-      const isGalevski = /galevski|галевски/i.test(p.name);
       if (isScrap(p.name, [], cat)) {
-        if (isGalevski) galevskiRemovedReason = 'isScrap';
         return false;
       }
       if (p.dist > MAX_DIST_KM) {
-        if (isGalevski) galevskiRemovedReason = `dist_${p.dist}km_over_${MAX_DIST_KM}km`;
         return false;
       }
       const key = p.name.toLowerCase().trim();
       if (seen.has(key)) {
-        if (isGalevski) galevskiRemovedReason = `dedup_key="${key}"`;
         return false;
       }
       seen.add(key);
@@ -287,12 +273,6 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
     .sort((a, b) => a.dist - b.dist)
     .slice(0, 20);
 
-  // Galevski summary log
-  const galevskiInRaw    = allPlaces.some(p => /galevski|галевски/i.test(p.displayName?.text || ''));
-  const galevskiInFinal  = results.some(r => /galevski|галевски/i.test(r.name));
-  if (galevskiInRaw || galevskiInFinal || cat === 'garage') {
-    console.log(`[places] galevski_found_raw=${galevskiInRaw} galevski_in_final=${galevskiInFinal}${galevskiRemovedReason ? ' galevski_removed_reason='+galevskiRemovedReason : ''} cat=${cat}`);
-  }
 
   const removedOver30 = allPlaces.filter(p => {
     const loc = p.location || {};

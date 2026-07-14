@@ -361,8 +361,7 @@ module.exports = async function handler(req, res) {
         results = [...results, ...deduped].sort((a, b) => a.dist - b.dist).slice(0, 25);
         if (results.length > 0) {
           const finalNames = results.slice(0,8).map(r=>`${r.name}(${r.dist}km)`).join(', ');
-          const galevskiInMerge = results.some(r => /galevski|галевски/i.test(r.name));
-          console.log(`[nearby] merged_count=${results.length} filtered_scrap=${filteredScrap} dedup_removed=${googleRaw.length-deduped.length} galevski_in_final=${galevskiInMerge} final_names=[${finalNames}]`);
+          console.log(`[nearby] merged_count=${results.length} filtered_scrap=${filteredScrap} dedup_removed=${googleRaw.length-deduped.length} final_names=[${finalNames}]`);
         }
       }
     } catch (err) {
