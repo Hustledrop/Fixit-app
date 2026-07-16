@@ -1,23 +1,15 @@
-// src/auth.js — Supabase auth + profile/usage layer
-// Gracefully degrades to guest mode when env vars are missing.
+// src/auth.js — Supabase auth + profile/usage helpers
 //
-// SETUP (5 minutes):
-//  1. supabase.com → New Project → Settings → API
-//  2. Copy "Project URL" → VITE_SUPABASE_URL
-//  3. Copy "anon public" key → VITE_SUPABASE_ANON_KEY
-//  4. Copy "service_role" key → SUPABASE_SERVICE_ROLE_KEY (server-only)
-//  5. Run supabase-setup.sql in Supabase SQL Editor
-//  6. Redeploy on Vercel — auth activates automatically
+// AUTH_AVAILABLE is evaluated at Vite BUILD TIME.
+// Adding VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY to Vercel and redeploying
+// activates auth automatically — no code change needed.
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// AUTH_AVAILABLE is evaluated at BUILD TIME by Vite.
-// When env vars are set in Vercel and app is rebuilt → AUTH_AVAILABLE = true.
 export const AUTH_AVAILABLE = !!(SUPABASE_URL && SUPABASE_KEY);
 
 let _sb = null;
-
 async function sb() {
   if (!AUTH_AVAILABLE) return null;
   if (_sb) return _sb;
@@ -42,10 +34,9 @@ export async function signUp(email, password) {
   const c = await sb(); if (!c) throw new Error('auth_unavailable');
   const { data, error } = await c.auth.signUp({ email, password });
   if (error) throw error;
-  // Ensure profile + usage rows exist (trigger handles this, but belt-and-suspenders)
+  // Belt-and-suspenders: trigger handles this but belt-and-suspenders ensures rows exist.
+  // ignoreDuplicates = INSERT ... ON CONFLICT DO NOTHING — never overwrites is_pro.
   if (data?.user) {
-    // Belt-and-suspenders: trigger handles this, but we ensure rows exist.
-    // ignoreDuplicates=true = INSERT ... ON CONFLICT DO NOTHING (never overwrites is_pro).
     await c.from('profiles').insert({
       id: data.user.id, email: data.user.email,
       is_pro: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
@@ -98,12 +89,23 @@ export async function checkUsage(userId) {
 
 export async function incrementUsage(userId) {
   const c = await sb(); if (!c || !userId) return { allowed: false };
-  // Use secure server-side RPC — prevents client from resetting or spoofing count.
-  // consume_free_diagnosis() re-checks is_pro and increments atomically.
+  // Secure server-side RPC — cannot be spoofed or reset by the client.
+  // Atomically re-checks is_pro and increments diagnosis_count by exactly 1.
   const { data, error } = await c.rpc('consume_free_diagnosis', { p_user_id: userId });
   if (error) {
     console.error('[auth] consume_free_diagnosis error:', error.message);
     return { allowed: false };
   }
   return data; // { allowed, is_pro, diagnosis_count }
+}
+
+// ── Restore purchases ─────────────────────────────────────────────────────────
+// Called after checkout redirect success and on app resume.
+// Re-reads the profile so is_pro reflects the latest webhook state.
+export async function restoreProStatus(userId) {
+  const profile = await getProfile(userId);
+  return {
+    is_pro: profile?.is_pro  ?? false,
+    plan:   profile?.plan    ?? null,
+  };
 }

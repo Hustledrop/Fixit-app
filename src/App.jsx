@@ -8,7 +8,7 @@ import { useAI } from './hooks/useAI.js';
 import { useNearby, MAP_CATS } from './hooks/useNearby.js';
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
 import { useAuth } from './useAuth.js';
-import { AUTH_AVAILABLE, checkUsage, incrementUsage } from './auth.js';
+import { AUTH_AVAILABLE, checkUsage, incrementUsage, restoreProStatus } from './auth.js';
 
 // ── localStorage helpers (prefixed fixit_) ────────────────────────────────────
 const LS = {
@@ -853,8 +853,13 @@ export default function App() {
     const checkout = params.get('checkout');
     if (checkout === 'success') {
       window.history.replaceState({}, '', '/');
+      // Restore purchases: re-read profile from Supabase to reflect webhook update
+      if (user) {
+        restoreProStatus(user.id).then(() => refreshProfile());
+      } else {
+        refreshProfile();
+      }
       showToast(lang==='de'?'✅ Pro freigeschaltet! Vielen Dank.':'✅ Pro unlocked! Thank you.');
-      refreshProfile();
       setFreeLimitHit(false);
     } else if (checkout === 'cancelled') {
       window.history.replaceState({}, '', '/');

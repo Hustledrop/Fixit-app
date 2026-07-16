@@ -68,6 +68,7 @@ create trigger profiles_set_updated_at
 alter table public.profiles enable row level security;
 
 -- User may read their own row (auth.js getProfile uses select *)
+drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
   on public.profiles for select
   using (auth.uid() = id);
@@ -111,6 +112,7 @@ create trigger usage_set_updated_at
 alter table public.usage enable row level security;
 
 -- User may read their own row (auth.js checkUsage reads select *)
+drop policy if exists "usage_select_own" on public.usage;
 create policy "usage_select_own"
   on public.usage for select
   using (auth.uid() = user_id);
@@ -149,6 +151,7 @@ create index if not exists payments_stripe_customer_idx
 alter table public.payments enable row level security;
 
 -- User may read their own payment history (read-only)
+drop policy if exists "payments_select_own" on public.payments;
 create policy "payments_select_own"
   on public.payments for select
   using (auth.uid() = user_id);
