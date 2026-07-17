@@ -204,11 +204,15 @@ export default function App() {
   const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
-  // cc = GPS-detected country → smartCC → DEFAULT (International)
-  // smartCC(country, lang): uses GPS country first; language only as final fallback
-  // This ensures Emergency always shows the user's PHYSICAL country, not UI language
+  // cc: used for Nearby, Parts, Maps URLs — language-informed country
   const cc  = smartCC(country, lang);
-  const cd  = getCountry(cc);
+
+  // ccGPS: raw GPS country only — NEVER uses language as a fallback
+  // Used exclusively by the Emergency screen so language changes never alter
+  // which country's emergency services are displayed.
+  const ccGPS = (country && country !== 'DEFAULT') ? country : 'DEFAULT';
+  const cdGPS = getCountry(ccGPS);   // country data for Emergency screen
+  const cd    = getCountry(cc);      // country data for everything else
   const mu  = useCallback(q => mapsUrlFor(q, lat, lng, cc, lang), [lat, lng, cc, lang]);
 
   // Boot
@@ -1651,6 +1655,8 @@ export default function App() {
   }
 
   // ── EMERGENCY ────────────────────────────────────────────────────────────────
+  // Emergency debug — verify GPS country is independent of language
+  if (screen === 'emergency') console.log('[FixIt] EMERGENCY country=' + ccGPS + ' cc=' + cc + ' lang=' + lang + ' name=' + (cdGPS?.name||'?'));
   if (screen === 'emergency') return (
     <Screen bg="#060000">
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
@@ -1664,17 +1670,17 @@ export default function App() {
         <div style={{fontSize:'0.78rem',color:C.m}}>{t('selectCategory')}</div>
       </div>
       <Scroll pad="14px 20px">
-        <a href={`tel:${cd.e}`} style={{background:C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
+        <a href={`tel:${cdGPS.e}`} style={{background:C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
           <div style={{fontSize:'2rem'}}>🆘</div>
           <div style={{flex:1}}>
-            <div style={{fontSize:'0.92rem',fontWeight:800,color:'#fff',marginBottom:3}}>CALL {cd.e} — {cd.name.toUpperCase()}</div>
-            <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.75)'}}>🚑 {cd.amb} · 🚒 {cd.fire} · 👮 {cd.police}{cd.doc?` · 👨‍⚕️ ${cd.doc}`:''}</div>
+            <div style={{fontSize:'0.92rem',fontWeight:800,color:'#fff',marginBottom:3}}>CALL {cdGPS.e} — {cdGPS.name.toUpperCase()}</div>
+            <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.75)'}}>🚑 {cdGPS.amb} · 🚒 {cdGPS.fire} · 👮 {cdGPS.police}{cdGPS.doc?` · 👨‍⚕️ ${cdGPS.doc}`:''}</div>
           </div>
           <div style={{color:'#fff',fontSize:'1.2rem'}}>→</div>
         </a>
         <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 14px',marginBottom:10,fontSize:'0.72rem',color:'rgba(255,255,255,0.5)',lineHeight:1.6}}>
-          📍 <strong style={{color:C.t}}>{cd.name}</strong> — 🚗 {cd.rs?.n}: <strong style={{color:C.t}}>{cd.rs?.num}</strong>
-          {cd.ph?.num?` | 🐾 ${cd.ph.n}: ${cd.ph.num}`:''}
+          📍 <strong style={{color:C.t}}>{cdGPS.name}</strong> — 🚗 {cdGPS.rs?.n}: <strong style={{color:C.t}}>{cdGPS.rs?.num}</strong>
+          {cdGPS.ph?.num?` | 🐾 ${cdGPS.ph.n}: ${cdGPS.ph.num}`:''}
         </div>
         {Object.entries(EMRG).map(([key,ec],idx)=>{
           const titles=getEmrgT(key,lang);
@@ -1725,12 +1731,12 @@ export default function App() {
         <Scroll pad="14px 20px">
           <div style={{background:'rgba(214,59,47,0.06)',border:'1px solid rgba(214,59,47,0.2)',borderRadius:14,padding:14,marginBottom:12}}>
             <div style={{fontSize:'0.62rem',fontWeight:700,color:C.r,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>{t('callNow')}</div>
-            {ec.call==='roadside'&&<><CallBtn icon="🚗" label={`${cd.rs?.n}: ${cd.rs?.num}`} num={cd.rs?.num||'112'} type="s"/><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/><MapBtn icon="🗺️" label={t('nearestGarage')} query="car garage mechanic near me"/></>}
-            {ec.call==='vet'&&<>{cd.ph?.num&&<CallBtn icon="🐾" label={`${cd.ph.n}: ${cd.ph.num}`} num={cd.ph.num} type="s"/>}{cd.pa?.num&&cd.pa.num.length>3&&<CallBtn icon="🚑" label={`${cd.pa.n}: ${cd.pa.num}`} num={cd.pa.num} type="i"/>}<MapBtn icon="🗺️" label={t('emergencyVet')} query="emergency vet open now 24h"/><MapBtn icon="🏥" label={t('animalClinicNear')} query="animal clinic veterinarian near me"/></>}
-            {ec.call==='fire'&&<><CallBtn icon="🚒" label={`Fire: ${cd.fire}`} num={cd.fire}/><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/></>}
-            {ec.call==='plumber'&&<><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/><MapBtn icon="🔧" label={t('emergencyPlumber')} query={t('plumberQuery')}/></>}
-            {ec.call==='power'&&<><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/><MapBtn icon="⚡" label={t('electricityProvider')} query={cc==='DE'?'Stadtwerke Strom Störung Netzbetreiber Stromausfall':cc==='AT'?'Stromnetz Störung Stadtwerke':cc==='CH'?'Stromnetzbetreiber Störung':cc==='FR'?'panne électrique signaler fournisseur':cc==='GB'?'power cut report network operator':cc==='US'?'power outage report electric utility':'electricity power outage report'}/></>}
-            {ec.call==='emergency'&&<CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/>}
+            {ec.call==='roadside'&&<><CallBtn icon="🚗" label={`${cdGPS.rs?.n}: ${cdGPS.rs?.num}`} num={cdGPS.rs?.num||'112'} type="s"/><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🗺️" label={t('nearestGarage')} query="car garage mechanic near me"/></>}
+            {ec.call==='vet'&&<>{cdGPS.ph?.num&&<CallBtn icon="🐾" label={`${cdGPS.ph.n}: ${cdGPS.ph.num}`} num={cdGPS.ph.num} type="s"/>}{cdGPS.pa?.num&&cdGPS.pa.num.length>3&&<CallBtn icon="🚑" label={`${cdGPS.pa.n}: ${cdGPS.pa.num}`} num={cdGPS.pa.num} type="i"/>}<MapBtn icon="🗺️" label={t('emergencyVet')} query="emergency vet open now 24h"/><MapBtn icon="🏥" label={t('animalClinicNear')} query="animal clinic veterinarian near me"/></>}
+            {ec.call==='fire'&&<><CallBtn icon="🚒" label={`Fire: ${cdGPS.fire}`} num={cdGPS.fire}/><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/></>}
+            {ec.call==='plumber'&&<><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🔧" label={t('emergencyPlumber')} query={t('plumberQuery')}/></>}
+            {ec.call==='power'&&<><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="⚡" label={t('electricityProvider')} query={cc==='DE'?'Stadtwerke Strom Störung Netzbetreiber Stromausfall':cc==='AT'?'Stromnetz Störung Stadtwerke':cc==='CH'?'Stromnetzbetreiber Störung':cc==='FR'?'panne électrique signaler fournisseur':cc==='GB'?'power cut report network operator':cc==='US'?'power outage report electric utility':'electricity power outage report'}/></>}
+            {ec.call==='emergency'&&<CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/>}
           </div>
           <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding:14,marginBottom:12}}>
             <div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>{t('immediateSteps')}</div>
@@ -1742,9 +1748,9 @@ export default function App() {
             ))}
           </div>
           <div style={{background:'rgba(232,82,26,0.06)',border:'1px solid rgba(232,82,26,0.2)',borderRadius:14,padding:14}}>
-            <div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>📍 {t('emergencyNumbers')} — {cd.name}</div>
+            <div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>📍 {t('emergencyNumbers')} — {cdGPS.name}</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              {[['🆘','Emergency',cd.e],['🚒','Fire',cd.fire],['👮','Police',cd.police],['🚑','Ambulance',cd.amb]].map(([ic,lb,nm])=>(
+              {[['🆘','Emergency',cdGPS.e],['🚒','Fire',cdGPS.fire],['👮','Police',cdGPS.police],['🚑','Ambulance',cdGPS.amb]].map(([ic,lb,nm])=>(
                 <a key={lb} href={`tel:${nm}`} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,padding:10,textAlign:'center',display:'block',textDecoration:'none'}}>
                   <div style={{fontSize:'1.2rem',marginBottom:3}}>{ic}</div>
                   <div style={{fontSize:'0.62rem',color:C.m,marginBottom:2}}>{lb}</div>
