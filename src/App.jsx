@@ -204,9 +204,10 @@ export default function App() {
   const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
-  // cc must use GPS-detected country, NOT app language
-  // getCC(lang) is a fallback only when GPS country is not yet known
-  const cc  = country || getCC(lang);
+  // cc = GPS-detected country → smartCC → DEFAULT (International)
+  // smartCC(country, lang): uses GPS country first; language only as final fallback
+  // This ensures Emergency always shows the user's PHYSICAL country, not UI language
+  const cc  = smartCC(country, lang);
   const cd  = getCountry(cc);
   const mu  = useCallback(q => mapsUrlFor(q, lat, lng, cc, lang), [lat, lng, cc, lang]);
 
