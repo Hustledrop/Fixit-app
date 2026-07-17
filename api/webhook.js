@@ -57,7 +57,50 @@ async function grantPro(supabase, userId, plan, stripeCustomerId) {
   else       console.log(`[webhook] ✅ is_pro=true plan=${plan} userId=${userId}`);
 }
 
+// Cancel the active monthly subscription when a user upgrades to lifetime.
+// Uses cancel_at_period_end: true so the user keeps access until the period ends,
+// then the sub naturally expires — no pro-rata refund, no immediate loss of access.
+async function cancelActiveMonthlySubscription(stripe, stripeCustomerId, lifetimeSessionId) {
+  try {
+    const subs = await stripe.subscriptions.list({
+      customer: stripeCustomerId,
+      status:   'active',
+      limit:    10,
+    });
+
+    for (const sub of subs.data) {
+      // Only cancel subscriptions that are NOT the one we just purchased
+      // (the lifetime purchase is a one-time payment, not a subscription, so
+      //  subs.data will only contain the old monthly ones)
+      console.log(`[webhook] cancelling monthly sub id=${sub.id} for customer=${stripeCustomerId}`);
+      await stripe.subscriptions.update(sub.id, {
+        cancel_at_period_end: true,
+        metadata: { cancelled_reason: 'upgraded_to_lifetime', lifetime_session: lifetimeSessionId },
+      });
+      console.log(`[webhook] ✅ monthly sub ${sub.id} set to cancel at period end`);
+    }
+  } catch (err) {
+    // Non-fatal: log and continue. The Supabase lifetime grant already succeeded.
+    // The revokePro guard will protect the user even if subscription.deleted fires.
+    console.error('[webhook] cancelActiveMonthlySubscription error:', err.message);
+  }
+}
+
 async function revokePro(supabase, stripeCustomerId) {
+  // Lifetime users must NEVER lose Pro due to a subscription cancellation event.
+  // This protects the case where a user upgrades from Monthly → Lifetime:
+  // the old Monthly sub will eventually fire subscription.deleted, but we must
+  // not downgrade them since they already have a Lifetime plan.
+  const { data: profile } = await supabase.from('profiles')
+    .select('plan')
+    .eq('stripe_customer_id', stripeCustomerId)
+    .single();
+
+  if (profile?.plan === 'lifetime') {
+    console.log(`[webhook] revokePro SKIPPED — user has lifetime plan, customerId=${stripeCustomerId}`);
+    return;
+  }
+
   const { error } = await supabase.from('profiles')
     .update({ is_pro: false, plan: null, updated_at: new Date().toISOString() })
     .eq('stripe_customer_id', stripeCustomerId);
@@ -131,6 +174,13 @@ export default async function handler(req, res) {
 
     await grantPro(supabase, userId, plan, customerId);
     await recordPayment(supabase, userId, customerId, session.id, plan);
+
+    // If the user just purchased Lifetime, immediately cancel any active monthly
+    // subscription so they are never billed monthly again.
+    if (plan === 'lifetime' && customerId) {
+      const stripe = new Stripe(STRIPE_KEY, { apiVersion: '2024-04-10' });
+      await cancelActiveMonthlySubscription(stripe, customerId, session.id);
+    }
   }
 
   // ── customer.subscription.updated ─────────────────────────────────────────
