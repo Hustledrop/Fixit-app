@@ -204,7 +204,9 @@ export default function App() {
   const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
-  const cc  = getCC(lang);
+  // cc must use GPS-detected country, NOT app language
+  // getCC(lang) is a fallback only when GPS country is not yet known
+  const cc  = country || getCC(lang);
   const cd  = getCountry(cc);
   const mu  = useCallback(q => mapsUrlFor(q, lat, lng, cc, lang), [lat, lng, cc, lang]);
 
@@ -993,8 +995,10 @@ export default function App() {
       )}
       {/* ── Account modal ── */}
       {authScreen === 'account' && (() => {
-        const isLifetime = authProfile?.plan === 'lifetime';
-        const isMonthly  = authProfile?.plan === 'monthly';
+        // Normalize plan value to guard against whitespace or case differences from DB
+        const normalizedPlan = String(authProfile?.plan || '').trim().toLowerCase();
+        const isLifetime = normalizedPlan === 'lifetime';
+        const isMonthly  = normalizedPlan === 'monthly';
         const de = lang === 'de';
         const rowStyle = {background:'rgba(255,255,255,0.04)',borderRadius:12,padding:'12px 14px',marginBottom:8};
         const labelStyle = {fontSize:'0.58rem',color:'rgba(255,255,255,0.35)',letterSpacing:'0.1em',marginBottom:3,textTransform:'uppercase'};
@@ -1208,7 +1212,7 @@ export default function App() {
               {LANGS[lang]?.f}
             </button>
             {/* User icon */}
-            <button onClick={()=>setAuthScreen(user?'account':'login')} title={user?user.email:(lang==='de'?'Anmelden':'Sign in')}
+            <button onClick={()=>{setAuthScreen(user?'account':'login');if(user)refreshProfile();}} title={user?user.email:(lang==='de'?'Anmelden':'Sign in')}
               style={{background:user?'rgba(255,255,255,0.08)':'rgba(232,82,26,0.15)',border:`1px solid ${user?'rgba(255,255,255,0.12)':'rgba(232,82,26,0.35)'}`,borderRadius:10,width:34,height:34,cursor:'pointer',color:user?C.t:'#E8521A',fontFamily:'inherit',fontSize:user&&isPro?'0.55rem':'1rem',fontWeight:user&&isPro?800:400,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,position:'relative'}}>
               {user
                 ? isPro
