@@ -214,11 +214,6 @@ export default function App() {
   const cdGPS = getCountry(ccGPS);   // country data for Emergency screen
   const cd    = getCountry(cc);      // country data for everything else
 
-  // Diagnostic: log country chain on every render where something changed
-  // Remove these after confirming Emergency shows the correct country
-  if (typeof window !== 'undefined') {
-    window.__fixitDebug = { lang, country, cc, ccGPS, headerCity: city, cdGPSname: cdGPS?.name };
-  }
   const mu  = useCallback(q => mapsUrlFor(q, lat, lng, cc, lang), [lat, lng, cc, lang]);
 
   // Boot
@@ -234,9 +229,6 @@ export default function App() {
       if (!LS.get('onboarding_done')) {
         setScreen('onboarding');
       } else {
-        // Returning user: start GPS immediately so country is resolved
-        // before the user reaches Emergency/Nearby — don't wait for loc-ask tap.
-        requestLocation();
         setScreen('splash-r');
       }
     }, 900);
@@ -1286,7 +1278,7 @@ export default function App() {
           </div>
         )}
         {/* Emergency banner */}
-        <div onClick={()=>goto('emergency')} style={{background:'linear-gradient(135deg,#2A0000,#1A0000)',border:'1px solid rgba(214,59,47,0.3)',borderRadius:18,padding:16,display:'flex',alignItems:'center',gap:14,marginBottom:22,cursor:'pointer',animation:'fadeIn .4s ease'}}>
+        <div onClick={()=>{if(country==='DEFAULT')requestLocation();goto('emergency');}} style={{background:'linear-gradient(135deg,#2A0000,#1A0000)',border:'1px solid rgba(214,59,47,0.3)',borderRadius:18,padding:16,display:'flex',alignItems:'center',gap:14,marginBottom:22,cursor:'pointer',animation:'fadeIn .4s ease'}}>
           <span style={{width:8,height:8,background:C.r,borderRadius:'50%',flexShrink:0,animation:'blink 1.2s infinite'}}/>
           <div style={{flex:1}}>
             <div style={{fontSize:'0.7rem',color:C.r,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>{t('emergencyHelp')}</div>
@@ -1679,7 +1671,18 @@ export default function App() {
         <div style={{fontSize:'0.78rem',color:C.m}}>{t('selectCategory')}</div>
       </div>
       <Scroll pad="14px 20px">
-        <a href={`tel:${cdGPS.e}`} style={{background:C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
+        {ccGPS === 'DEFAULT' && (
+          <div style={{background:'rgba(232,178,26,0.1)',border:'1px solid rgba(232,178,26,0.25)',borderRadius:14,padding:'14px 18px',marginBottom:10,display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:'1.2rem'}}>📍</span>
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:700,color:C.y}}>
+                {locStatus==='denied' ? (lang==='de'?'GPS nicht erlaubt':'GPS not permitted') : (lang==='de'?'Standort wird ermittelt…':'Detecting location…')}
+              </div>
+              <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.4)',marginTop:2}}>{lang==='de'?'Bitte GPS aktivieren für lokale Notrufnummern':'Enable GPS for local emergency numbers'}</div>
+            </div>
+          </div>
+        )}
+        <a href={`tel:${cdGPS.e}`} style={{background:ccGPS==='DEFAULT'?'rgba(214,59,47,0.5)':C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
           <div style={{fontSize:'2rem'}}>🆘</div>
           <div style={{flex:1}}>
             <div style={{fontSize:'0.92rem',fontWeight:800,color:'#fff',marginBottom:3}}>CALL {cdGPS.e} — {cdGPS.name.toUpperCase()}</div>
