@@ -54,9 +54,10 @@ export function useLocation() {
       a.county       || '';
     const c2 = (a.country_code || '').toUpperCase();
 
-    console.log(`[FixIt] DISPLAY_LOCATION selected="${ct}" country=${c2} → setCountry(${COUNTRIES[c2] ? c2 : 'DEFAULT'})`);
+    const normalizedCountry = String(a.country_code || '').trim().toUpperCase();
+    console.log(`[FixIt] DISPLAY_LOCATION selected="${ct}" country=${normalizedCountry} → setCountry(${normalizedCountry || 'DEFAULT'})`);
     setCity(ct);
-    setCountry(COUNTRIES[c2] ? c2 : 'DEFAULT');
+    setCountry(normalizedCountry || 'DEFAULT');
     setGeocodeErr(false);
     lastLatRef.current = [la, lo];
     geocodeAttempts.current = 0;  // reset on success
