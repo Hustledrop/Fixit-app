@@ -1707,20 +1707,42 @@ export default function App() {
             )}
           </div>
         )}
+        {/* ── Main emergency button ── */}
         <a href={`tel:${cdGPS.e}`} style={{background:ccGPS==='DEFAULT'?'rgba(214,59,47,0.5)':C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
           <div style={{fontSize:'2rem'}}>🆘</div>
           <div style={{flex:1}}>
             <div style={{fontSize:'0.92rem',fontWeight:800,color:'#fff',marginBottom:3}}>CALL {cdGPS.e} — {cdGPS.name.toUpperCase()}</div>
-            <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.75)'}}>🚑 {cdGPS.amb} · 🚒 {cdGPS.fire} · 👮 {cdGPS.police}{cdGPS.doc?` · 👨‍⚕️ ${cdGPS.doc}`:''}</div>
+            <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.75)'}}>{lang==='de'?'Allgemeiner Notruf':'General emergency number'}</div>
           </div>
           <div style={{color:'#fff',fontSize:'1.2rem'}}>→</div>
         </a>
-        <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 14px',marginBottom:10,fontSize:'0.72rem',color:'rgba(255,255,255,0.5)',lineHeight:1.6}}>
-          {cdGPS.noData
-            ? <span>📍 <strong style={{color:C.t}}>{cdGPS.name}</strong> — {lang==='de'?'Lokaler Notfalldatensatz nicht verfügbar':'Local emergency dataset unavailable'}</span>
-            : <><span>📍 <strong style={{color:C.t}}>{cdGPS.name}</strong> — 🚗 {cdGPS.rs?.n}: <strong style={{color:C.t}}>{cdGPS.rs?.num}</strong></span>
-               {cdGPS.ph?.num?` | 🐾 ${cdGPS.ph.n}: ${cdGPS.ph.num}`:''}</>}
-        </div>
+        {/* ── Individual service call buttons ── */}
+        {!cdGPS.noData && (() => {
+          const svcBtn = (href, icon, label, num) => num ? (
+            <a key={href} href={`tel:${num.replace(/\s/g,'')}`}
+               style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 16px',display:'flex',alignItems:'center',gap:12,marginBottom:6,textDecoration:'none',color:C.t}}>
+              <span style={{fontSize:'1.3rem',flexShrink:0,width:28,textAlign:'center'}}>{icon}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'0.8rem',fontWeight:600}}>{label}</div>
+                <div style={{fontSize:'0.72rem',color:C.m,marginTop:1}}>{num}</div>
+              </div>
+              <div style={{fontSize:'0.9rem',color:'rgba(255,255,255,0.35)'}}>→</div>
+            </a>
+          ) : null;
+          return (<>
+            {svcBtn('amb',  '🚑', lang==='de'?'Rettungsdienst'   :lang==='mk'?'Брза помош'     :'Ambulance',          cdGPS.amb)}
+            {svcBtn('fire', '🚒', lang==='de'?'Feuerwehr'        :lang==='mk'?'Пожарна'        :'Fire Department',     cdGPS.fire)}
+            {svcBtn('pol',  '👮', lang==='de'?'Polizei'          :lang==='mk'?'Полиција'       :'Police',              cdGPS.police)}
+            {svcBtn('doc',  '👨‍⚕️',lang==='de'?'Ärztlicher Notdienst':lang==='mk'?'Итна медицина':'Medical Assistance', cdGPS.doc)}
+            {cdGPS.rs?.num  && svcBtn('rs',  '🚗', cdGPS.rs.n,   cdGPS.rs.num)}
+            {cdGPS.ph?.num  && svcBtn('ph',  '🐾', cdGPS.ph.n,   cdGPS.ph.num)}
+          </>);
+        })()}
+        {cdGPS.noData && (
+          <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 14px',marginBottom:6,fontSize:'0.72rem',color:'rgba(255,255,255,0.45)'}}>
+            📍 <strong style={{color:C.t}}>{cdGPS.name}</strong> — {lang==='de'?'Lokaler Notfalldatensatz nicht verfügbar':'Local emergency dataset unavailable'}
+          </div>
+        )}
         {Object.entries(EMRG).map(([key,ec],idx)=>{
           const titles=getEmrgT(key,lang);
           return (
