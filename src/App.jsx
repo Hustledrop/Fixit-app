@@ -213,6 +213,12 @@ export default function App() {
   const ccGPS = (country && country !== 'DEFAULT') ? country : 'DEFAULT';
   const cdGPS = getCountry(ccGPS);   // country data for Emergency screen
   const cd    = getCountry(cc);      // country data for everything else
+
+  // Diagnostic: log country chain on every render where something changed
+  // Remove these after confirming Emergency shows the correct country
+  if (typeof window !== 'undefined') {
+    window.__fixitDebug = { lang, country, cc, ccGPS, headerCity: city, cdGPSname: cdGPS?.name };
+  }
   const mu  = useCallback(q => mapsUrlFor(q, lat, lng, cc, lang), [lat, lng, cc, lang]);
 
   // Boot
@@ -228,6 +234,9 @@ export default function App() {
       if (!LS.get('onboarding_done')) {
         setScreen('onboarding');
       } else {
+        // Returning user: start GPS immediately so country is resolved
+        // before the user reaches Emergency/Nearby — don't wait for loc-ask tap.
+        requestLocation();
         setScreen('splash-r');
       }
     }, 900);
@@ -1656,7 +1665,7 @@ export default function App() {
 
   // ── EMERGENCY ────────────────────────────────────────────────────────────────
   // Emergency debug — verify GPS country is independent of language
-  if (screen === 'emergency') console.log('[FixIt] EMERGENCY country=' + ccGPS + ' cc=' + cc + ' lang=' + lang + ' name=' + (cdGPS?.name||'?'));
+  if (screen === 'emergency') console.log('[FixIt] EMERGENCY raw_country=' + country + ' ccGPS=' + ccGPS + ' cc(lang)=' + cc + ' lang=' + lang + ' city=' + city + ' emergency_country=' + (cdGPS?.name||'DEFAULT/International'));
   if (screen === 'emergency') return (
     <Screen bg="#060000">
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
