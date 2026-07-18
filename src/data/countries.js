@@ -37,11 +37,114 @@ export const COUNTRIES = {
       rs:{n:"NRMA",num:"13 11 11"},ph:{n:"RSPCA",num:"1300 278 3589"},pa:{n:"Animal Emergency",num:"1300 919 016"}},
   NL:{name:"Netherlands",flag:"🇳🇱",e:"112",fire:"112",police:"112",amb:"112",doc:"",
       rs:{n:"ANWB",num:"088 269 2888"},ph:{n:"Dierenbescherming",num:"0800 1877"},pa:{n:"Dierenambulance",num:""}},
+  // ── Global emergency data — added for full international support ────────────
+  // European Union: 112 is the pan-EU emergency number in all member states
+  GR:{name:"Greece",     flag:"🇬🇷",e:"112",fire:"199",police:"100",amb:"166",doc:"1016",
+      rs:{n:"ELPA",      num:"10400"},     ph:{n:"Vet Emergency",num:"210 6010 903"}},
+  PT:{name:"Portugal",   flag:"🇵🇹",e:"112",fire:"112",police:"112",amb:"112",doc:"808 24 24 24",
+      rs:{n:"ACP",       num:"808 222 111"},ph:{n:"Vet Emergency",num:"112"}},
+  BE:{name:"Belgium",    flag:"🇧🇪",e:"112",fire:"100",police:"101",amb:"100",doc:"1733",
+      rs:{n:"Touring",   num:"0800 68 800"}, ph:{n:"Vet Emergency",num:"112"}},
+  NL:{name:"Netherlands",flag:"🇳🇱",e:"112",fire:"112",police:"112",amb:"112",doc:"0900 8833",
+      rs:{n:"ANWB",      num:"088 269 28 88"},ph:{n:"Vet Emergency",num:"0900 1814"}},
+  DK:{name:"Denmark",    flag:"🇩🇰",e:"112",fire:"112",police:"112",amb:"112",doc:"1813",
+      rs:{n:"Falck",     num:"70 10 20 30"}, ph:{n:"Vet Emergency",num:"112"}},
+  SE:{name:"Sweden",     flag:"🇸🇪",e:"112",fire:"112",police:"112",amb:"112",doc:"1177",
+      rs:{n:"Assistancekåren",num:"020 912 912"},ph:{n:"Vet Emergency",num:"031 11 22 33"}},
+  NO:{name:"Norway",     flag:"🇳🇴",e:"112",fire:"110",police:"112",amb:"113",doc:"116 117",
+      rs:{n:"NAF",       num:"08505"},       ph:{n:"Vet Emergency",num:"22 99 38 00"}},
+  FI:{name:"Finland",    flag:"🇫🇮",e:"112",fire:"112",police:"112",amb:"112",doc:"116 117",
+      rs:{n:"Autoliitto",num:"0200 8080"},   ph:{n:"Vet Emergency",num:"112"}},
+  IE:{name:"Ireland",    flag:"🇮🇪",e:"112",fire:"112",police:"112",amb:"112",doc:"1550 400 911",
+      rs:{n:"AA Ireland",num:"0818 22 77 28"},ph:{n:"Vet Emergency",num:"112"}},
+  CZ:{name:"Czech Rep.",flag:"🇨🇿",e:"112",fire:"150",police:"158",amb:"155",doc:"1214",
+      rs:{n:"ÚAMK",      num:"1230"},        ph:{n:"Vet Emergency",num:"112"}},
+  SK:{name:"Slovakia",   flag:"🇸🇰",e:"112",fire:"150",police:"158",amb:"155",doc:"",
+      rs:{n:"SATC",      num:"18 123"},      ph:{n:"Vet Emergency",num:"112"}},
+  HU:{name:"Hungary",    flag:"🇭🇺",e:"112",fire:"105",police:"107",amb:"104",doc:"104",
+      rs:{n:"Magyar Autóklub",num:"188"},    ph:{n:"Vet Emergency",num:"112"}},
+  RO:{name:"Romania",    flag:"🇷🇴",e:"112",fire:"112",police:"112",amb:"112",doc:"112",
+      rs:{n:"ACR",       num:"9271"},        ph:{n:"Vet Emergency",num:"112"}},
+  BG:{name:"Bulgaria",   flag:"🇧🇬",e:"112",fire:"160",police:"166",amb:"150",doc:"",
+      rs:{n:"UAABB",     num:"0800 120 13"}, ph:{n:"Vet Emergency",num:"112"}},
+  LT:{name:"Lithuania",  flag:"🇱🇹",e:"112",fire:"101",police:"102",amb:"103",doc:"",
+      rs:{n:"LAMAC",     num:"1888"},        ph:{n:"Vet Emergency",num:"112"}},
+  LV:{name:"Latvia",     flag:"🇱🇻",e:"112",fire:"01",police:"02",amb:"03",doc:"",
+      rs:{n:"LAMB",      num:"1888"},        ph:{n:"Vet Emergency",num:"112"}},
+  EE:{name:"Estonia",    flag:"🇪🇪",e:"112",fire:"112",police:"110",amb:"112",doc:"1220",
+      rs:{n:"Autoabi",   num:"1888"},        ph:{n:"Vet Emergency",num:"112"}},
+  SI:{name:"Slovenia",   flag:"🇸🇮",e:"112",fire:"112",police:"113",amb:"112",doc:"",
+      rs:{n:"AMZS",      num:"1987"},        ph:{n:"Vet Emergency",num:"112"}},
+  LU:{name:"Luxembourg", flag:"🇱🇺",e:"112",fire:"112",police:"113",amb:"112",doc:"",
+      rs:{n:"ACL",       num:"26000"},       ph:{n:"Vet Emergency",num:"112"}},
+  CY:{name:"Cyprus",     flag:"🇨🇾",e:"112",fire:"112",police:"112",amb:"112",doc:"",
+      rs:{n:"OELMEK",    num:"22 313 131"},  ph:{n:"Vet Emergency",num:"112"}},
+  MT:{name:"Malta",      flag:"🇲🇹",e:"112",fire:"112",police:"112",amb:"112",doc:"51110",
+      rs:{n:"Falzon",    num:"2337 4888"},   ph:{n:"Vet Emergency",num:"112"}},
+  // Balkans / South-East Europe
+  AL:{name:"Albania",    flag:"🇦🇱",e:"112",fire:"18 18",police:"19",amb:"127",doc:"",
+      rs:{n:"ACA",       num:"+355 42 233 333"},ph:{n:"Vet Emergency",num:"112"}},
+  BA:{name:"Bosnia",     flag:"🇧🇦",e:"112",fire:"123",police:"122",amb:"124",doc:"",
+      rs:{n:"BIHAMK",    num:"1282"},        ph:{n:"Vet Emergency",num:"112"}},
+  ME:{name:"Montenegro", flag:"🇲🇪",e:"112",fire:"123",police:"122",amb:"124",doc:"",
+      rs:{n:"AMSCG",     num:"19807"},       ph:{n:"Vet Emergency",num:"112"}},
+  XK:{name:"Kosovo",     flag:"🏳️",e:"112",fire:"193",police:"192",amb:"194",doc:"",
+      rs:{n:"Kosovo AA", num:"038 244 244"}, ph:{n:"Vet Emergency",num:"112"}},
+  // Nordic/other European
+  IS:{name:"Iceland",    flag:"🇮🇸",e:"112",fire:"112",police:"112",amb:"112",doc:"1770",
+      rs:{n:"FÍB",       num:"1 800 8888"},  ph:{n:"Vet Emergency",num:"112"}},
+  // North America
+  CA:{name:"Canada",     flag:"🇨🇦",e:"911",fire:"911",police:"911",amb:"911",doc:"",
+      rs:{n:"CAA",       num:"1-800-222-4357"},ph:{n:"Vet Emergency",num:"911"}},
+  MX:{name:"Mexico",     flag:"🇲🇽",e:"911",fire:"911",police:"911",amb:"911",doc:"",
+      rs:{n:"Angeles Verdes",num:"078"},     ph:{n:"Vet Emergency",num:"911"}},
+  // Asia-Pacific
+  JP:{name:"Japan",      flag:"🇯🇵",e:"110",fire:"119",police:"110",amb:"119",doc:"",
+      rs:{n:"JAF",       num:"0570-00-8139"},ph:{n:"Vet Emergency",num:"119"}},
+  CN:{name:"China",      flag:"🇨🇳",e:"110",fire:"119",police:"110",amb:"120",doc:"",
+      rs:{n:"CNAC",      num:"400 810 9999"},ph:{n:"Vet Emergency",num:"120"}},
+  KR:{name:"South Korea",flag:"🇰🇷",e:"119",fire:"119",police:"112",amb:"119",doc:"",
+      rs:{n:"KAMA",      num:"1588-0100"},   ph:{n:"Vet Emergency",num:"119"}},
+  IN:{name:"India",      flag:"🇮🇳",e:"112",fire:"101",police:"100",amb:"108",doc:"",
+      rs:{n:"WIAA",      num:"1800 300 1212"},ph:{n:"Vet Emergency",num:"112"}},
+  // Middle East
+  IL:{name:"Israel",     flag:"🇮🇱",e:"100",fire:"102",police:"100",amb:"101",doc:"",
+      rs:{n:"Shagrir",   num:"*3456"},       ph:{n:"Vet Emergency",num:"101"}},
+  SA:{name:"Saudi Arabia",flag:"🇸🇦",e:"911",fire:"998",police:"999",amb:"997",doc:"",
+      rs:{n:"NCM",       num:"920000560"},   ph:{n:"Vet Emergency",num:"997"}},
+  AE:{name:"UAE",        flag:"🇦🇪",e:"999",fire:"997",police:"999",amb:"998",doc:"",
+      rs:{n:"AA UAE",    num:"800 4900"},    ph:{n:"Vet Emergency",num:"997"}},
+  // Africa
+  ZA:{name:"South Africa",flag:"🇿🇦",e:"112",fire:"10111",police:"10111",amb:"10177",doc:"",
+      rs:{n:"AA South Africa",num:"083 843 22 22"},ph:{n:"Vet Emergency",num:"10177"}},
+  // South America
+  BR:{name:"Brazil",     flag:"🇧🇷",e:"190",fire:"193",police:"190",amb:"192",doc:"",
+      rs:{n:"ABA",       num:"0800 703 0303"},ph:{n:"Vet Emergency",num:"192"}},
+  AR:{name:"Argentina",  flag:"🇦🇷",e:"911",fire:"100",police:"101",amb:"107",doc:"",
+      rs:{n:"ACA",       num:"0810 888 9888"},ph:{n:"Vet Emergency",num:"107"}},
+
   DEFAULT:{name:"International",flag:"🌍",e:"112",fire:"112",police:"112",amb:"112",doc:"",
            rs:{n:"Local Roadside",num:"112"},ph:{n:"Local Vet",num:""},pa:{n:"Animal Shelter",num:""}},
 };
 
-export const getCountry = cc => COUNTRIES[cc] || COUNTRIES.DEFAULT;
+export const getCountry = cc => {
+  if (COUNTRIES[cc]) return COUNTRIES[cc];
+  if (!cc || cc === 'DEFAULT') return COUNTRIES.DEFAULT;
+  // Country detected by GPS but not yet in our dataset.
+  // Return a meaningful object that keeps the real country code visible.
+  return {
+    name:    cc,                          // show the ISO code (e.g. "GR") until we add data
+    flag:    '🌍',
+    e:       '112',
+    fire:    '112',
+    police:  '112',
+    amb:     '112',
+    doc:     '',
+    rs:      { n: 'Local Roadside', num: '112' },
+    ph:      { n: 'Vet Emergency',  num: '' },
+    noData:  true,                        // Emergency screen checks this for the notice
+  };
+};
 
 // GPS-first country detection — language is ONLY a fallback when GPS unavailable
 export function smartCC(gpsCountry, lang) {

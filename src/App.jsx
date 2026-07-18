@@ -1716,8 +1716,10 @@ export default function App() {
           <div style={{color:'#fff',fontSize:'1.2rem'}}>→</div>
         </a>
         <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 14px',marginBottom:10,fontSize:'0.72rem',color:'rgba(255,255,255,0.5)',lineHeight:1.6}}>
-          📍 <strong style={{color:C.t}}>{cdGPS.name}</strong> — 🚗 {cdGPS.rs?.n}: <strong style={{color:C.t}}>{cdGPS.rs?.num}</strong>
-          {cdGPS.ph?.num?` | 🐾 ${cdGPS.ph.n}: ${cdGPS.ph.num}`:''}
+          {cdGPS.noData
+            ? <span>📍 <strong style={{color:C.t}}>{cdGPS.name}</strong> — {lang==='de'?'Lokaler Notfalldatensatz nicht verfügbar':'Local emergency dataset unavailable'}</span>
+            : <><span>📍 <strong style={{color:C.t}}>{cdGPS.name}</strong> — 🚗 {cdGPS.rs?.n}: <strong style={{color:C.t}}>{cdGPS.rs?.num}</strong></span>
+               {cdGPS.ph?.num?` | 🐾 ${cdGPS.ph.n}: ${cdGPS.ph.num}`:''}</>}
         </div>
         {Object.entries(EMRG).map(([key,ec],idx)=>{
           const titles=getEmrgT(key,lang);
