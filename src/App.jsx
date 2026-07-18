@@ -198,7 +198,7 @@ export default function App() {
   const aiMsgTimer = useRef(null);
   const pwaPrompt  = useRef(null);
 
-  const { lat, lng, city, country, locStatus, requestLocation, getCC } = useLocation();
+  const { lat, lng, city, country, geocodeErr, locStatus, requestLocation, resolveCountryIfNeeded, getCC } = useLocation();
   const { result: aiResult, loading: aiLoading, error: aiError, diagnose, reset: aiReset } = useAI();
   const { bizs, loading: bizLoading, error: bizError, stale: bizStale, fallback: bizFallback, fetchBiz } = useNearby();
   const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
@@ -917,6 +917,15 @@ export default function App() {
     }
   }, []); // eslint-disable-line
 
+  // ── Emergency: resolve country when screen is active and country unknown ──
+  // Safe side-effect: runs only when screen, country, lat, or lng changes.
+  // resolveCountryIfNeeded is memoized; it is a no-op when country is already set.
+  useEffect(() => {
+    if (screen === 'emergency' && country === 'DEFAULT') {
+      resolveCountryIfNeeded();
+    }
+  }, [screen, country, lat, lng, resolveCountryIfNeeded]);
+
   const hr = new Date().getHours();
   const greeting = hr < 12 ? t('goodMorning') : hr < 18 ? t('goodAfternoon') : t('goodEvening');
   const aiMsgs = AI_MSGS[lang] || AI_MSGS.en;
@@ -1278,7 +1287,7 @@ export default function App() {
           </div>
         )}
         {/* Emergency banner */}
-        <div onClick={()=>{if(country==='DEFAULT')requestLocation();goto('emergency');}} style={{background:'linear-gradient(135deg,#2A0000,#1A0000)',border:'1px solid rgba(214,59,47,0.3)',borderRadius:18,padding:16,display:'flex',alignItems:'center',gap:14,marginBottom:22,cursor:'pointer',animation:'fadeIn .4s ease'}}>
+        <div onClick={()=>{resolveCountryIfNeeded();goto('emergency');}} style={{background:'linear-gradient(135deg,#2A0000,#1A0000)',border:'1px solid rgba(214,59,47,0.3)',borderRadius:18,padding:16,display:'flex',alignItems:'center',gap:14,marginBottom:22,cursor:'pointer',animation:'fadeIn .4s ease'}}>
           <span style={{width:8,height:8,background:C.r,borderRadius:'50%',flexShrink:0,animation:'blink 1.2s infinite'}}/>
           <div style={{flex:1}}>
             <div style={{fontSize:'0.7rem',color:C.r,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>{t('emergencyHelp')}</div>
@@ -1657,7 +1666,7 @@ export default function App() {
 
   // ── EMERGENCY ────────────────────────────────────────────────────────────────
   // Emergency debug — verify GPS country is independent of language
-  if (screen === 'emergency') console.log('[FixIt] EMERGENCY raw_country=' + country + ' ccGPS=' + ccGPS + ' cc(lang)=' + cc + ' lang=' + lang + ' city=' + city + ' emergency_country=' + (cdGPS?.name||'DEFAULT/International'));
+  if (screen === 'emergency') console.log('[FixIt] EMERGENCY raw_country=' + country + ' ccGPS=' + ccGPS + ' lang=' + lang + ' city=' + city + ' geocodeErr=' + geocodeErr + ' emergency_country=' + (cdGPS?.name||'DEFAULT/International'));
   if (screen === 'emergency') return (
     <Screen bg="#060000">
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
@@ -1672,14 +1681,30 @@ export default function App() {
       </div>
       <Scroll pad="14px 20px">
         {ccGPS === 'DEFAULT' && (
-          <div style={{background:'rgba(232,178,26,0.1)',border:'1px solid rgba(232,178,26,0.25)',borderRadius:14,padding:'14px 18px',marginBottom:10,display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontSize:'1.2rem'}}>📍</span>
-            <div>
-              <div style={{fontSize:'0.82rem',fontWeight:700,color:C.y}}>
-                {locStatus==='denied' ? (lang==='de'?'GPS nicht erlaubt':'GPS not permitted') : (lang==='de'?'Standort wird ermittelt…':'Detecting location…')}
+          <div style={{background:geocodeErr?'rgba(214,59,47,0.08)':'rgba(232,178,26,0.08)',border:`1px solid ${geocodeErr?'rgba(214,59,47,0.25)':'rgba(232,178,26,0.2)'}`,borderRadius:14,padding:'14px 18px',marginBottom:10}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:geocodeErr?8:0}}>
+              <span style={{fontSize:'1.2rem'}}>📍</span>
+              <div>
+                <div style={{fontSize:'0.82rem',fontWeight:700,color:geocodeErr?C.r:C.y}}>
+                  {locStatus==='denied'
+                    ? (lang==='de'?'GPS nicht erlaubt':'GPS not permitted')
+                    : geocodeErr
+                      ? (lang==='de'?'Standort konnte nicht ermittelt werden':'Location could not be resolved')
+                      : (lang==='de'?'Standort wird ermittelt…':'Detecting location…')}
+                </div>
+                <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.35)',marginTop:2}}>
+                  {geocodeErr
+                    ? (lang==='de'?'Antippen zum erneuten Versuch':'Tap to retry')
+                    : (lang==='de'?'Bitte GPS aktivieren für lokale Notrufnummern':'Enable GPS for local emergency numbers')}
+                </div>
               </div>
-              <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.4)',marginTop:2}}>{lang==='de'?'Bitte GPS aktivieren für lokale Notrufnummern':'Enable GPS for local emergency numbers'}</div>
             </div>
+            {geocodeErr && (
+              <button onClick={resolveCountryIfNeeded}
+                style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:9,padding:'8px 14px',color:C.t,fontSize:'0.78rem',cursor:'pointer',fontFamily:'inherit',width:'100%'}}>
+                🔄 {lang==='de'?'Erneut versuchen':'Retry'}
+              </button>
+            )}
           </div>
         )}
         <a href={`tel:${cdGPS.e}`} style={{background:ccGPS==='DEFAULT'?'rgba(214,59,47,0.5)':C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
