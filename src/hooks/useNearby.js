@@ -23,7 +23,7 @@ const FAILCACHE = new Map();  // key → ts        (60s cooldown after endpoint 
 const CACHE_TTL   = 30 * 60 * 1000;  // 30 minutes
 const FAIL_TTL    =      60 * 1000;  // 60 seconds
 
-const CACHE_VERSION = 'v8-mk-google-first';
+const CACHE_VERSION = 'v9-reliable'; // bumped: never cache empty, cold-start fixes
 
 // All cache helper functions share the same signature: (cat, lat, lng, city, cc)
 function cacheKey(cat, lat, lng, city, cc) {
@@ -130,25 +130,29 @@ export function useNearby() {
       const results = data.results || [];
 
       if (data.fallbackUsed) {
-        // Only enter 60s cooldown when truly empty — not when we have partial results
-        if (!data.results || data.results.length === 0) {
-          markFailed(cat, lat, lng, city, cc);
-        }
+        // fallbackUsed = results.length === 0 on the server
+        // This can happen on cold start even when Google would succeed on a warm retry.
+        // Only enter 60s cooldown + show Maps button when genuinely empty.
+        markFailed(cat, lat, lng, city, cc);
         setFallback(true);
-        // If we had cached results, show them as stale while fallback is shown
         const cached = getCache(cat, lat, lng, city, cc);
         if (cached && cached.length > 0) {
+          // Show stale results while Maps fallback button is available
           setBizs(cached); setStale(true); setError(null);
         } else {
           setBizs([]); setError('empty');
         }
       } else {
-        setCache(cat, lat, lng, city, cc, results);
+        // Never cache empty results — empty may be a transient failure, not real data
+        if (results.length > 0) {
+          setCache(cat, lat, lng, city, cc, results);
+        }
         setBizs(results);
         setStale(false);
         setFallback(false);
         setError(results.length === 0 ? 'empty' : null);
-        console.log(`[nearby] FETCHED cat=${cat} returned=${results.length}`);
+        const ms = data.totalMs ? ` server_ms=${data.totalMs}` : '';
+        console.log(`[nearby] FETCHED cat=${cat} returned=${results.length}${ms}`);
       }
     } catch (err) {
       INFLIGHT.delete(key);

@@ -35,15 +35,10 @@ function buildQueries(cat, cityHint, countryCode = '') {
   const en = isMKspecial ? '' : (cityHint || '');
   const q = {
     garage: [
-      `Автосервис ${mk}`.trim(),
-      `Автомеханичар ${mk}`.trim(),
-      `Авто електричар ${mk}`.trim(),
-      `Авто механика ${mk}`.trim(),
-      `Авто сервис ${mk}`.trim(),
-      `car repair ${en}`.trim(),
-      `Avto servis ${en}`.trim(),
-      `auto mechanic ${en}`.trim(),
-
+      `Автосервис ${mk}`.trim(),      // best single MK term — returns most garages
+      `Авто сервис ${mk}`.trim(),     // handles spaced variant
+      `Avto servis ${en}`.trim(),     // Latin variant (catches GALEVSKI)
+      `car repair ${en}`.trim(),      // English fallback
     ],
     parts: [
       `Автоделови ${mk}`.trim(),
@@ -119,7 +114,7 @@ function httpsPost(path, body, extraHeaders) {
         'X-Goog-Api-Key': GOOGLE_KEY,
         ...extraHeaders,
       },
-      timeout: 7000,
+      timeout: 10000, // increased from 7s: allows cold-start TLS handshake to complete
     }, res => {
       let d = '';
       res.on('data', c => { d += c; });
@@ -233,14 +228,15 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   // Run text queries sequentially to avoid hammering the API simultaneously
   // (we await them as a group but they're separate requests)
   for (const q of queries) {
+    const qT0 = Date.now();
     tasks.push(
       searchText(latN, lngN, radiusM, q)
         .then(d => {
           const places = d.places || [];
           const names  = places.map(p => p.displayName?.text || '').join(', ');
           const ids    = places.map(p => p.id || '').join(', ');
-          console.log(`[places] query="${q}" returned=${places.length}${places.length>0?' names=['+names+'] ids=['+ids+']':''}`);
-
+          const qMs = Date.now() - qT0;
+          console.log(`[places] query="${q}" returned=${places.length} ms=${qMs}${places.length>0?' names=['+names+']':''}`);
           allPlaces.push(...places);
         })
         .catch(e => { errors.push(`text:${e.message}`); console.warn(`[places] text "${q}": ${e.message}`); })

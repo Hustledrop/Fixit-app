@@ -274,7 +274,7 @@ module.exports = async function handler(req, res) {
   const seen       = new Set();
   let   allResults = [];
 
-  for (let pi = 0; pi < PASSES.length && !MK_GOOGLE_FIRST; pi++) {
+  for (let pi = 0; pi < PASSES.length; pi++) {  // OSM always runs; MK_GOOGLE_FIRST only controls Google threshold
     const { ns, ew, radiusKm } = PASSES[pi];
     const elapsed = Date.now() - startMs;
     const remain  = GLOBAL_DEADLINE_MS - elapsed;
@@ -333,7 +333,8 @@ module.exports = async function handler(req, res) {
   console.log(`[nearby] cat=${cat} country=${countryCode} osm_count=${results.length} osm_failed=${osmFailed} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
 
   if (needsPlaces) {
-    console.log(`[nearby] google_called=true cat=${cat} osm_count=${results.length}`);
+    const googleT0 = Date.now();
+    console.log(`[nearby] google_start cat=${cat} osm_count=${results.length} deadline_left=${timeLeft}ms`);
     try {
       // Direct require — no HTTP hop, no domain dependency, no deployment mismatch
       const { fetchPlacesForCategory } = require('./places-lib.js');
@@ -365,16 +366,19 @@ module.exports = async function handler(req, res) {
         }
       }
     } catch (err) {
-      console.warn(`[nearby] Places hybrid failed: ${err.message}`);
+      console.warn(`[nearby] google_failed reason=${err.message} elapsed=${Date.now()-googleT0}ms`);
     }
   }
 
   console.log(`[nearby] total_duration_ms=${Date.now()-startMs} cat=${cat} returned=${results.length}`);
 
+  console.log(`[nearby] COMPLETE cat=${cat} country=${countryCode} final_count=${results.length} total_ms=${totalMs}`);
+
   res.status(200).json({
     results,
     fallbackUsed: results.length === 0,
     fallbackReason: results.length === 0 ? 'no_results_or_endpoint_failure' : undefined,
+    totalMs,
     cat,
   });
 };
