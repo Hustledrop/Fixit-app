@@ -890,6 +890,14 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
       console.log(`[places-diag] raw #${i} query="${sq}" name="${nm}" primaryType=${pt} types=[${tps}]`);
     });
   }
+  // Targeted trace for known false-positive names
+  const TRACE_NAMES = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
+  allPlacesDeduped.forEach(raw => {
+    const nm = (raw.displayName?.text||'').toLowerCase();
+    if (TRACE_NAMES.some(t => nm.includes(t))) {
+      console.log(`[TRACE] FOUND_IN_RAW cat=${cat} name="${raw.displayName?.text}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] query="${raw._sourceQuery||'?'}"`);
+    }
+  });
 
   let diagAccepted = 0, diagRejected = 0;
   const results = allPlacesDeduped
@@ -908,6 +916,10 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
             const tps = (raw.types||[]).join(',') || 'none';
             const dist = p.dist != null ? p.dist+'km' : '?';
             console.log(`[places-diag] query="${q}" name="${p.name}" primaryType=${pt} types=[${tps}] dist=${dist} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
+          }
+          // Targeted trace
+          if (TRACE_NAMES.some(t => p.name.toLowerCase().includes(t))) {
+            console.log(`[TRACE] CLASSIFY_IN_FILTER cat=${cat} name="${p.name}" pt=${raw.primaryType||'null'} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
           }
           if (!cls.accept) {
             diagRejected++;
@@ -929,6 +941,13 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
     .sort((a, b) => a.dist - b.dist)
     .slice(0, 20);
 
+
+  // Targeted trace: did any suspected false positive survive the filter?
+  results.forEach(r => {
+    if (TRACE_NAMES.some(t => r.name.toLowerCase().includes(t))) {
+      console.log(`[TRACE] SURVIVED_FILTER cat=${cat} name="${r.name}" dist=${r.dist}km primaryType=${r.primaryType||'null'} — THIS SHOULD NOT BE HERE`);
+    }
+  });
 
   const removedOver30 = allPlaces.filter(p => {
     const loc = p.location || {};

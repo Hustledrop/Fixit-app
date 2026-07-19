@@ -443,6 +443,13 @@ function mergeGoogle(placesData, existing, cat) {
   }
   const osmNames=new Set(existing.map(r=>r.name.toLowerCase().trim()));
   let scrap=0, rejected=0;
+  // Targeted trace: did any false-positive survive places-lib and arrive at merge?
+  const TRACE = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
+  raw.forEach(r => {
+    if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
+      console.log(`[TRACE] ARRIVED_AT_MERGE cat=${cat} name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}]`);
+    }
+  });
   const deduped=raw.filter(p=>{
     const pn=(p.name||'').toLowerCase().trim();
     // Scrapyard check on name
@@ -519,6 +526,7 @@ module.exports = async function handler(req, res) {
     // primaryType/types[] are preserved through normalizePlaceResult.
     // This is the last line of defence — runs regardless of which code path
     // produced the results (google_won, osm_won, full_wait).
+    const TRACE = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
     let gated = finalResults;
     if (CLASSIFIED.has(cat)) {
       const before = finalResults.length;
@@ -526,6 +534,10 @@ module.exports = async function handler(req, res) {
         if (r.source !== 'google') return true;          // OSM always passes
         if (!r.primaryType && !(r.types && r.types.length)) return true; // no metadata
         const cls = classifyGoogle(r, cat);
+        // Targeted trace
+        if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
+          console.log(`[TRACE] FINAL_GATE cat=${cat} name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}] displayName=${r.displayName?.text||'MISSING'} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
+        }
         if (!cls.accept) {
           console.log(`[nearby] final_gate REJECT "${r.name}" reason=${cls.reason}`);
           return false;
@@ -540,6 +552,12 @@ module.exports = async function handler(req, res) {
     const totalMs = Date.now()-startMs;
     const names = gated.slice(0,5).map(r=>`${r.name}(${r.dist}km)`).join(',');
     console.log(`[nearby] RESPOND path=${path} count=${gated.length} total_ms=${totalMs} names=[${names}]`);
+    // Targeted trace: flag if any false positive made it to the final response
+    gated.forEach(r => {
+      if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
+        console.log(`[TRACE] IN_FINAL_RESPONSE cat=${cat} name="${r.name}" source=${r.source||'?'} primaryType=${r.primaryType||'null'} — UNEXPECTED`);
+      }
+    });
     res.status(200).json({
       results: gated,
       fallbackUsed: gated.length===0,
