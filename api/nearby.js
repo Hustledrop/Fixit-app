@@ -320,13 +320,19 @@ function mergeGoogle(placesData, existing, cat) {
   let scrap=0, rejected=0;
   const deduped=raw.filter(p=>{
     const pn=(p.name||'').toLowerCase().trim();
+    // Scrapyard check on name
     if (MERGE_SCRAP.test(pn)){scrap++;return false;}
-    if (['garage','parts','tyres','petrol'].includes(cat)){
-      const cls=classifyGoogle(p,cat);
-      if (!cls.accept){rejected++;console.log(`[nearby] Google reject "${p.displayName?.text||'?'}" reason=${cls.reason}`);return false;}
-    }
+    // NOTE: classifyGoogle is NOT called here.
+    // places-lib already ran classifyGoogle on raw Google objects (with primaryType/types)
+    // BEFORE normalization. Results in placesData.results are pre-classified.
+    // Re-running classifyGoogle on normalized results (which have no primaryType/types)
+    // would reject everything — normalized places have only name/lat/lng/dist/addr.
+    // Dedup: skip if OSM already has same name
     if (osmNames.has(pn)) return false;
-    return !existing.some(r=>Math.abs(r.lat-p.lat)<0.0005&&Math.abs(r.lng-p.lng)<0.0005);
+    // Dedup: skip if within 50m of an existing result
+    const survived = !existing.some(r=>Math.abs(r.lat-p.lat)<0.0005&&Math.abs(r.lng-p.lng)<0.0005);
+    if (survived) console.log(`[nearby] merge ACCEPT "${p.name}" dist=${p.dist}km cat=${cat}`);
+    return survived;
   });
   const merged=[...existing,...deduped].sort((a,b)=>a.dist-b.dist).slice(0,25);
   console.log(`[nearby] merged=${merged.length} scrap=${scrap} rejected=${rejected} dedup=${raw.length-deduped.length}`);
