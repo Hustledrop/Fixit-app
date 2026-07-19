@@ -307,9 +307,14 @@ function buildCountryQueries(cat, cityHint, countryCode) {
   const catQueries = (cq && cq[cat]) ? cq[cat] : [];
   // Always add English fallback queries for international recall
   const enFallback = {
-    garage: ['car repair','auto repair','mechanic','car service','auto workshop'],
-    parts:  ['auto parts','car parts','spare parts','vehicle parts'],
-    tyres:  ['tyre service','tyre shop','tire shop','vulcanizer','tyre fitting'],
+    garage:   ['car repair','auto repair','mechanic','car service','auto workshop'],
+    parts:    ['auto parts','car parts','spare parts','vehicle parts'],
+    tyres:    ['tyre service','tyre shop','tire shop','vulcanizer','tyre fitting'],
+    petrol:   ['gas station','petrol station','fuel station'],
+    it:       ['computer repair','phone repair','laptop repair','IT service','computer store'],
+    moto:     ['motorcycle repair','motorcycle dealer','motorcycle parts','scooter repair'],
+    hardware: ['hardware store','DIY store','building materials'],
+    vet:      ['veterinary clinic','vet','animal hospital'],
   };
   const en = enFallback[cat] || [];
   // Merge: country queries + English, deduplicate.
@@ -812,10 +817,10 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
     return { configured: false, results: [] };
   }
 
-  // For classified categories use country-localized multi-synonym queries
-  const queries = (['garage','parts','tyres'].includes(cat))
-    ? buildCountryQueries(cat, cityHint, countryCode)
-    : buildQueries(cat, cityHint, countryCode);
+  // Use buildCountryQueries for ALL categories that need text search
+  // (garage/parts/tyres always; petrol/it/moto/hardware/vet also benefit from
+  //  localized queries and proper English fallback terms)
+  const queries = buildCountryQueries(cat, cityHint, countryCode);
   const nearConf = NEARBY_CATS[cat];
   const allPlaces = [];
   const errors    = [];
