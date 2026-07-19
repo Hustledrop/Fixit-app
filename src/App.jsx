@@ -1848,7 +1848,7 @@ export default function App() {
       hardware: _isDE?'Baumarkt in der Nähe':_isTR?'Hırdavatçı yakınımda':_isHR?'Željezarija u blizini':_isMK?'Железарија и градежни материјали во близина':'hardware store near me',
       vet:      _isDE?'Tierarzt in der Nähe':_isTR?'Veteriner yakınımda':_isHR?'Veterinar u blizini':_isMK?'Ветеринарна станица во близина':'veterinarian near me',
       it:       _isDE?'Computer Reparatur in der Nähe':_isTR?'Bilgisayar tamiri yakınımda':_isHR?'Servis računala u blizini':_isMK?'Компјутерски сервис во близина':'computer repair near me',
-      moto:     _isDE?'Motorradwerkstatt in der Nähe':_isTR?'Motosiklet servisi yakınımda':_isHR?'Servis motocikla u blizini':_isMK?'Мото сервис во близина':_isFR?'Garage moto près de moi':_isES?'Taller motos cerca de mí':_isIT?'Officina moto vicino':'motorcycle repair near me',
+      moto:     _isDE?'Motorradwerkstatt in der Nähe':_isTR?'Motosiklet servisi yakınımda':_isHR?'Servis motocikla u blizini':_isMK?'Сервис за мотор во близина':_isFR?'Garage moto près de moi':_isES?'Taller motos cerca de mí':_isIT?'Officina moto vicino':'motorcycle repair near me',
     };
     return (
       <Screen>
@@ -2010,7 +2010,7 @@ export default function App() {
           <div style={s.card}>
             <div style={{fontSize:'0.68rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>{t('searchingFor')}</div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
-              {[['car',t('catCar')],['home',t('catHome')],['appliances',t('catAppliance')],['garden',t('catGarden')],['tech',t('catTech')],['bike',t('catBike')],['pets',t('catPets')],['moto',t('motorcycle')]].map(([tp,lb])=>(
+              {[['car',t('catCar')],['moto',t('motorcycle')],['home',t('catHome')],['appliances',t('catAppliance')],['garden',t('catGarden')],['tech',t('catTech')],['bike',t('catBike')],['pets',t('catPets')]].map(([tp,lb])=>(
                 <button key={tp} onClick={()=>{setVType(tp);setVInput('');setHsnModel('');}} style={{padding:'7px 14px',borderRadius:100,fontSize:'0.76rem',fontWeight:600,cursor:'pointer',border:'none',background:vType===tp?C.bl:'rgba(255,255,255,0.06)',color:vType===tp?'#fff':C.m,fontFamily:'inherit'}}>{lb}</button>
               ))}
             </div>

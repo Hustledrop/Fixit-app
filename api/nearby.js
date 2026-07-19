@@ -1,384 +1,450 @@
-// api/nearby.js — FixIt Overpass proxy  FIXIT_NEARBY_BUDGET_V7
+// api/nearby.js — FixIt Nearby  FIXIT_NEARBY_CONCURRENT_V9
 //
-// ── EXECUTION BUDGET ─────────────────────────────────────────────────────────
-// Vercel maxDuration = 25s. We target ≤ 18s worst case.
+// ── ARCHITECTURE ──────────────────────────────────────────────────────────────
+// Google Places + OSM start CONCURRENTLY at t=0.
 //
-// Per-attempt timeout: 8s
-// Endpoint strategy: TRY ONE at a time. If primary fails → try secondary ONCE.
-//   But only ONE attempt per radius pass (not 2+2+2 = 6 sequential waits).
+// DELIVERY_WINDOW (7s): respond as soon as either provider returns
+//   ≥ 1 usable classified result. The other provider is discarded.
+//   A 200ms grace period lets a near-simultaneous second provider merge in.
 //
-// WORST CASE timeline:
-//   Pass 1 primary (8s fail) + Pass 1 secondary (8s fail) = 16s → return fallback
+// FULL-WAIT path: if neither provider returns usable results within the
+//   delivery window, wait for both up to GLOBAL_DEADLINE (20s).
+//   Only return empty when BOTH genuinely fail or return 0 classified results.
 //
-// BEST CASE (radius expansion needed):
-//   Pass 1 primary succeeds (2s) but 0 results → Pass 2 primary succeeds (4s) = 6s
+// Cache: one format, one entry per (cat+location+cc). Normal TTL.
+//   Cached entry = whatever was returned (winner or merge). No special states.
 //
-// The key fix: on endpoint failure we do NOT try 3 passes × 2 endpoints = 6 waits.
-// We try 1 pass × 2 endpoints = 2 waits max, then return fallback.
-//
-// Radius passes only expand when OSM DATA is missing (0 results),
-// NOT when endpoints are failing. Endpoint failure = stop and fallback immediately.
+// Vercel maxDuration = 25s. GLOBAL_DEADLINE = 20s leaves 5s for serialisation.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ENDPOINTS = ['overpass-api.de', 'overpass.kumi.systems'];
-const SOCKET_TIMEOUT_MS = 8000;    // 8s per endpoint attempt
-const GLOBAL_DEADLINE_MS = 18000;  // 18s total — stop everything after this
-const MIN_RESULTS = 3;             // expand radius only if fewer than this many results
+const ENDPOINTS         = ['overpass-api.de', 'overpass.kumi.systems'];
+const SOCKET_TIMEOUT_MS = 8000;    // per Overpass endpoint attempt
+const DELIVERY_WINDOW   = 7000;    // respond with first usable result after this ms
+const GRACE_MS          = 200;     // after winner, wait this long for other to merge
+const GLOBAL_DEADLINE   = 20000;  // 20s hard cap — 5s margin under vercel.json maxDuration:25
+const MIN_RESULTS       = 3;       // OSM pass2 threshold (expand radius if < this)
 
-// ── Query builder ─────────────────────────────────────────────────────────────
+// ── Classifiers ───────────────────────────────────────────────────────────────
+
+const GOOGLE_NEVER_AUTO = new Set([
+  'bicycle_store','clothing_store','shoe_store','jewelry_store','book_store',
+  'beauty_salon','hair_care','spa','florist','gift_shop','toy_store',
+  'home_goods_store','furniture_store','art_gallery','grocery_or_supermarket',
+  'convenience_store','pharmacy','supermarket','department_store','shopping_mall',
+  'real_estate_agency','insurance_agency','accounting','lawyer','doctor',
+  'hospital','school','university','library','museum','church',
+  'restaurant','cafe','bar','night_club','movie_theater','hotel','lodging',
+  'storage','parking','laundry','gym','stadium','embassy',
+]);
+
+const OSM_NEVER_AUTO = new Set([
+  'bicycle','boats','boat','marine','fashion','bag','bags','clothes','clothing',
+  'art','art_gallery','antiques','books','toys','gift','jewelry','jewellery',
+  'beauty','hairdresser','optician','shoes','sports','alcohol','bakery',
+  'butcher','seafood','supermarket','greengrocer','kiosk','convenience',
+  'mobile_phone','computer','electronics','music','video','department_store',
+  'mall','florist','garden_centre','pet','farm','market','rental',
+  'car_rental','car','vehicle','military','agricultural',
+  'parking','parking_space','fuel','charging_station','car_wash','car_sharing',
+  'bus_station','taxi','bicycle_rental','bicycle_parking',
+  'architect','lawyer','accountant','insurance','estate_agent','company',
+  'bicycle_repair','boatbuilder','shipwright','blacksmith','carpenter',
+  'electrician','plumber','painter','roofer','photographer',
+]);
+
+function classifyOSM(tags, cat) {
+  const shop = tags.shop || '', craft = tags.craft || '', amenity = tags.amenity || '';
+  if (OSM_NEVER_AUTO.has(shop))   return { accept: false, reason: `osm:shop=${shop}` };
+  if (OSM_NEVER_AUTO.has(amenity))return { accept: false, reason: `osm:amenity=${amenity}` };
+  if (craft && OSM_NEVER_AUTO.has(craft)) return { accept: false, reason: `osm:craft=${craft}` };
+
+  const hasRepair     = shop==='car_repair'||craft==='car_repair'||craft==='mechanic'
+    ||craft==='auto_electrician'||craft==='automotive'||amenity==='car_repair'
+    ||tags['service:vehicle:repair']==='yes'||tags['service:vehicle:motor_vehicle']==='yes'
+    ||shop==='vehicle'||shop==='workshop'||craft==='vehicle_repair';
+  const hasMotoRepair = shop==='motorcycle_repair'||craft==='motorcycle_repair'
+    ||craft==='motorcycle_service'||tags['service:vehicle:motorcycle']==='yes';
+  const hasTyre       = shop==='tyres'||shop==='tires'||shop==='vulcanizer'
+    ||craft==='tyre_fitting'||craft==='tire_fitting'
+    ||tags['service:vehicle:tyres']==='yes'||tags['service:vehicle:tires']==='yes'
+    ||tags['service:vehicle:tyre_repair']==='yes'||tags['service:vehicle:wheels']==='yes'
+    ||tags['service:tyres']==='yes';
+  const hasParts      = shop==='car_parts'||shop==='auto_parts'||shop==='automotive'
+    ||shop==='motorcycle_parts'||shop==='vehicle_parts'
+    ||tags['service:vehicle:parts']==='yes';
+
+  if (cat === 'garage') {
+    if ((shop==='tyres'||shop==='tires'||shop==='vulcanizer') && !hasRepair && !hasMotoRepair)
+      return { accept: false, reason: 'osm:tyres-only' };
+    if (hasParts && !hasRepair && !hasMotoRepair)
+      return { accept: false, reason: 'osm:parts-only' };
+    if (hasRepair || hasMotoRepair) return { accept: true, reason: `osm:${shop||craft||amenity}` };
+    return { accept: false, reason: 'osm:no repair tag' };
+  }
+  if (cat === 'parts') {
+    if ((hasRepair||hasMotoRepair) && !hasParts) return { accept: false, reason: 'osm:repair-only' };
+    if (hasParts) return { accept: true, reason: `osm:${shop}` };
+    return { accept: false, reason: 'osm:no parts tag' };
+  }
+  if (cat === 'tyres') {
+    if ((hasRepair||hasMotoRepair) && !hasTyre) return { accept: false, reason: 'osm:repair-only,no tyre tag' };
+    if (hasTyre) return { accept: true, reason: 'osm:tyre confirmed' };
+    return { accept: false, reason: 'osm:no tyre tag' };
+  }
+  return { accept: true, reason: 'osm:other' };
+}
+
+const TYRE_NAME_RE = /vulcan|βουλκαν|vullkan|tyre|tire|guma|gumi|ελαστ|reife|pneu|gomm|gumiabr|llantas|neumát|lastik|pneus|タイヤ|타이어|轮胎|إطار|إطارات|टायर/i;
+
+function classifyGoogle(place, cat) {
+  const primary  = place.primaryType || '';
+  const types    = Array.isArray(place.types) ? place.types : [];
+  const allTypes = new Set([primary, ...types]);
+  const name     = (place.displayName?.text || '').toLowerCase();
+
+  if (GOOGLE_NEVER_AUTO.has(primary)) return { accept: false, reason: `google:primary=${primary}` };
+  const hasAuto     = allTypes.has('car_repair')||allTypes.has('auto_parts_store')
+    ||allTypes.has('car_dealer')||allTypes.has('gas_station');
+  const hasExcluded = [...allTypes].some(t => GOOGLE_NEVER_AUTO.has(t));
+  if (hasExcluded && !hasAuto) return { accept: false, reason: 'google:secondary excluded' };
+
+  const isRepair = allTypes.has('car_repair') || primary === 'car_repair';
+  const isParts  = allTypes.has('auto_parts_store') || primary === 'auto_parts_store';
+  const isDealer = primary === 'car_dealer';
+  const tyreName = TYRE_NAME_RE.test(name);
+
+  if (cat === 'garage') {
+    if (isDealer && !isRepair) return { accept: false, reason: 'google:dealer-only' };
+    if (isParts  && !isRepair) return { accept: false, reason: 'google:parts-only' };
+    if (isRepair)              return { accept: true,  reason: 'google:car_repair' };
+    return { accept: false, reason: `google:no type (${primary})` };
+  }
+  if (cat === 'parts') {
+    if (isRepair && !isParts) return { accept: false, reason: 'google:repair-only' };
+    if (isDealer && !isParts) return { accept: false, reason: 'google:dealer-only' };
+    if (isParts)              return { accept: true,  reason: 'google:auto_parts_store' };
+    return { accept: false, reason: `google:no type (${primary})` };
+  }
+  if (cat === 'tyres') {
+    if (isRepair && !tyreName) return { accept: false, reason: 'google:car_repair no tyre keyword' };
+    if (isRepair && tyreName)  return { accept: true,  reason: 'google:car_repair+tyre name' };
+    if (isParts)               return { accept: false, reason: 'google:parts-only' };
+    if (!isRepair && !isParts && tyreName) return { accept: true, reason: 'google:tyre keyword' };
+    return { accept: false, reason: `google:no evidence (${primary})` };
+  }
+  return { accept: true, reason: 'google:other' };
+}
+
+// ── OSM query builder ─────────────────────────────────────────────────────────
 function buildQuery(cat, south, west, north, east) {
   const b = `${south},${west},${north},${east}`;
   const parts = {
-    garage: [
-      `node["shop"="car_repair"](${b})`,
-      `way["shop"="car_repair"](${b})`,
-      `relation["shop"="car_repair"](${b})`,
-      `node["craft"="car_repair"](${b})`,
-      `way["craft"="car_repair"](${b})`,
-      `node["amenity"="car_repair"](${b})`,
-      `way["amenity"="car_repair"](${b})`,
-    ],
-    parts: [
-      `node["shop"="car_parts"](${b})`,
-      `way["shop"="car_parts"](${b})`,
-      `node["shop"="auto_parts"](${b})`,
-      `way["shop"="auto_parts"](${b})`,
-    ],
-    tyres: [
-      `node["shop"="tyres"](${b})`,
-      `way["shop"="tyres"](${b})`,
-      `node["shop"="tires"](${b})`,
-      `way["shop"="tires"](${b})`,
-      `node["shop"="vulcanizer"](${b})`,
-      `way["shop"="vulcanizer"](${b})`,
-      `node["craft"="tyre_fitting"](${b})`,
-      `way["craft"="tyre_fitting"](${b})`,
-      `node["service:vehicle:tyres"="yes"](${b})`,
-      `way["service:vehicle:tyres"="yes"](${b})`,
-      `node["service:vehicle:tires"="yes"](${b})`,
-      `way["service:vehicle:tires"="yes"](${b})`,
-      `node["shop"="car_repair"]["service:tyres"="yes"](${b})`,
-    ],
-    petrol: [
-      `node["amenity"="fuel"](${b})`,
-      `way["amenity"="fuel"](${b})`,
-    ],
-    hardware: [
-      `node["shop"="hardware"](${b})`,
-      `way["shop"="hardware"](${b})`,
-      `node["shop"="doityourself"](${b})`,
-      `way["shop"="doityourself"](${b})`,
-      `node["shop"="building_materials"](${b})`,
-      `way["shop"="building_materials"](${b})`,
-      `node["shop"="tools"](${b})`,
-      `way["shop"="tools"](${b})`,
-      `node["shop"="garden_centre"](${b})`,
-      `way["shop"="garden_centre"](${b})`,
-      `node["shop"="electrical"](${b})`,
-      `way["shop"="electrical"](${b})`,
-    ],
-    vet: [
-      `node["amenity"="veterinary"](${b})`,
-      `way["amenity"="veterinary"](${b})`,
-    ],
-    it: [
-      `node["shop"="computer"](${b})`,
-      `way["shop"="computer"](${b})`,
-      `node["craft"="electronics_repair"](${b})`,
-      `way["craft"="electronics_repair"](${b})`,
-      `node["shop"="mobile_phone"](${b})`,
-      `way["shop"="mobile_phone"](${b})`,
-    ],
-    moto: [
-      `node["shop"="motorcycle"](${b})`,
-      `way["shop"="motorcycle"](${b})`,
-      `node["craft"="motorcycle_repair"](${b})`,
-      `way["craft"="motorcycle_repair"](${b})`,
-      `node["service:vehicle:motorcycle"="yes"](${b})`,
-      `way["service:vehicle:motorcycle"="yes"](${b})`,
-      `node["shop"="scooter"](${b})`,
-      `way["shop"="scooter"](${b})`,
-    ],
+    garage:   [`node["shop"="car_repair"](${b})`,`way["shop"="car_repair"](${b})`,
+               `relation["shop"="car_repair"](${b})`,`node["craft"="car_repair"](${b})`,
+               `way["craft"="car_repair"](${b})`,`node["amenity"="car_repair"](${b})`,
+               `way["amenity"="car_repair"](${b})`],
+    parts:    [`node["shop"="car_parts"](${b})`,`way["shop"="car_parts"](${b})`,
+               `node["shop"="auto_parts"](${b})`,`way["shop"="auto_parts"](${b})`],
+    tyres:    [`node["shop"="tyres"](${b})`,`way["shop"="tyres"](${b})`,
+               `node["shop"="tires"](${b})`,`way["shop"="tires"](${b})`,
+               `node["shop"="vulcanizer"](${b})`,`way["shop"="vulcanizer"](${b})`,
+               `node["craft"="tyre_fitting"](${b})`,`way["craft"="tyre_fitting"](${b})`,
+               `node["service:vehicle:tyres"="yes"](${b})`,`way["service:vehicle:tyres"="yes"](${b})`,
+               `node["service:vehicle:tires"="yes"](${b})`,`way["service:vehicle:tires"="yes"](${b})`,
+               `node["shop"="car_repair"]["service:tyres"="yes"](${b})`],
+    petrol:   [`node["amenity"="fuel"](${b})`,`way["amenity"="fuel"](${b})`],
+    hardware: [`node["shop"="hardware"](${b})`,`way["shop"="hardware"](${b})`,
+               `node["shop"="doityourself"](${b})`,`way["shop"="doityourself"](${b})`,
+               `node["shop"="building_materials"](${b})`,`way["shop"="building_materials"](${b})`,
+               `node["shop"="tools"](${b})`,`way["shop"="tools"](${b})`,
+               `node["shop"="garden_centre"](${b})`,`way["shop"="garden_centre"](${b})`,
+               `node["shop"="electrical"](${b})`,`way["shop"="electrical"](${b})`],
+    vet:      [`node["amenity"="veterinary"](${b})`,`way["amenity"="veterinary"](${b})`],
+    it:       [`node["shop"="computer"](${b})`,`way["shop"="computer"](${b})`,
+               `node["craft"="electronics_repair"](${b})`,`way["craft"="electronics_repair"](${b})`,
+               `node["shop"="mobile_phone"](${b})`,`way["shop"="mobile_phone"](${b})`],
+    moto:     [`node["shop"="motorcycle"](${b})`,`way["shop"="motorcycle"](${b})`,
+               `node["craft"="motorcycle_repair"](${b})`,`way["craft"="motorcycle_repair"](${b})`,
+               `node["service:vehicle:motorcycle"="yes"](${b})`,
+               `way["service:vehicle:motorcycle"="yes"](${b})`,
+               `node["shop"="scooter"](${b})`,`way["shop"="scooter"](${b})`],
   };
   const lines = (parts[cat] || parts.garage).join(';\n  ');
-  // Overpass internal timeout set to 7s — aligns with our 8s socket timeout
   return `[out:json][timeout:7];\n(\n  ${lines};\n);\nout center tags;`;
 }
 
 // ── Scrapyard filter ──────────────────────────────────────────────────────────
 const SCRAP_TAGS = new Set(['scrap_yard','recycling','second_hand','salvage']);
 const SCRAP_RE   = /auto[\s-]?otpad|авто[\s-]?отпад|schrottplatz|autoverwertung|junkyard|salvage\s+yard|wrecking|vehicle\s+dismantl|recycl/i;
-
 function isScrapyard(tags) {
-  if (SCRAP_TAGS.has(tags.shop) || SCRAP_TAGS.has(tags.amenity)) return true;
-  if (tags.recycling_type || tags.craft === 'salvage') return true;
-  return SCRAP_RE.test([tags.name, tags.operator, tags.description].filter(Boolean).join(' '));
+  if (SCRAP_TAGS.has(tags.shop)||SCRAP_TAGS.has(tags.amenity)) return true;
+  if (tags.recycling_type||tags.craft==='salvage') return true;
+  return SCRAP_RE.test([tags.name,tags.operator,tags.description].filter(Boolean).join(' '));
 }
 
 // ── Haversine ─────────────────────────────────────────────────────────────────
-function haversine(la1, lo1, la2, lo2) {
-  const R = 6371, dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
-  const a = Math.sin(dLa/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+function haversine(la1,lo1,la2,lo2) {
+  const R=6371,dLa=(la2-la1)*Math.PI/180,dLo=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(dLa/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
 // ── Single Overpass request ───────────────────────────────────────────────────
 function fetchOverpass(host, query) {
   return new Promise((resolve, reject) => {
-    const https   = require('https');
-    const encoded = 'data=' + encodeURIComponent(query);
-    const body    = Buffer.from(encoded, 'utf8');
+    const https = require('https');
+    const encoded = 'data='+encodeURIComponent(query);
+    const body   = Buffer.from(encoded,'utf8');
     const req = https.request({
-      hostname: host, path: '/api/interpreter', method: 'POST',
-      headers: {
-        'Content-Type':   'application/x-www-form-urlencoded',
-        'Content-Length': body.length,
-        'User-Agent':     'FixItApp/1.0 Vercel-Proxy',
-        'Accept':         'application/json',
-      },
-      timeout: SOCKET_TIMEOUT_MS,
-    }, res => {
-      let data = '';
-      res.on('data', c => { data += c; });
-      res.on('end', () => {
-        if (res.statusCode === 429) { reject(new Error('rate_limited')); return; }
-        if (res.statusCode !== 200) { reject(new Error(`http_${res.statusCode}`)); return; }
-        try { resolve(JSON.parse(data)); }
-        catch (_) { reject(new Error('json_parse')); }
+      hostname:host, path:'/api/interpreter', method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded',
+               'Content-Length':body.length,'User-Agent':'FixItApp/1.0','Accept':'application/json'},
+      timeout:SOCKET_TIMEOUT_MS,
+    }, r => {
+      let d=''; r.on('data',c=>{d+=c;});
+      r.on('end',()=>{
+        if (r.statusCode===429){reject(new Error('rate_limited'));return;}
+        if (r.statusCode!==200){reject(new Error(`http_${r.statusCode}`));return;}
+        try{resolve(JSON.parse(d));}catch(_){reject(new Error('json_parse'));}
       });
     });
-    req.on('error',   e  => reject(new Error(`net_${e.code||e.message}`)));
-    req.on('timeout', () => { req.destroy(); reject(new Error('socket_timeout')); });
+    req.on('error', e=>reject(new Error(`net_${e.code||e.message}`)));
+    req.on('timeout',()=>{req.destroy();reject(new Error('socket_timeout'));});
     req.write(body); req.end();
   });
 }
 
-// ── Attempt one radius with endpoint failover ─────────────────────────────────
-// Returns { data, endpointFailed }
-// endpointFailed=true means ALL endpoints failed (don't try wider radius)
-// endpointFailed=false means Overpass responded (possibly with 0 elements)
+// ── Overpass with endpoint failover ──────────────────────────────────────────
 async function fetchWithFailover(query, startMs, radiusKm) {
-  for (let ei = 0; ei < ENDPOINTS.length; ei++) {
-    const host    = ENDPOINTS[ei];
-    const elapsed = Date.now() - startMs;
-    const remain  = GLOBAL_DEADLINE_MS - elapsed;
-
-    console.log(`[nearby] endpoint=${host} radius=${radiusKm}km deadline_remaining=${remain}ms`);
-
-    if (remain < SOCKET_TIMEOUT_MS + 500) {
-      // Not enough budget for another full attempt
-      console.warn(`[nearby] deadline_remaining=${remain}ms < ${SOCKET_TIMEOUT_MS+500}ms — aborting`);
-      return { data: null, endpointFailed: true };
+  for (let ei=0; ei<ENDPOINTS.length; ei++) {
+    const host   = ENDPOINTS[ei];
+    const remain = GLOBAL_DEADLINE - (Date.now()-startMs);
+    console.log(`[nearby] endpoint=${host} radius=${radiusKm}km remaining=${remain}ms`);
+    if (remain < SOCKET_TIMEOUT_MS+500) {
+      console.warn('[nearby] budget_exhausted — stopping Overpass');
+      return { data:null, endpointFailed:true };
     }
-
     const t0 = Date.now();
     try {
-      const d = await fetchOverpass(host, query);
-      const ms = Date.now() - t0;
-      console.log(`[nearby] pass_success endpoint=${host} raw=${(d.elements||[]).length} durationMs=${ms}`);
-      return { data: d, endpointFailed: false };
+      const d  = await fetchOverpass(host, query);
+      const ms = Date.now()-t0;
+      console.log(`[nearby] pass_success raw=${(d.elements||[]).length} ms=${ms}`);
+      return { data:d, endpointFailed:false };
     } catch (err) {
-      const ms = Date.now() - t0;
-      console.warn(`[nearby] endpoint_failure endpoint=${host} reason=${err.message} durationMs=${ms}`);
-      // Only try secondary endpoint if error is NOT timeout/rate-limit
-      // (timeout means network is struggling — secondary unlikely to help)
-      if (err.message === 'socket_timeout' || err.message === 'rate_limited') {
-        console.warn(`[nearby] skipping secondary endpoint after ${err.message}`);
-        return { data: null, endpointFailed: true };
+      const ms = Date.now()-t0;
+      console.warn(`[nearby] endpoint_fail endpoint=${host} reason=${err.message} ms=${ms}`);
+      if (err.message==='socket_timeout'||err.message==='rate_limited') {
+        return { data:null, endpointFailed:true };
       }
-      // For other errors (http_503, net_ECONNRESET etc) → try next endpoint
-      // but only if we have budget
     }
   }
-  return { data: null, endpointFailed: true };
+  return { data:null, endpointFailed:true };
 }
 
-// ── Process elements ──────────────────────────────────────────────────────────
+// ── Process OSM elements → classified results ─────────────────────────────────
 function processElements(elements, cat, latN, lngN, distLimitKm, seen) {
   const results = [];
   for (const el of elements) {
-    const tags = el.tags || {};
-    if (cat === 'garage' && isScrapyard(tags)) continue;
-    const displayName = tags.name || tags.brand || tags.operator || tags.amenity || null;
-    if (!displayName || seen.has(displayName)) continue;
-    const elLat = el.lat ?? el.center?.lat;
-    const elLon = el.lon  ?? el.center?.lon;
-    if (!elLat || !elLon) continue;
-    const dist = haversine(latN, lngN, parseFloat(elLat), parseFloat(elLon));
-    if (dist > distLimitKm) continue;
-    seen.add(displayName);
+    const tags = el.tags||{};
+    if (isScrapyard(tags)) continue;
+    if (['garage','parts','tyres'].includes(cat)) {
+      const cls = classifyOSM(tags, cat);
+      if (!cls.accept) { console.log(`[nearby] OSM reject "${tags.name||'?'}" reason=${cls.reason}`); continue; }
+    }
+    const name = tags.name||tags.brand||tags.operator||tags.amenity||null;
+    if (!name||seen.has(name)) continue;
+    const elLat=el.lat??el.center?.lat, elLon=el.lon??el.center?.lon;
+    if (!elLat||!elLon) continue;
+    const dist = haversine(latN,lngN,parseFloat(elLat),parseFloat(elLon));
+    if (dist>distLimitKm) continue;
+    seen.add(name);
     const street = tags['addr:street']
-      ? tags['addr:street'] + (tags['addr:housenumber'] ? ' '+tags['addr:housenumber'] : '')
-      : null;
-    results.push({
-      name:    displayName,
-      lat:     parseFloat(elLat),
-      lng:     parseFloat(elLon),
-      dist:    Math.round(dist * 1000) / 1000,
-      addr:    [street, tags['addr:city'], tags['addr:postcode']].filter(Boolean).join(', ') || '',
-      phone:   tags.phone    || tags['contact:phone']   || '',
-      opening: tags.opening_hours || '',
-      website: tags.website  || tags['contact:website'] || '',
-    });
+      ? tags['addr:street']+(tags['addr:housenumber']?' '+tags['addr:housenumber']:'') : null;
+    results.push({ name, lat:parseFloat(elLat), lng:parseFloat(elLon),
+      dist:Math.round(dist*1000)/1000,
+      addr:[street,tags['addr:city'],tags['addr:postcode']].filter(Boolean).join(', ')||'',
+      phone:tags.phone||tags['contact:phone']||'', opening:tags.opening_hours||'',
+      website:tags.website||tags['contact:website']||'' });
   }
   return results;
 }
 
+// ── OSM pipeline (pass1 + optional pass2) ────────────────────────────────────
+// Resolves with { results: [] } — never rejects.
+async function runOSM(cat, latN, lngN, startMs) {
+  const PASSES = [
+    { ns:0.045, ew:0.060, radiusKm:5  },
+    { ns:0.270, ew:0.360, radiusKm:30 },
+  ];
+  const seen=[]; const seenSet=new Set(); let all=[];
+  for (let pi=0; pi<PASSES.length; pi++) {
+    const {ns,ew,radiusKm}=PASSES[pi];
+    const remain=GLOBAL_DEADLINE-(Date.now()-startMs);
+    console.log(`[nearby] PASS${pi+1} cat=${cat} radiusKm=${radiusKm} remaining=${remain}ms`);
+    if (remain<SOCKET_TIMEOUT_MS+1000) { console.warn(`[nearby] PASS${pi+1} skipped — no budget`); break; }
+    const s=(latN-ns).toFixed(6),n=(latN+ns).toFixed(6),w=(lngN-ew).toFixed(6),e=(lngN+ew).toFixed(6);
+    const {data,endpointFailed}=await fetchWithFailover(buildQuery(cat,s,w,n,e),startMs,radiusKm);
+    if (endpointFailed||!data) { console.warn(`[nearby] PASS${pi+1} failed — stopping OSM`); break; }
+    const newR=processElements(data.elements||[],cat,latN,lngN,radiusKm+5,seenSet);
+    all=[...all,...newR].sort((a,b)=>a.dist-b.dist);
+    console.log(`[nearby] PASS${pi+1} raw=${(data.elements||[]).length} new=${newR.length} total=${all.length}`);
+    if (all.length>=MIN_RESULTS) { console.log(`[nearby] ≥${MIN_RESULTS} — stopping OSM at PASS${pi+1}`); break; }
+  }
+  return { results:all };
+}
+
+// ── Merge Google into OSM results ─────────────────────────────────────────────
+const MERGE_SCRAP = /отпад|auto.?otpad|schrottplatz|autoverwertung|junkyard|salvage.?yard|wrecking|dismantl|recycl/i;
+function mergeGoogle(placesData, existing, cat) {
+  if (!placesData?.configured) return existing;
+  const raw=placesData.results||[];
+  if (!raw.length) return existing;
+  console.log(`[nearby] google_count=${raw.length} names=[${raw.slice(0,5).map(r=>r.name).join(',')}]`);
+  const osmNames=new Set(existing.map(r=>r.name.toLowerCase().trim()));
+  let scrap=0, rejected=0;
+  const deduped=raw.filter(p=>{
+    const pn=(p.name||'').toLowerCase().trim();
+    if (MERGE_SCRAP.test(pn)){scrap++;return false;}
+    if (['garage','parts','tyres'].includes(cat)){
+      const cls=classifyGoogle(p,cat);
+      if (!cls.accept){rejected++;console.log(`[nearby] Google reject "${p.displayName?.text||'?'}" reason=${cls.reason}`);return false;}
+    }
+    if (osmNames.has(pn)) return false;
+    return !existing.some(r=>Math.abs(r.lat-p.lat)<0.0005&&Math.abs(r.lng-p.lng)<0.0005);
+  });
+  const merged=[...existing,...deduped].sort((a,b)=>a.dist-b.dist).slice(0,25);
+  console.log(`[nearby] merged=${merged.length} scrap=${scrap} rejected=${rejected} dedup=${raw.length-deduped.length}`);
+  return merged;
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
-  if (req.method !== 'GET')     { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (req.method==='OPTIONS'){res.status(200).end();return;}
+  if (req.method!=='GET')    {res.status(405).json({error:'Method not allowed'});return;}
 
-  const { cat = 'garage', lat, lng, city = '', cc = '' } = req.query;
-  const countryCode = (cc || '').toUpperCase();
-  const latN = parseFloat(lat), lngN = parseFloat(lng);
-  if (isNaN(latN) || isNaN(lngN)) { res.status(400).json({ error: 'Invalid lat/lng' }); return; }
+  const {cat='garage',lat,lng,city='',cc=''}=req.query;
+  const countryCode=(cc||'').toUpperCase();
+  const latN=parseFloat(lat), lngN=parseFloat(lng);
+  if (isNaN(latN)||isNaN(lngN)){res.status(400).json({error:'Invalid lat/lng'});return;}
 
-  const startMs = Date.now();
+  const startMs=Date.now();
+  const {fetchPlacesForCategory}=require('./places-lib.js');
+  const ALWAYS_GOOGLE=new Set(['tyres','garage','vet']);
+  const HYBRID_THRESHOLD=5;
+  const MK_GOOGLE_FIRST=countryCode==='MK'&&(cat==='tyres'||cat==='garage');
 
-  // ── Radius passes ─────────────────────────────────────────────────────────
-  // Pass 1: ~5km  — city users, fast single query
-  // Pass 2: ~30km — rural users (Kumarino→Veles=16km fits here)
-  //
-  // Pass 2 only runs when:
-  //   a) Pass 1 returned 0 or <3 results (data gap, not endpoint failure)
-  //   b) Sufficient time budget remains (≥ 9s left)
-  //
-  // Each pass tries primary endpoint; on timeout/rate-limit → no secondary.
-  // On non-timeout HTTP error → try secondary endpoint once.
-  //
-  // Budget proof (worst case):
-  //   Pass 1 primary: 8s timeout → no secondary (timeout) → 8s
-  //   Deadline check: 18-8=10s remaining ≥ 9s → try pass 2
-  //   Pass 2 primary: 8s timeout → no secondary → 8s
-  //   Total: 16s << 25s ✓
-  //
-  //   Pass 1 primary: http_503 → try secondary: 8s fail → 16s
-  //   Deadline check: 18-16=2s < 9s → STOP → return fallback
-  //   Total: 16s << 25s ✓
+  console.log(`[nearby] START cat=${cat} cc=${countryCode} city=${city}`);
 
-  // ── Google-first policy for countries with thin OSM coverage ────────────────
-  // For MK garage and tyres: skip OSM entirely; Google Places is the primary source.
-  // OSM is still used for other categories and other countries as normal.
-  const MK_GOOGLE_FIRST = countryCode === 'MK' && (cat === 'tyres' || cat === 'garage');
+  // ── Step 1: start BOTH providers concurrently at t=0 ─────────────────────
+  const googleT0=Date.now();
+  const googlePromise=fetchPlacesForCategory(cat,latN,lngN,30000,city,countryCode)
+    .then(d=>{console.log(`[nearby] google_done ms=${Date.now()-googleT0} count=${d?.results?.length??0}`);return d;})
+    .catch(err=>{console.warn(`[nearby] google_error: ${err.message}`);return{configured:false,results:[]};});
 
-  if (MK_GOOGLE_FIRST) {
-    console.log(`[nearby] cat=${cat} country=${countryCode} provider_policy=google_first`);
-  }
+  const osmT0=Date.now();
+  const osmPromise=runOSM(cat,latN,lngN,startMs)
+    .then(d=>{console.log(`[nearby] osm_done ms=${Date.now()-osmT0} count=${d.results.length}`);return d;})
+    .catch(err=>{console.warn(`[nearby] osm_error: ${err.message}`);return{results:[]};});
 
-  const PASSES = [
-    { ns: 0.045, ew: 0.060, radiusKm: 5  },
-    { ns: 0.270, ew: 0.360, radiusKm: 30 },
-  ];
+  // ── Step 2: race both against delivery window ─────────────────────────────
+  // Whichever provider finishes first with ≥1 usable result wins.
+  // If neither wins within DELIVERY_WINDOW, fall through to full-wait.
+  const needsGoogle = MK_GOOGLE_FIRST||ALWAYS_GOOGLE.has(cat);
 
-  const seen       = new Set();
-  let   allResults = [];
+  // Wrap each promise to tag who won
+  const gRace = googlePromise.then(d => ({ src:'google', data:d }));
+  const oRace = osmPromise.then(d    => ({ src:'osm',    data:d }));
+  const timer  = new Promise(r => setTimeout(() => r({ src:'timeout', data:null }), DELIVERY_WINDOW));
 
-  for (let pi = 0; pi < PASSES.length; pi++) {  // OSM always runs; MK_GOOGLE_FIRST only controls Google threshold
-    const { ns, ew, radiusKm } = PASSES[pi];
-    const elapsed = Date.now() - startMs;
-    const remain  = GLOBAL_DEADLINE_MS - elapsed;
+  const winner = await Promise.race([gRace, oRace, timer]);
 
-    console.log(`[nearby] PASS${pi+1} cat=${cat} radiusKm=${radiusKm} deadline_remaining=${remain}ms`);
+  // ── Step 3: decision ──────────────────────────────────────────────────────
+  let results = [];
+  let responded = false;
 
-    // Abort if not enough budget for a meaningful attempt (8s + 1s overhead)
-    if (remain < SOCKET_TIMEOUT_MS + 1000) {
-      console.warn(`[nearby] deadline_remaining=${remain}ms — skipping PASS${pi+1}, returning fallback`);
-      break;
-    }
+  const respond = (finalResults, path) => {
+    if (responded) return;
+    responded = true;
+    const totalMs = Date.now()-startMs;
+    console.log(`[nearby] RESPOND path=${path} count=${finalResults.length} total_ms=${totalMs}`);
+    res.status(200).json({
+      results: finalResults,
+      fallbackUsed: finalResults.length===0,
+      fallbackReason: finalResults.length===0 ? 'both_providers_failed' : undefined,
+      totalMs, cat,
+    });
+  };
 
-    const south = (latN - ns).toFixed(6);
-    const north = (latN + ns).toFixed(6);
-    const west  = (lngN - ew).toFixed(6);
-    const east  = (lngN + ew).toFixed(6);
-    const query = buildQuery(cat, south, west, north, east);
+  const extractGoogle = (data) => {
+    // Apply classifier + merge with empty OSM base
+    return mergeGoogle(data, [], cat);
+  };
 
-    const { data, endpointFailed } = await fetchWithFailover(query, startMs, radiusKm);
+  const extractOSM = (data) => data?.results || [];
 
-    if (endpointFailed || !data) {
-      // Endpoint failure — do NOT try wider radius (Overpass is unavailable, not data-empty)
-      console.warn(`[nearby] endpoint_failure on PASS${pi+1} — stopping, will return fallback`);
-      break;
-    }
-
-    const newResults = processElements(data.elements || [], cat, latN, lngN, radiusKm + 5, seen);
-    allResults = [...allResults, ...newResults].sort((a,b) => a.dist - b.dist);
-    console.log(`[nearby] PASS${pi+1} raw=${(data.elements||[]).length} new=${newResults.length} total=${allResults.length}`);
-
-    if (allResults.length >= MIN_RESULTS) {
-      console.log(`[nearby] ≥${MIN_RESULTS} results — stopping at PASS${pi+1}`);
-      break;
-    }
-    // < MIN_RESULTS but endpoint worked → expand radius on next iteration
-  }
-
-  const totalMs = Date.now() - startMs;
-  let results = allResults.slice(0, 25);
-
-  // ── Hybrid: call Google Places ──────────────────────────────────────────────
-  // Categories with poor OSM coverage in MK (tyres/garage/vet) always get Google
-  // regardless of OSM count — OSM may return sparse/irrelevant results that look
-  // sufficient (≥5) but miss real local businesses like vulcanizers or workshops.
-  // Other categories use threshold: call Google only when OSM returns <5 results.
-  const ALWAYS_GOOGLE = new Set(['tyres', 'garage', 'vet']); // poor OSM coverage in MK
-  const HYBRID_THRESHOLD = 5;
-  const timeLeft = GLOBAL_DEADLINE_MS - (Date.now() - startMs);
-  const needsPlaces = timeLeft > 2500 && (
-    MK_GOOGLE_FIRST ||                      // Google-first for MK tyres/garage
-    ALWAYS_GOOGLE.has(cat) ||               // always augment with Google
-    results.length < HYBRID_THRESHOLD       // or OSM was thin
-  );
-  const osmFailed = results.length === 0;
-
-  console.log(`[nearby] cat=${cat} country=${countryCode} osm_count=${results.length} osm_failed=${osmFailed} google_called=${needsPlaces} deadline_left=${timeLeft}ms`);
-
-  if (needsPlaces) {
-    const googleT0 = Date.now();
-    console.log(`[nearby] google_start cat=${cat} osm_count=${results.length} deadline_left=${timeLeft}ms`);
-    try {
-      // Direct require — no HTTP hop, no domain dependency, no deployment mismatch
-      const { fetchPlacesForCategory } = require('./places-lib.js');
-      const placesData = await fetchPlacesForCategory(cat, latN, lngN, 30000, city, countryCode);
-
-      if (!placesData?.configured) {
-        console.log('[nearby] google_called=true configured=false — OSM only');
-      } else if (placesData?.results?.length >= 0) {
-        const googleRaw = placesData.results || [];
-        const gNames = googleRaw.slice(0,8).map(r=>`${r.name}(${r.dist}km)`).join(', ');
-        console.log(`[nearby] google_called=true google_count=${googleRaw.length} google_names=[${gNames}]`);
-        // Merge: dedup by normalized name & close proximity (~50m)
-        const osmNames = new Set(results.map(r => r.name.toLowerCase().trim()));
-        const SCRAP_RE = /отпад|auto.?otpad|schrottplatz|autoverwertung|junkyard|salvage.?yard|wrecking|dismantl|recycl/i;
-        let filteredScrap = 0;
-        const deduped = googleRaw.filter(p => {
-          const pname = (p.name || '').toLowerCase().trim();
-          // Exclude scrapyards from garage even in Google results
-          if (cat === 'garage' && SCRAP_RE.test(pname)) { filteredScrap++; return false; }
-          // Skip if OSM already has same name
-          if (osmNames.has(pname)) return false;
-          // Skip if within 50m of existing OSM result (same business)
-          return !results.some(r => Math.abs(r.lat - p.lat) < 0.0005 && Math.abs(r.lng - p.lng) < 0.0005);
-        });
-        results = [...results, ...deduped].sort((a, b) => a.dist - b.dist).slice(0, 25);
-        if (results.length > 0) {
-          const finalNames = results.slice(0,8).map(r=>`${r.name}(${r.dist}km)`).join(', ');
-          console.log(`[nearby] merged_count=${results.length} filtered_scrap=${filteredScrap} dedup_removed=${googleRaw.length-deduped.length} final_names=[${finalNames}]`);
-        }
+  if (winner.src === 'google') {
+    // Google finished first
+    const gResults = extractGoogle(winner.data);
+    if (gResults.length > 0) {
+      // Google has usable results — wait a short grace period for OSM to merge
+      const grace = await Promise.race([
+        osmPromise.then(d => ({ src:'osm', data:d })),
+        new Promise(r => setTimeout(() => r({ src:'grace_timeout' }), GRACE_MS)),
+      ]);
+      if (grace.src === 'osm') {
+        // OSM also finished within grace — merge both
+        const osmR = extractOSM(grace.data);
+        results = needsGoogle ? mergeGoogle(winner.data, osmR, cat) : osmR;
+        console.log(`[nearby] path=both_in_grace google=${gResults.length} osm=${osmR.length}`);
+      } else {
+        // OSM still running — respond with Google results only
+        results = gResults;
+        console.log(`[nearby] path=google_won osm_still_running`);
       }
-    } catch (err) {
-      console.warn(`[nearby] google_failed reason=${err.message} elapsed=${Date.now()-googleT0}ms`);
+      respond(results, winner.src === 'osm' ? 'osm_grace' : 'google_early');
     }
+    // else: Google returned 0 usable results — fall through to full-wait
   }
 
-  console.log(`[nearby] total_duration_ms=${Date.now()-startMs} cat=${cat} returned=${results.length}`);
+  if (!responded && winner.src === 'osm') {
+    // OSM finished first — respond as soon as we have ≥1 usable classified result.
+    // ALWAYS_GOOGLE means Google improves recall, but must NOT block the response
+    // when OSM already has valid classified results. Google runs concurrently; the
+    // grace period gives it a chance to merge before we send the response.
+    const osmR = extractOSM(winner.data);
+    if (osmR.length >= 1) {
+      results = osmR;
+      // Grace period: let Google merge if it finishes within 200ms
+      const grace = await Promise.race([
+        googlePromise.then(d => ({ src:'google', data:d })),
+        new Promise(r => setTimeout(() => r({ src:'grace_timeout' }), GRACE_MS)),
+      ]);
+      if (grace.src === 'google') {
+        results = mergeGoogle(grace.data, osmR, cat);
+        console.log(`[nearby] path=osm_won_google_grace merged=${results.length}`);
+      } else {
+        console.log(`[nearby] path=osm_won count=${osmR.length}`);
+      }
+      respond(results, 'osm_early');
+    }
+    // OSM returned 0 usable results → fall through to full_wait for Google
+  }
 
-  console.log(`[nearby] COMPLETE cat=${cat} country=${countryCode} final_count=${results.length} total_ms=${totalMs}`);
+  if (!responded) {
+    // Neither provider returned enough in the delivery window, OR:
+    // - Google returned 0 usable results, OR
+    // - OSM was thin and we need Google (ALWAYS_GOOGLE / needsGoogle)
+    // Wait for BOTH, up to GLOBAL_DEADLINE (20s). Never return empty if a provider is still running.
+    console.log(`[nearby] path=full_wait winner=${winner.src}`);
+    const [osmSettled, googleSettled] = await Promise.allSettled([osmPromise, googlePromise]);
+    const osmR  = osmSettled.status==='fulfilled'   ? extractOSM(osmSettled.value)     : [];
+    const gData = googleSettled.status==='fulfilled' ? googleSettled.value               : null;
 
-  res.status(200).json({
-    results,
-    fallbackUsed: results.length === 0,
-    fallbackReason: results.length === 0 ? 'no_results_or_endpoint_failure' : undefined,
-    totalMs,
-    cat,
-  });
+    if (needsGoogle || osmR.length < HYBRID_THRESHOLD) {
+      results = mergeGoogle(gData, osmR, cat);
+    } else {
+      results = osmR.slice(0,25);
+    }
+    respond(results, 'full_wait');
+  }
 };
