@@ -457,19 +457,21 @@ async function searchNearby(latN, lngN, radiusM, types) {
 // searchText — uses a text query with locationBias circle
 // IMPORTANT: radius (not radiusMeters) is the correct field
 async function searchText(latN, lngN, radiusM, textQuery) {
-  // locationRestriction (not locationBias) enforces a hard geographic boundary.
-  // locationBias is a hint that Google can override when the query text contains
-  // a city name — causing results 200+ km away. locationRestriction prevents this.
-  console.log(`[places] searchText query="${textQuery}" lat=${latN} lng=${lngN} radiusM=${radiusM}`);
+  // searchText locationRestriction only accepts `rectangle` (not `circle`).
+  // Spec: https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchText#LocationRestriction
+  // Convert the GPS circle (lat, lng, radiusM) into a bounding rectangle.
+  // 1 degree latitude ≈ 111 320 m; longitude degrees shrink with cos(lat).
+  const dLat = (radiusM / 111320);
+  const dLng = (radiusM / (111320 * Math.cos(latN * Math.PI / 180)));
+  const low  = { latitude: latN - dLat, longitude: lngN - dLng };
+  const high = { latitude: latN + dLat, longitude: lngN + dLng };
+  console.log(`[places] searchText query="${textQuery}" lat=${latN} lng=${lngN} radiusM=${radiusM} bbox=[${low.latitude.toFixed(4)},${low.longitude.toFixed(4)}→${high.latitude.toFixed(4)},${high.longitude.toFixed(4)}]`);
   const body = {
     textQuery,
     maxResultCount: 20,
     rankPreference: 'DISTANCE',
     locationRestriction: {
-      circle: {
-        center: { latitude: latN, longitude: lngN },
-        radius: radiusM,   // hard boundary — results outside this circle are excluded
-      }
+      rectangle: { low, high },   // only valid shape for searchText locationRestriction
     },
   };
   return httpsPost('/v1/places:searchText', body, { 'X-Goog-FieldMask': TEXT_FIELDS });
