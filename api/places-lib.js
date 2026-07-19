@@ -693,6 +693,12 @@ const IT_REPAIR_RE = /repair|fix|service|it |computer|laptop|pc |phone|mobile|ta
 
 const TYRE_NAME_RE = /vulcan|βουλκαν|vullkan|tyre|tire|guma|gumi|ελαστ|reife|pneu|gomm|gumiabr|llantas|neumát|lastik|pneus|タイヤ|타이어|轮胎|إطار|إطارات|टायर/i;
 
+// Motorcycle keyword RE — matches name signals indicating a moto business.
+// Used because Google has no dedicated motorcycle_repair/parts primaryType;
+// real moto shops appear as car_repair, auto_parts_store, store, or null.
+// Word-boundary anchored to avoid matching 'automotive', 'tomato', etc.
+const MOTO_NAME_RE = /\bmotorcycle|\bmotorbike|\bmotor\s*bike|\bscooter|\bmoped|\bmotocross|\benduro|\batv\b|\bquad\s*bike|μοτο|\bμηχαν|\bσκούτερ|\bmotorrad|\bmotorräder|\bzweirad|\bmotocicletta|\bmotociclo|\bmotocyclette|\bmotocicleta|\bмото|\bмотор|\bскутер|\bmotosiklet|\bmotorsiklet|バイク|オートバイ|오토바이|摩托车|摩托|دراجة\s*نارية|\bmotoparts|\bmoto\b/i;
+
 function classifyGoogle(place, cat) {
   const primary = place.primaryType || '';
   const types   = Array.isArray(place.types) ? place.types : [];
@@ -701,6 +707,19 @@ function classifyGoogle(place, cat) {
 
   const allow   = CAT_ALLOW[cat];
   const deny    = CAT_DENY[cat];
+
+  // 0a. Moto early-exit: keyword + no denied type → accept before CAT_ALLOW
+  if (cat === 'moto' && MOTO_NAME_RE.test(name)) {
+    // Still run deny check
+    if (deny) { for (const t of allT) { if (deny.has(t)) return { accept: false, reason: `deny:${t}` }; } }
+    return { accept: true, reason: `moto:keyword_early(primary=${primary||'null'})` };
+  }
+
+  // 0b. Tyres early-exit: keyword + no denied type → accept before CAT_ALLOW
+  if (cat === 'tyres' && TYRE_NAME_RE.test(name)) {
+    if (deny) { for (const t of allT) { if (deny.has(t)) return { accept: false, reason: `deny:${t}` }; } }
+    return { accept: true, reason: `tyre:keyword_early(primary=${primary||'null'})` };
+  }
 
   // 1. Hard deny — trumps everything
   if (deny) {
@@ -757,7 +776,13 @@ function classifyGoogle(place, cat) {
   }
 
   if (cat === 'moto') {
-    return { accept: true, reason: `moto:${primary}` };
+    // motorcycle_dealer is unambiguous — accept directly
+    if (allT.has('motorcycle_dealer')) return { accept: true, reason: 'moto:motorcycle_dealer' };
+    // For ambiguous types (car_repair, auto_parts_store, store, null),
+    // require a motorcycle keyword in the name to distinguish from car/generic businesses.
+    // This is necessary because Google uses the same types for car and moto businesses.
+    if (MOTO_NAME_RE.test(name)) return { accept: true, reason: `moto:keyword(primary=${primary||'null'})` };
+    return { accept: false, reason: `moto:no_moto_keyword(primary=${primary||'null'})` };
   }
 
   if (cat === 'hardware') {

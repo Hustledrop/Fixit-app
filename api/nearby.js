@@ -110,6 +110,12 @@ function classifyOSM(tags, cat) {
 
 const TYRE_NAME_RE = /vulcan|βουλκαν|vullkan|tyre|tire|guma|gumi|ελαστ|reife|pneu|gomm|gumiabr|llantas|neumát|lastik|pneus|タイヤ|타이어|轮胎|إطار|إطارات|टायर/i;
 
+// Motorcycle keyword RE — matches name signals indicating a moto business.
+// Used because Google has no dedicated motorcycle_repair/parts primaryType;
+// real moto shops appear as car_repair, auto_parts_store, store, or null.
+// Word-boundary anchored to avoid matching 'automotive', 'tomato', etc.
+const MOTO_NAME_RE = /\bmotorcycle|\bmotorbike|\bmotor\s*bike|\bscooter|\bmoped|\bmotocross|\benduro|\batv\b|\bquad\s*bike|μοτο|\bμηχαν|\bσκούτερ|\bmotorrad|\bmotorräder|\bzweirad|\bmotocicletta|\bmotociclo|\bmotocyclette|\bmotocicleta|\bмото|\bмотор|\bскутер|\bmotosiklet|\bmotorsiklet|バイク|オートバイ|오토바이|摩托车|摩托|دراجة\s*نارية|\bmotoparts|\bmoto\b/i;
+
 // ── Per-category explicit ALLOW / DENY ───────────────────────────────────────
 // Every category has an explicit allowlist of Google Place primaryTypes.
 // Anything not on the allowlist is rejected (default-deny).
@@ -146,8 +152,11 @@ const CAT_ALLOW = {
     'cell_phone_store',     // phone repair shops often tagged this way
   ]),
   moto: new Set([
-    'motorcycle_dealer',
-    'car_dealer',           // some moto dealers are tagged car_dealer
+    'motorcycle_dealer',    // ideal type
+    'car_dealer',           // some moto dealers use this
+    'car_repair',           // moto repair shops tagged as car_repair in Google
+    'auto_parts_store',     // moto parts shops tagged as auto_parts_store in Google
+    'store',                // generic — MOTO_NAME_RE required in moto branch
   ]),
 };
 
@@ -177,8 +186,13 @@ const CAT_DENY = {
     'tv_station',
   ]),
   moto: new Set([
-    'bicycle_store','bicycle_repair_shop','car_repair',
-    'auto_parts_store',         // generic parts — moto must be explicit
+    'bicycle_store','bicycle_repair_shop',
+    'transit_station','bus_station','electric_vehicle_charging_station',
+    'beauty_salon','hair_care','restaurant','cafe','bar',
+    'real_estate_agency','general_contractor',
+    // car_repair and auto_parts_store intentionally NOT denied here:
+    // Google uses these for legitimate motorcycle shops.
+    // The moto branch uses MOTO_NAME_RE to distinguish moto from car businesses.
   ]),
 };
 
@@ -196,7 +210,15 @@ function classifyGoogle(place, cat) {
   const allow   = CAT_ALLOW[cat];
   const deny    = CAT_DENY[cat];
 
-  // 0. Tyres early-exit: strong keyword + no excluded type → accept before CAT_ALLOW
+  // 0a. Moto early-exit: keyword + no denied type → accept before CAT_ALLOW
+  //     Google has no motorcycle_repair type; moto shops appear as car_repair/null/store.
+  //     If the name has a motorcycle keyword and no hard-deny type is present, accept.
+  if (cat === 'moto' && MOTO_NAME_RE.test(name)) {
+    if (deny) { for (const t of allT) { if (deny.has(t)) return { accept: false, reason: `deny:${t}` }; } }
+    return { accept: true, reason: `moto:keyword_early(primary=${primary||'null'})` };
+  }
+
+  // 0b. Tyres early-exit: strong keyword + no excluded type → accept before CAT_ALLOW
   //    Google often returns vulcanizers/tyre shops with no primaryType, which would
   //    fail CAT_ALLOW. The keyword is stronger evidence than the absence of a type.
   if (cat === 'tyres' && TYRE_NAME_RE.test(name)) {
@@ -266,7 +288,13 @@ function classifyGoogle(place, cat) {
   }
 
   if (cat === 'moto') {
-    return { accept: true, reason: `moto:${primary}` };
+    // motorcycle_dealer is unambiguous — accept directly
+    if (allT.has('motorcycle_dealer')) return { accept: true, reason: 'moto:motorcycle_dealer' };
+    // For ambiguous types (car_repair, auto_parts_store, store, null),
+    // require a motorcycle keyword in the name to distinguish from car/generic businesses.
+    // This is necessary because Google uses the same types for car and moto businesses.
+    if (MOTO_NAME_RE.test(name)) return { accept: true, reason: `moto:keyword(primary=${primary||'null'})` };
+    return { accept: false, reason: `moto:no_moto_keyword(primary=${primary||'null'})` };
   }
 
   if (cat === 'hardware') {
