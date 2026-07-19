@@ -890,14 +890,23 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
       console.log(`[places] rid=${rid} cat=${cat} raw#${i} query="${sq}" name="${nm}" pt=${pt} types=[${tps}]`);
     });
   }
-  // Targeted trace for known false-positive names
+  // Unconditional TRACE: log every raw candidate's type metadata so we can
+  // see exactly what Google returned and whether classification fires on it.
   const TRACE_NAMES = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
-  allPlacesDeduped.forEach(raw => {
-    const nm = (raw.displayName?.text||'').toLowerCase();
-    if (TRACE_NAMES.some(t => nm.includes(t))) {
-      console.log(`[TRACE] rid=${rid} cat=${cat} FOUND_IN_RAW name="${raw.displayName?.text}" pt=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] query="${raw._sourceQuery||'?'}"`);
-    }
-  });
+  if (['garage','parts','tyres','petrol','it','moto'].includes(cat)) {
+    allPlacesDeduped.forEach((raw, _ti) => {
+      const nm  = raw.displayName?.text || '(no name)';
+      const pt  = raw.primaryType || 'null';
+      const tps = (raw.types||[]).join(',') || 'none';
+      const sq  = raw._sourceQuery || '?';
+      const isSuspect = TRACE_NAMES.some(t => nm.toLowerCase().includes(t));
+      // Always log suspect names; log others at condensed level
+      if (isSuspect) {
+        console.log(`[TRACE] rid=${rid} cat=${cat} FOUND_IN_RAW name="${nm}" pt=${pt} types=[${tps}] query="${sq}"`);
+      }
+    });
+    console.log(`[TRACE] rid=${rid} cat=${cat} raw_total=${allPlacesDeduped.length} names=[${allPlacesDeduped.slice(0,5).map(r=>r.displayName?.text||'?').join(',')}]`);
+  }
 
   let diagAccepted = 0, diagRejected = 0;
   const results = allPlacesDeduped
@@ -917,16 +926,18 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
             const dist = p.dist != null ? p.dist+'km' : '?';
             console.log(`[places] rid=${rid} cat=${cat} classify name="${p.name}" pt=${pt} types=[${tps}] dist=${dist} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
           }
-          // Targeted trace
-          if (TRACE_NAMES.some(t => p.name.toLowerCase().includes(t))) {
-            console.log(`[TRACE] rid=${rid} cat=${cat} CLASSIFY_IN_FILTER name="${p.name}" pt=${raw.primaryType||'null'} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
+          // Trace for suspect names and for any acceptance
+          if (TRACE_NAMES.some(t => p.name.toLowerCase().includes(t)) || cls.accept) {
+            console.log(`[TRACE] rid=${rid} cat=${cat} CLASSIFY name="${p.name}" pt=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
           }
           if (!cls.accept) {
             diagRejected++;
             return false;
           } else diagAccepted++;
         } else if (DIAG_CATS.has(cat)) {
-          console.log(`[places] rid=${rid} cat=${cat} raw_lookup_MISS name="${p.name}" — classification skipped`);
+          if (TRACE_NAMES.some(t => p.name.toLowerCase().includes(t))) {
+            console.log(`[TRACE] rid=${rid} cat=${cat} RAW_LOOKUP_MISS name="${p.name}" — classification SKIPPED, result passes`);
+          }
         }
       }
       if (p.dist > MAX_DIST_KM) {
@@ -943,11 +954,14 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
 
 
   // Targeted trace: did any suspected false positive survive the filter?
-  results.forEach(r => {
-    if (TRACE_NAMES.some(t => r.name.toLowerCase().includes(t))) {
-      console.log(`[TRACE] rid=${rid} cat=${cat} SURVIVED_FILTER name="${r.name}" dist=${r.dist}km pt=${r.primaryType||'null'} — UNEXPECTED`);
-    }
-  });
+  if (['garage','parts','tyres','petrol','it','moto'].includes(cat)) {
+    console.log(`[TRACE] rid=${rid} cat=${cat} filtered_count=${results.length} names=[${results.slice(0,5).map(r=>r.name).join(',')}]`);
+    results.forEach(r => {
+      if (TRACE_NAMES.some(t => r.name.toLowerCase().includes(t))) {
+        console.log(`[TRACE] rid=${rid} cat=${cat} SURVIVED_FILTER name="${r.name}" pt=${r.primaryType||'null'} — UNEXPECTED IN RESULTS`);
+      }
+    });
+  }
 
   const removedOver30 = allPlaces.filter(p => {
     const loc = p.location || {};

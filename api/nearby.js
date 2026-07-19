@@ -322,8 +322,19 @@ function haversine(la1,lo1,la2,lo2) {
 }
 
 // ── Single Overpass request ───────────────────────────────────────────────────
-function fetchOverpass(host, query) {
+function fetchOverpass(host, query, deadlineMs) {
+  // deadlineMs = absolute epoch ms when this request must be aborted
+  // SOCKET_TIMEOUT_MS is the per-socket idle timeout (no data received)
+  // deadlineMs enforces the global request deadline regardless of socket activity
+  const msRemaining = deadlineMs ? Math.max(0, deadlineMs - Date.now()) : SOCKET_TIMEOUT_MS;
+  const effectiveTimeout = Math.min(SOCKET_TIMEOUT_MS, msRemaining);
+
   return new Promise((resolve, reject) => {
+    if (msRemaining <= 500) {
+      // No budget left — reject immediately without opening a connection
+      reject(new Error('deadline_exceeded'));
+      return;
+    }
     const https = require('https');
     const encoded = 'data='+encodeURIComponent(query);
     const body   = Buffer.from(encoded,'utf8');
@@ -331,7 +342,7 @@ function fetchOverpass(host, query) {
       hostname:host, path:'/api/interpreter', method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded',
                'Content-Length':body.length,'User-Agent':'FixItApp/1.0','Accept':'application/json'},
-      timeout:SOCKET_TIMEOUT_MS,
+      timeout:effectiveTimeout,   // fires if no data received within this window
     }, r => {
       let d=''; r.on('data',c=>{d+=c;});
       r.on('end',()=>{
@@ -342,6 +353,12 @@ function fetchOverpass(host, query) {
     });
     req.on('error', e=>reject(new Error(`net_${e.code||e.message}`)));
     req.on('timeout',()=>{req.destroy();reject(new Error('socket_timeout'));});
+    // Hard deadline timer — destroys connection at global deadline regardless
+    const killTimer = setTimeout(() => {
+      req.destroy();
+      reject(new Error('global_deadline_exceeded'));
+    }, msRemaining);
+    req.on('close', () => clearTimeout(killTimer));
     req.write(body); req.end();
   });
 }
@@ -358,14 +375,14 @@ async function fetchWithFailover(query, startMs, radiusKm) {
     }
     const t0 = Date.now();
     try {
-      const d  = await fetchOverpass(host, query);
+      const d  = await fetchOverpass(host, query, startMs + GLOBAL_DEADLINE);
       const ms = Date.now()-t0;
       console.log(`[nearby] pass_success raw=${(d.elements||[]).length} ms=${ms}`);
       return { data:d, endpointFailed:false };
     } catch (err) {
       const ms = Date.now()-t0;
       console.warn(`[nearby] endpoint_fail endpoint=${host} reason=${err.message} ms=${ms}`);
-      if (err.message==='socket_timeout'||err.message==='rate_limited') {
+      if (['socket_timeout','rate_limited','deadline_exceeded','global_deadline_exceeded'].includes(err.message)) {
         return { data:null, endpointFailed:true };
       }
     }
@@ -392,11 +409,17 @@ function processElements(elements, cat, latN, lngN, distLimitKm, seen) {
     seen.add(name);
     const street = tags['addr:street']
       ? tags['addr:street']+(tags['addr:housenumber']?' '+tags['addr:housenumber']:'') : null;
-    results.push({ name, lat:parseFloat(elLat), lng:parseFloat(elLon),
+    const osmResult = { name, source:'osm', lat:parseFloat(elLat), lng:parseFloat(elLon),
       dist:Math.round(dist*1000)/1000,
       addr:[street,tags['addr:city'],tags['addr:postcode']].filter(Boolean).join(', ')||'',
       phone:tags.phone||tags['contact:phone']||'', opening:tags.opening_hours||'',
-      website:tags.website||tags['contact:website']||'' });
+      website:tags.website||tags['contact:website']||'' };
+    // TRACE: flag suspicious names surviving OSM classification
+    const _nm = name.toLowerCase();
+    if (['ποδηλατα','helmetsgr','helmet','bicycle','bike'].some(t => _nm.includes(t))) {
+      console.log(`[TRACE] OSM_PASS cat=${cat} name="${name}" shop=${tags.shop||'?'} craft=${tags.craft||'?'} amenity=${tags.amenity||'?'} — UNEXPECTED`);
+    }
+    results.push(osmResult);
   }
   return results;
 }
@@ -532,11 +555,19 @@ module.exports = async function handler(req, res) {
     if (CLASSIFIED.has(cat)) {
       const before = finalResults.length;
       gated = finalResults.filter(r => {
-        if (r.source !== 'google') return true;          // OSM always passes
-        if (!r.primaryType && !(r.types && r.types.length)) return true; // no metadata
+        const _tn = (r.name||'').toLowerCase();
+        const _isTrace = TRACE.some(t => _tn.includes(t));
+        if (r.source !== 'google') {
+          // OSM result — passes final gate
+          if (_isTrace) console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE_OSM name="${r.name}" source=osm shop=${r.shop||'?'} — passes (OSM not Google-classified)`);
+          return true;
+        }
+        if (!r.primaryType && !(r.types && r.types.length)) {
+          if (_isTrace) console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE_NO_TYPE name="${r.name}" — passes (no type metadata)`);
+          return true;
+        }
         const cls = classifyGoogle(r, cat);
-        // Targeted trace
-        if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
+        if (_isTrace) {
           console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
         }
         if (!cls.accept) {
@@ -556,7 +587,7 @@ module.exports = async function handler(req, res) {
     // Targeted trace: flag if any false positive made it to the final response
     gated.forEach(r => {
       if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
-        console.log(`[TRACE] rid=${rid} cat=${cat} IN_FINAL_RESPONSE name="${r.name}" source=${r.source||'?'} primaryType=${r.primaryType||'null'} — UNEXPECTED`);
+        console.log(`[TRACE] rid=${rid} cat=${cat} IN_FINAL_RESPONSE name="${r.name}" source=${r.source||'?'} primaryType=${r.primaryType||'null'} shop=${r.shop||'?'} — IN OUTPUT`);
       }
     });
     res.status(200).json({

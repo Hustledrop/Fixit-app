@@ -23,7 +23,7 @@ const FAILCACHE = new Map();  // key → ts        (60s cooldown after endpoint 
 const CACHE_TTL   = 30 * 60 * 1000;  // 30 minutes
 const FAIL_TTL    =      60 * 1000;  // 60 seconds
 
-const CACHE_VERSION = 'v10-classifier'; // bumped: per-category classifier, final gate
+const CACHE_VERSION = 'v11-trace'; // bumped: force fresh results to bypass stale cache // bumped: per-category classifier, final gate
 
 // All cache helper functions share the same signature: (cat, lat, lng, city, cc)
 function cacheKey(cat, lat, lng, city, cc) {
