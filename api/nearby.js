@@ -351,20 +351,20 @@ async function fetchWithFailover(query, startMs, radiusKm) {
   for (let ei=0; ei<ENDPOINTS.length; ei++) {
     const host   = ENDPOINTS[ei];
     const remain = GLOBAL_DEADLINE - (Date.now()-startMs);
-    console.log(`[nearby] rid=${rid} cat=${cat} endpoint=${host} radius=${radiusKm}km remaining=${remain}ms`);
+    console.log(`[nearby] endpoint=${host} radius=${radiusKm}km remaining=${remain}ms`);
     if (remain < SOCKET_TIMEOUT_MS+500) {
-      console.warn(`[nearby] rid=${rid} cat=${cat} budget_exhausted — stopping Overpass`);
+      console.warn(`[nearby] budget_exhausted — stopping Overpass`);
       return { data:null, endpointFailed:true };
     }
     const t0 = Date.now();
     try {
       const d  = await fetchOverpass(host, query);
       const ms = Date.now()-t0;
-      console.log(`[nearby] rid=${rid} cat=${cat} pass_success raw=${(d.elements||[]).length} ms=${ms}`);
+      console.log(`[nearby] pass_success raw=${(d.elements||[]).length} ms=${ms}`);
       return { data:d, endpointFailed:false };
     } catch (err) {
       const ms = Date.now()-t0;
-      console.warn(`[nearby] rid=${rid} cat=${cat} endpoint_fail endpoint=${host} reason=${err.message} ms=${ms}`);
+      console.warn(`[nearby] endpoint_fail endpoint=${host} reason=${err.message} ms=${ms}`);
       if (err.message==='socket_timeout'||err.message==='rate_limited') {
         return { data:null, endpointFailed:true };
       }

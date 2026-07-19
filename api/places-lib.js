@@ -444,7 +444,7 @@ function httpsPost(path, body, extraHeaders) {
 // searchNearby — uses includedTypes, requires confirmed Table A types
 // IMPORTANT: radius (not radiusMeters) is the correct field for Places API (New)
 async function searchNearby(latN, lngN, radiusM, types) {
-  console.log(`[places] cat=${cat} searchNearby types=${types.join(',')} lat=${latN} lng=${lngN} radiusM=${radiusM}`);
+  console.log(`[places] searchNearby types=${types.join(',')} lat=${latN} lng=${lngN} radiusM=${radiusM}`);
   const body = {
     includedTypes:       types,
     maxResultCount:      20,
@@ -470,7 +470,7 @@ async function searchText(latN, lngN, radiusM, textQuery) {
   const dLng = (radiusM / (111320 * Math.cos(latN * Math.PI / 180)));
   const low  = { latitude: latN - dLat, longitude: lngN - dLng };
   const high = { latitude: latN + dLat, longitude: lngN + dLng };
-  console.log(`[places] cat=${cat} searchText query="${textQuery}" lat=${latN} lng=${lngN} radiusM=${radiusM}`);
+  console.log(`[places] searchText query="${textQuery}" lat=${latN} lng=${lngN} radiusM=${radiusM}`);
   const body = {
     textQuery,
     maxResultCount: 20,
