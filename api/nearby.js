@@ -191,10 +191,19 @@ function classifyGoogle(place, cat) {
   const primary = place.primaryType || '';
   const types   = Array.isArray(place.types) ? place.types : [];
   const allT    = new Set([primary, ...types]);
-  const name    = (place.displayName?.text || '').toLowerCase();
+  const name    = (place.displayName?.text || place.name || '').toLowerCase();
 
   const allow   = CAT_ALLOW[cat];
   const deny    = CAT_DENY[cat];
+
+  // 0. Tyres early-exit: strong keyword + no excluded type → accept before CAT_ALLOW
+  //    Google often returns vulcanizers/tyre shops with no primaryType, which would
+  //    fail CAT_ALLOW. The keyword is stronger evidence than the absence of a type.
+  if (cat === 'tyres' && TYRE_NAME_RE.test(name)) {
+    // Still run deny check first
+    if (deny) { for (const t of allT) { if (deny.has(t)) return { accept: false, reason: `deny:${t}` }; } }
+    return { accept: true, reason: `tyre:keyword_early(primary=${primary||'null'})` };
+  }
 
   // 1. Hard deny — trumps everything
   if (deny) {
@@ -228,12 +237,18 @@ function classifyGoogle(place, cat) {
   }
 
   if (cat === 'tyres') {
-    // car_repair is the only allowed type, but we require a tyre name keyword
-    // to distinguish from generic garages
-    if (!TYRE_NAME_RE.test(name)) {
-      return { accept: false, reason: 'tyre:car_repair_no_tyre_keyword' };
+    // Path A: has car_repair type + tyre keyword in name → accept
+    // Path B: no structured type but strong tyre keyword → accept (vulcanizers
+    //          often appear in Google with no primaryType)
+    // Path C: has car_repair type but no tyre keyword → reject (generic garage)
+    // Path D: has an excluded type → already rejected by CAT_DENY above
+    const hasTyreKeyword = TYRE_NAME_RE.test(name);
+    if (!hasTyreKeyword) {
+      // No tyre keyword — cannot confirm this is a tyre shop regardless of type
+      return { accept: false, reason: 'tyre:no_tyre_keyword' };
     }
-    return { accept: true, reason: 'tyre:car_repair+keyword' };
+    // Has tyre keyword — accept even if no primaryType (covers vulcanizers, etc.)
+    return { accept: true, reason: allT.has('car_repair') ? 'tyre:car_repair+keyword' : 'tyre:keyword_only' };
   }
 
   if (cat === 'petrol') {
@@ -562,10 +577,10 @@ module.exports = async function handler(req, res) {
           if (_isTrace) console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE_OSM name="${r.name}" source=osm shop=${r.shop||'?'} — passes (OSM not Google-classified)`);
           return true;
         }
-        if (!r.primaryType && !(r.types && r.types.length)) {
-          if (_isTrace) console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE_NO_TYPE name="${r.name}" — passes (no type metadata)`);
-          return true;
-        }
+        // NOTE: removed the "no metadata → pass" shortcut.
+        // A result with no primaryType cannot be confirmed as belonging to the category.
+        // Default-deny: classify regardless of whether type metadata is present.
+        // For tyres: classifyGoogle handles the tyre-name-keyword path even with null type.
         const cls = classifyGoogle(r, cat);
         if (_isTrace) {
           console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
