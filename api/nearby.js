@@ -351,20 +351,20 @@ async function fetchWithFailover(query, startMs, radiusKm) {
   for (let ei=0; ei<ENDPOINTS.length; ei++) {
     const host   = ENDPOINTS[ei];
     const remain = GLOBAL_DEADLINE - (Date.now()-startMs);
-    console.log(`[nearby] endpoint=${host} radius=${radiusKm}km remaining=${remain}ms`);
+    console.log(`[nearby] rid=${rid} cat=${cat} endpoint=${host} radius=${radiusKm}km remaining=${remain}ms`);
     if (remain < SOCKET_TIMEOUT_MS+500) {
-      console.warn('[nearby] budget_exhausted — stopping Overpass');
+      console.warn(`[nearby] rid=${rid} cat=${cat} budget_exhausted — stopping Overpass`);
       return { data:null, endpointFailed:true };
     }
     const t0 = Date.now();
     try {
       const d  = await fetchOverpass(host, query);
       const ms = Date.now()-t0;
-      console.log(`[nearby] pass_success raw=${(d.elements||[]).length} ms=${ms}`);
+      console.log(`[nearby] rid=${rid} cat=${cat} pass_success raw=${(d.elements||[]).length} ms=${ms}`);
       return { data:d, endpointFailed:false };
     } catch (err) {
       const ms = Date.now()-t0;
-      console.warn(`[nearby] endpoint_fail endpoint=${host} reason=${err.message} ms=${ms}`);
+      console.warn(`[nearby] rid=${rid} cat=${cat} endpoint_fail endpoint=${host} reason=${err.message} ms=${ms}`);
       if (err.message==='socket_timeout'||err.message==='rate_limited') {
         return { data:null, endpointFailed:true };
       }
@@ -403,7 +403,7 @@ function processElements(elements, cat, latN, lngN, distLimitKm, seen) {
 
 // ── OSM pipeline (pass1 + optional pass2) ────────────────────────────────────
 // Resolves with { results: [] } — never rejects.
-async function runOSM(cat, latN, lngN, startMs) {
+async function runOSM(cat, latN, lngN, startMs, rid='--------') {
   const PASSES = [
     { ns:0.045, ew:0.060, radiusKm:5  },
     { ns:0.270, ew:0.360, radiusKm:30 },
@@ -412,34 +412,34 @@ async function runOSM(cat, latN, lngN, startMs) {
   for (let pi=0; pi<PASSES.length; pi++) {
     const {ns,ew,radiusKm}=PASSES[pi];
     const remain=GLOBAL_DEADLINE-(Date.now()-startMs);
-    console.log(`[nearby] PASS${pi+1} cat=${cat} radiusKm=${radiusKm} remaining=${remain}ms`);
-    if (remain<SOCKET_TIMEOUT_MS+1000) { console.warn(`[nearby] PASS${pi+1} skipped — no budget`); break; }
+    console.log(`[nearby] rid=${rid} cat=${cat} PASS${pi+1} radiusKm=${radiusKm} remaining=${remain}ms`);
+    if (remain<SOCKET_TIMEOUT_MS+1000) { console.warn(`[nearby] rid=${rid} cat=${cat} PASS${pi+1} skipped — no budget`); break; }
     const s=(latN-ns).toFixed(6),n=(latN+ns).toFixed(6),w=(lngN-ew).toFixed(6),e=(lngN+ew).toFixed(6);
     const {data,endpointFailed}=await fetchWithFailover(buildQuery(cat,s,w,n,e),startMs,radiusKm);
     if (endpointFailed||!data) {
       const remain2 = GLOBAL_DEADLINE-(Date.now()-startMs);
-      console.warn(`[nearby] PASS${pi+1} failed endpointFailed=${endpointFailed} hasData=${!!data} deadline_remaining=${remain2}ms`);
+      console.warn(`[nearby] rid=${rid} cat=${cat} PASS${pi+1} failed endpointFailed=${endpointFailed} hasData=${!!data} deadline_remaining=${remain2}ms`);
       break;
     }
     const newR=processElements(data.elements||[],cat,latN,lngN,radiusKm+5,seenSet);
     all=[...all,...newR].sort((a,b)=>a.dist-b.dist);
-    console.log(`[nearby] PASS${pi+1} raw=${(data.elements||[]).length} new=${newR.length} total=${all.length}`);
-    if (all.length>=MIN_RESULTS) { console.log(`[nearby] ≥${MIN_RESULTS} — stopping OSM at PASS${pi+1}`); break; }
+    console.log(`[nearby] rid=${rid} cat=${cat} PASS${pi+1} raw=${(data.elements||[]).length} new=${newR.length} total=${all.length}`);
+    if (all.length>=MIN_RESULTS) { console.log(`[nearby] rid=${rid} cat=${cat} ≥${MIN_RESULTS} — stopping OSM at PASS${pi+1}`); break; }
   }
   return { results:all };
 }
 
 // ── Merge Google into OSM results ─────────────────────────────────────────────
 const MERGE_SCRAP = /отпад|auto.?otpad|schrottplatz|autoverwertung|junkyard|salvage.?yard|wrecking|dismantl|recycl/i;
-function mergeGoogle(placesData, existing, cat) {
+function mergeGoogle(placesData, existing, cat, rid='--------') {
   if (!placesData?.configured) return existing;
   const raw=placesData.results||[];
   if (!raw.length) return existing;
-  console.log(`[nearby] google_count=${raw.length} names=[${raw.slice(0,5).map(r=>r.name).join(',')}]`);
+  console.log(`[nearby] rid=${rid} cat=${cat} google_count=${raw.length} names=[${raw.slice(0,5).map(r=>r.name).join(',')}]`);
   // Diagnostic: show what arrives from places-lib (already pre-filtered)
   if (['parts','tyres','petrol','garage'].includes(cat)) {
-    console.log(`[nearby-diag] cat=${cat} google_after_places_filter=${raw.length}`);
-    raw.slice(0,10).forEach((r,i) => console.log(`[nearby-diag] #${i} "${r.name}" dist=${r.dist}km lat=${r.lat} lng=${r.lng}`));
+    console.log(`[nearby] rid=${rid} cat=${cat} google_after_places_lib_filter=${raw.length}`);
+    raw.slice(0,10).forEach((r,i) => console.log(`[nearby] rid=${rid} cat=${cat} merge_input#${i} "${r.name}" dist=${r.dist}km pt=${r.primaryType||'null'}`));
   }
   const osmNames=new Set(existing.map(r=>r.name.toLowerCase().trim()));
   let scrap=0, rejected=0;
@@ -447,7 +447,7 @@ function mergeGoogle(placesData, existing, cat) {
   const TRACE = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
   raw.forEach(r => {
     if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
-      console.log(`[TRACE] ARRIVED_AT_MERGE cat=${cat} name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}]`);
+      console.log(`[TRACE] rid=${rid} cat=${cat} ARRIVED_AT_MERGE name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}]`);
     }
   });
   const deduped=raw.filter(p=>{
@@ -463,11 +463,11 @@ function mergeGoogle(placesData, existing, cat) {
     if (osmNames.has(pn)) return false;
     // Dedup: skip if within 50m of an existing result
     const survived = !existing.some(r=>Math.abs(r.lat-p.lat)<0.0005&&Math.abs(r.lng-p.lng)<0.0005);
-    if (survived) console.log(`[nearby] merge ACCEPT "${p.name}" dist=${p.dist}km cat=${cat}`);
+    if (survived) console.log(`[nearby] rid=${rid} cat=${cat} merge_ACCEPT "${p.name}" dist=${p.dist}km`);
     return survived;
   });
   const merged=[...existing,...deduped].sort((a,b)=>a.dist-b.dist).slice(0,25);
-  console.log(`[nearby] merged=${merged.length} scrap=${scrap} rejected=${rejected} dedup=${raw.length-deduped.length}`);
+  console.log(`[nearby] rid=${rid} cat=${cat} merged=${merged.length} scrap=${scrap} dedup=${raw.length-deduped.length}`);
   return merged;
 }
 
@@ -482,23 +482,24 @@ module.exports = async function handler(req, res) {
   if (isNaN(latN)||isNaN(lngN)){res.status(400).json({error:'Invalid lat/lng'});return;}
 
   const startMs=Date.now();
+  const rid = require('crypto').randomUUID().slice(0,8);
   const {fetchPlacesForCategory}=require('./places-lib.js');
   const ALWAYS_GOOGLE=new Set(['tyres','garage','vet']);
   const HYBRID_THRESHOLD=5;
   const MK_GOOGLE_FIRST=countryCode==='MK'&&(cat==='tyres'||cat==='garage');
 
-  console.log(`[nearby] START cat=${cat} cc=${countryCode} city=${city} lat=${latN} lng=${lngN}`);
+  console.log(`[nearby] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
 
   // ── Step 1: start BOTH providers concurrently at t=0 ─────────────────────
   const googleT0=Date.now();
-  const googlePromise=fetchPlacesForCategory(cat,latN,lngN,30000,city,countryCode)
-    .then(d=>{console.log(`[nearby] google_done ms=${Date.now()-googleT0} count=${d?.results?.length??0}`);return d;})
-    .catch(err=>{console.warn(`[nearby] google_error: ${err.message}`);return{configured:false,results:[]};});
+  const googlePromise=fetchPlacesForCategory(cat,latN,lngN,30000,city,countryCode,rid)
+    .then(d=>{console.log(`[nearby] rid=${rid} cat=${cat} google_done ms=${Date.now()-googleT0} raw_count=${d?.results?.length??0}`);return d;})
+    .catch(err=>{console.warn(`[nearby] rid=${rid} cat=${cat} google_error: ${err.message}`);return{configured:false,results:[]};});
 
   const osmT0=Date.now();
-  const osmPromise=runOSM(cat,latN,lngN,startMs)
-    .then(d=>{console.log(`[nearby] osm_done ms=${Date.now()-osmT0} count=${d.results.length}`);return d;})
-    .catch(err=>{console.warn(`[nearby] osm_error: ${err.message}`);return{results:[]};});
+  const osmPromise=runOSM(cat,latN,lngN,startMs,rid)
+    .then(d=>{console.log(`[nearby] rid=${rid} cat=${cat} osm_done ms=${Date.now()-osmT0} count=${d.results.length}`);return d;})
+    .catch(err=>{console.warn(`[nearby] rid=${rid} cat=${cat} osm_error: ${err.message}`);return{results:[]};});
 
   // ── Step 2: race both against delivery window ─────────────────────────────
   // Whichever provider finishes first with ≥1 usable result wins.
@@ -536,26 +537,26 @@ module.exports = async function handler(req, res) {
         const cls = classifyGoogle(r, cat);
         // Targeted trace
         if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
-          console.log(`[TRACE] FINAL_GATE cat=${cat} name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}] displayName=${r.displayName?.text||'MISSING'} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
+          console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
         }
         if (!cls.accept) {
-          console.log(`[nearby] final_gate REJECT "${r.name}" reason=${cls.reason}`);
+          console.log(`[nearby] rid=${rid} cat=${cat} final_gate_REJECT "${r.name}" reason=${cls.reason}`);
           return false;
         }
         return true;
       });
       if (gated.length < before) {
-        console.log(`[nearby] final_gate ${cat}: ${before}→${gated.length} removed ${before-gated.length}`);
+        console.log(`[nearby] rid=${rid} cat=${cat} final_gate: ${before}→${gated.length} removed ${before-gated.length}`);
       }
     }
 
     const totalMs = Date.now()-startMs;
     const names = gated.slice(0,5).map(r=>`${r.name}(${r.dist}km)`).join(',');
-    console.log(`[nearby] RESPOND path=${path} count=${gated.length} total_ms=${totalMs} names=[${names}]`);
+    console.log(`[nearby] rid=${rid} cat=${cat} RESPOND path=${path} count=${gated.length} total_ms=${totalMs} names=[${names}]`);
     // Targeted trace: flag if any false positive made it to the final response
     gated.forEach(r => {
       if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
-        console.log(`[TRACE] IN_FINAL_RESPONSE cat=${cat} name="${r.name}" source=${r.source||'?'} primaryType=${r.primaryType||'null'} — UNEXPECTED`);
+        console.log(`[TRACE] rid=${rid} cat=${cat} IN_FINAL_RESPONSE name="${r.name}" source=${r.source||'?'} primaryType=${r.primaryType||'null'} — UNEXPECTED`);
       }
     });
     res.status(200).json({
@@ -568,7 +569,7 @@ module.exports = async function handler(req, res) {
 
   const extractGoogle = (data) => {
     // Apply classifier + merge with empty OSM base
-    return mergeGoogle(data, [], cat);
+    return mergeGoogle(data, [], cat, rid);
   };
 
   const extractOSM = (data) => data?.results || [];
@@ -585,12 +586,12 @@ module.exports = async function handler(req, res) {
       if (grace.src === 'osm') {
         // OSM also finished within grace — merge both
         const osmR = extractOSM(grace.data);
-        results = needsGoogle ? mergeGoogle(winner.data, osmR, cat) : osmR;
-        console.log(`[nearby] path=both_in_grace google=${gResults.length} osm=${osmR.length}`);
+        results = needsGoogle ? mergeGoogle(winner.data, osmR, cat, rid) : osmR;
+        console.log(`[nearby] rid=${rid} cat=${cat} path=both_in_grace google=${gResults.length} osm=${osmR.length}`);
       } else {
         // OSM still running — respond with Google results only
         results = gResults;
-        console.log(`[nearby] path=google_won osm_still_running`);
+        console.log(`[nearby] rid=${rid} cat=${cat} path=google_won osm_still_running`);
       }
       respond(results, winner.src === 'osm' ? 'osm_grace' : 'google_early');
     }
@@ -611,10 +612,10 @@ module.exports = async function handler(req, res) {
         new Promise(r => setTimeout(() => r({ src:'grace_timeout' }), GRACE_MS)),
       ]);
       if (grace.src === 'google') {
-        results = mergeGoogle(grace.data, osmR, cat);
-        console.log(`[nearby] path=osm_won_google_grace merged=${results.length}`);
+        results = mergeGoogle(grace.data, osmR, cat, rid);
+        console.log(`[nearby] rid=${rid} cat=${cat} path=osm_won_google_grace merged=${results.length}`);
       } else {
-        console.log(`[nearby] path=osm_won count=${osmR.length}`);
+        console.log(`[nearby] rid=${rid} cat=${cat} path=osm_won count=${osmR.length}`);
       }
       respond(results, 'osm_early');
     }
@@ -626,13 +627,13 @@ module.exports = async function handler(req, res) {
     // - Google returned 0 usable results, OR
     // - OSM was thin and we need Google (ALWAYS_GOOGLE / needsGoogle)
     // Wait for BOTH, up to GLOBAL_DEADLINE (20s). Never return empty if a provider is still running.
-    console.log(`[nearby] path=full_wait winner=${winner.src}`);
+    console.log(`[nearby] rid=${rid} cat=${cat} path=full_wait winner=${winner.src}`);
     const [osmSettled, googleSettled] = await Promise.allSettled([osmPromise, googlePromise]);
     const osmR  = osmSettled.status==='fulfilled'   ? extractOSM(osmSettled.value)     : [];
     const gData = googleSettled.status==='fulfilled' ? googleSettled.value               : null;
 
     if (needsGoogle || osmR.length < HYBRID_THRESHOLD) {
-      results = mergeGoogle(gData, osmR, cat);
+      results = mergeGoogle(gData, osmR, cat, rid);
     } else {
       results = osmR.slice(0,25);
     }

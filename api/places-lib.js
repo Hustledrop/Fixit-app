@@ -444,7 +444,7 @@ function httpsPost(path, body, extraHeaders) {
 // searchNearby — uses includedTypes, requires confirmed Table A types
 // IMPORTANT: radius (not radiusMeters) is the correct field for Places API (New)
 async function searchNearby(latN, lngN, radiusM, types) {
-  console.log(`[places] searchNearby types=${types.join(',')} lat=${latN} lng=${lngN} radiusM=${radiusM}`);
+  console.log(`[places] rid=${rid} cat=${cat} searchNearby types=${types.join(',')} lat=${latN} lng=${lngN} radiusM=${radiusM}`);
   const body = {
     includedTypes:       types,
     maxResultCount:      20,
@@ -470,7 +470,7 @@ async function searchText(latN, lngN, radiusM, textQuery) {
   const dLng = (radiusM / (111320 * Math.cos(latN * Math.PI / 180)));
   const low  = { latitude: latN - dLat, longitude: lngN - dLng };
   const high = { latitude: latN + dLat, longitude: lngN + dLng };
-  console.log(`[places] searchText query="${textQuery}" lat=${latN} lng=${lngN} radiusM=${radiusM} bbox=[${low.latitude.toFixed(4)},${low.longitude.toFixed(4)}→${high.latitude.toFixed(4)},${high.longitude.toFixed(4)}]`);
+  console.log(`[places] rid=${rid} cat=${cat} searchText query="${textQuery}" lat=${latN} lng=${lngN} radiusM=${radiusM}`);
   const body = {
     textQuery,
     maxResultCount: 20,
@@ -812,7 +812,7 @@ function normalizePlaceResult(place, latN, lngN) {
 
 // Main entry: fetch Places results for a category around lat/lng
 // cityHint = nearest town name from reverse geocoding (optional, improves relevance)
-async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint = '', countryCode = '') {
+async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint = '', countryCode = '', rid = '--------') {
   if (!GOOGLE_KEY) {
     return { configured: false, results: [] };
   }
@@ -835,7 +835,7 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
           (d.places||[]).forEach(p => { p._sourceQuery = `nearby:${nearConf.types.join(',')}`; });
           allPlaces.push(...(d.places||[]));
         })
-        .catch(e => { errors.push(`nearby:${e.message}`); console.warn(`[places] nearby:${e.message}`); })
+        .catch(e => { errors.push(`nearby:${e.message}`); console.warn(`[places] rid=${rid} cat=${cat} nearby_error:${e.message}`); })
     );
   }
 
@@ -850,12 +850,12 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
           const names  = places.map(p => p.displayName?.text || '').join(', ');
           const ids    = places.map(p => p.id || '').join(', ');
           const qMs = Date.now() - qT0;
-          console.log(`[places] query="${q}" returned=${places.length} ms=${qMs}${places.length>0?' names=['+names+']':''}`);
+          console.log(`[places] rid=${rid} cat=${cat} query="${q}" returned=${places.length} ms=${qMs}${places.length>0?' names=['+names+']':''}`);
           // Tag each place with the query that produced it (for diagnostics)
           places.forEach(p => { p._sourceQuery = q; });
           allPlaces.push(...places);
         })
-        .catch(e => { errors.push(`text:${e.message}`); console.warn(`[places] text "${q}": ${e.message}`); })
+        .catch(e => { errors.push(`text:${e.message}`); console.warn(`[places] rid=${rid} cat=${cat} text_error query="${q}": ${e.message}`); })
     );
   }
 
@@ -871,7 +871,7 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
     return true;
   });
   if (deduped_by_id.length < allPlaces.length) {
-    console.log(`[places] dedup_by_id: ${allPlaces.length} → ${deduped_by_id.length}`);
+    console.log(`[places] rid=${rid} cat=${cat} dedup_by_id: ${allPlaces.length} → ${deduped_by_id.length}`);
   }
   const allPlacesDeduped = deduped_by_id;
 
@@ -881,13 +881,13 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   // ── Diagnostic: log ALL candidates for parts/tyres/petrol ─────────────────
   const DIAG_CATS = new Set(['parts','tyres','petrol','garage']);
   if (DIAG_CATS.has(cat)) {
-    console.log(`[places-diag] cat=${cat} raw_count=${allPlacesDeduped.length}`);
+    console.log(`[places] rid=${rid} cat=${cat} raw_count=${allPlacesDeduped.length}`);
     allPlacesDeduped.forEach((raw, i) => {
       const nm  = raw.displayName?.text || '(no name)';
       const pt  = raw.primaryType || 'null';
       const tps = (raw.types||[]).join(',') || 'none';
       const sq  = raw._sourceQuery || '(unknown)';
-      console.log(`[places-diag] raw #${i} query="${sq}" name="${nm}" primaryType=${pt} types=[${tps}]`);
+      console.log(`[places] rid=${rid} cat=${cat} raw#${i} query="${sq}" name="${nm}" pt=${pt} types=[${tps}]`);
     });
   }
   // Targeted trace for known false-positive names
@@ -895,7 +895,7 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   allPlacesDeduped.forEach(raw => {
     const nm = (raw.displayName?.text||'').toLowerCase();
     if (TRACE_NAMES.some(t => nm.includes(t))) {
-      console.log(`[TRACE] FOUND_IN_RAW cat=${cat} name="${raw.displayName?.text}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] query="${raw._sourceQuery||'?'}"`);
+      console.log(`[TRACE] rid=${rid} cat=${cat} FOUND_IN_RAW name="${raw.displayName?.text}" pt=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] query="${raw._sourceQuery||'?'}"`);
     }
   });
 
@@ -915,22 +915,22 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
             const pt = raw.primaryType || 'null';
             const tps = (raw.types||[]).join(',') || 'none';
             const dist = p.dist != null ? p.dist+'km' : '?';
-            console.log(`[places-diag] query="${q}" name="${p.name}" primaryType=${pt} types=[${tps}] dist=${dist} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
+            console.log(`[places] rid=${rid} cat=${cat} classify name="${p.name}" pt=${pt} types=[${tps}] dist=${dist} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
           }
           // Targeted trace
           if (TRACE_NAMES.some(t => p.name.toLowerCase().includes(t))) {
-            console.log(`[TRACE] CLASSIFY_IN_FILTER cat=${cat} name="${p.name}" pt=${raw.primaryType||'null'} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
+            console.log(`[TRACE] rid=${rid} cat=${cat} CLASSIFY_IN_FILTER name="${p.name}" pt=${raw.primaryType||'null'} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
           }
           if (!cls.accept) {
             diagRejected++;
             return false;
           } else diagAccepted++;
         } else if (DIAG_CATS.has(cat)) {
-          console.log(`[places-diag] "${p.name}" cat=${cat} — raw lookup MISS (no classification applied)`);
+          console.log(`[places] rid=${rid} cat=${cat} raw_lookup_MISS name="${p.name}" — classification skipped`);
         }
       }
       if (p.dist > MAX_DIST_KM) {
-        if (DIAG_CATS.has(cat)) console.log(`[places-diag] "${p.name}" REJECT dist=${p.dist}km > ${MAX_DIST_KM}km`);
+        console.log(`[places] rid=${rid} cat=${cat} dist_REJECT name="${p.name}" dist=${p.dist}km`);
         return false;
       }
       const key = p.name.toLowerCase().trim();
@@ -945,7 +945,7 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   // Targeted trace: did any suspected false positive survive the filter?
   results.forEach(r => {
     if (TRACE_NAMES.some(t => r.name.toLowerCase().includes(t))) {
-      console.log(`[TRACE] SURVIVED_FILTER cat=${cat} name="${r.name}" dist=${r.dist}km primaryType=${r.primaryType||'null'} — THIS SHOULD NOT BE HERE`);
+      console.log(`[TRACE] rid=${rid} cat=${cat} SURVIVED_FILTER name="${r.name}" dist=${r.dist}km pt=${r.primaryType||'null'} — UNEXPECTED`);
     }
   });
 
@@ -955,7 +955,7 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   }).length;
 
   const nearest5 = results.slice(0, 5).map(r => `${r.name}(${r.dist}km)`).join(', ');
-  console.log(`[places] cat=${cat} city_hint="${cityHint}" raw=${beforeFilter} after_30km_filter=${results.length} returned=${results.length} nearest=[${nearest5}]${errors.length ? ' errors='+errors.join(',') : ''}`);
+  console.log(`[places] rid=${rid} cat=${cat} DONE raw_before_filter=${beforeFilter} filtered_count=${results.length} nearest=[${nearest5}]${errors.length ? ' errors='+errors.join(',') : ''}`);
 
   return { configured: true, results, partialErrors: errors.length ? errors : undefined };
 }
