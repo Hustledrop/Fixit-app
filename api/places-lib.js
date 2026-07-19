@@ -644,6 +644,12 @@ function classifyGoogle(place, cat) {
     return { accept: false, reason: `google:no tyre evidence (primary=${primary})` };
   }
 
+  if (cat === 'petrol') {
+    const isFuel = allTypes.has('gas_station') || primary === 'gas_station';
+    if (isFuel) return { accept: true,  reason: 'google:gas_station' };
+    return { accept: false, reason: `google:petrol requires gas_station (got ${primary||'null'})` };
+  }
+
   return { accept: true, reason: 'google:non-classified category' };
 }
 
@@ -702,7 +708,10 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   if (nearConf) {
     tasks.push(
       searchNearby(latN, lngN, radiusM, nearConf.types)
-        .then(d => allPlaces.push(...(d.places || [])))
+        .then(d => {
+          (d.places||[]).forEach(p => { p._sourceQuery = `nearby:${nearConf.types.join(',')}`; });
+          allPlaces.push(...(d.places||[]));
+        })
         .catch(e => { errors.push(`nearby:${e.message}`); console.warn(`[places] nearby:${e.message}`); })
     );
   }
@@ -719,6 +728,8 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
           const ids    = places.map(p => p.id || '').join(', ');
           const qMs = Date.now() - qT0;
           console.log(`[places] query="${q}" returned=${places.length} ms=${qMs}${places.length>0?' names=['+names+']':''}`);
+          // Tag each place with the query that produced it (for diagnostics)
+          places.forEach(p => { p._sourceQuery = q; });
           allPlaces.push(...places);
         })
         .catch(e => { errors.push(`text:${e.message}`); console.warn(`[places] text "${q}": ${e.message}`); })
@@ -731,6 +742,20 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   const beforeFilter = allPlaces.length;
   const seen = new Set();
 
+  // ── Diagnostic: log ALL candidates for parts/tyres/petrol ─────────────────
+  const DIAG_CATS = new Set(['parts','tyres','petrol','garage']);
+  if (DIAG_CATS.has(cat)) {
+    console.log(`[places-diag] cat=${cat} raw_count=${allPlaces.length}`);
+    allPlaces.forEach((raw, i) => {
+      const nm  = raw.displayName?.text || '(no name)';
+      const pt  = raw.primaryType || 'null';
+      const tps = (raw.types||[]).join(',') || 'none';
+      const sq  = raw._sourceQuery || '(unknown)';
+      console.log(`[places-diag] raw #${i} query="${sq}" name="${nm}" primaryType=${pt} types=[${tps}]`);
+    });
+  }
+
+  let diagAccepted = 0, diagRejected = 0;
   const results = allPlaces
     .map(p => normalizePlaceResult(p, latN, lngN))
     .filter(p => {
@@ -741,13 +766,25 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
         const raw = allPlaces.find(r => (r.displayName?.text||'')=== p.name);
         if (raw) {
           const cls = classifyGooglePlace(raw, cat);
-          if (!cls.accept) {
-            console.log(`[places] reject "${p.name}" cat=${cat} reason=${cls.reason}`);
-            return false;
+          if (DIAG_CATS.has(cat)) {
+            const q = raw._sourceQuery || '(unknown query)';
+            const pt = raw.primaryType || 'null';
+            const tps = (raw.types||[]).join(',') || 'none';
+            const dist = p.dist != null ? p.dist+'km' : '?';
+            console.log(`[places-diag] query="${q}" name="${p.name}" primaryType=${pt} types=[${tps}] dist=${dist} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
           }
+          if (!cls.accept) {
+            diagRejected++;
+            return false;
+          } else diagAccepted++;
+        } else if (DIAG_CATS.has(cat)) {
+          console.log(`[places-diag] "${p.name}" cat=${cat} — raw lookup MISS (no classification applied)`);
         }
       }
-      if (p.dist > MAX_DIST_KM) return false;
+      if (p.dist > MAX_DIST_KM) {
+        if (DIAG_CATS.has(cat)) console.log(`[places-diag] "${p.name}" REJECT dist=${p.dist}km > ${MAX_DIST_KM}km`);
+        return false;
+      }
       const key = p.name.toLowerCase().trim();
       if (seen.has(key)) return false;
       seen.add(key);

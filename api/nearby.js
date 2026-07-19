@@ -132,6 +132,13 @@ function classifyGoogle(place, cat) {
     if (!isRepair && !isParts && tyreName) return { accept: true, reason: 'google:tyre keyword' };
     return { accept: false, reason: `google:no evidence (${primary})` };
   }
+  if (cat === 'petrol') {
+    // Only confirmed fuel stations — reject coffee shops, bus stations, EV chargers, supermarkets
+    const isFuel = allTypes.has('gas_station') || primary === 'gas_station';
+    if (isFuel) return { accept: true, reason: 'google:gas_station' };
+    return { accept: false, reason: `google:petrol requires gas_station type (got ${primary||'null'})` };
+  }
+
   return { accept: true, reason: 'google:other' };
 }
 
@@ -300,12 +307,17 @@ function mergeGoogle(placesData, existing, cat) {
   const raw=placesData.results||[];
   if (!raw.length) return existing;
   console.log(`[nearby] google_count=${raw.length} names=[${raw.slice(0,5).map(r=>r.name).join(',')}]`);
+  // Diagnostic: show what arrives from places-lib (already pre-filtered)
+  if (['parts','tyres','petrol'].includes(cat)) {
+    console.log(`[nearby-diag] cat=${cat} google_after_places_filter=${raw.length}`);
+    raw.slice(0,10).forEach((r,i) => console.log(`[nearby-diag] #${i} "${r.name}" dist=${r.dist}km`));
+  }
   const osmNames=new Set(existing.map(r=>r.name.toLowerCase().trim()));
   let scrap=0, rejected=0;
   const deduped=raw.filter(p=>{
     const pn=(p.name||'').toLowerCase().trim();
     if (MERGE_SCRAP.test(pn)){scrap++;return false;}
-    if (['garage','parts','tyres'].includes(cat)){
+    if (['garage','parts','tyres','petrol'].includes(cat)){
       const cls=classifyGoogle(p,cat);
       if (!cls.accept){rejected++;console.log(`[nearby] Google reject "${p.displayName?.text||'?'}" reason=${cls.reason}`);return false;}
     }
