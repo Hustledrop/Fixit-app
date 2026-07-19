@@ -926,8 +926,8 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
             const dist = p.dist != null ? p.dist+'km' : '?';
             console.log(`[places] rid=${rid} cat=${cat} classify name="${p.name}" pt=${pt} types=[${tps}] dist=${dist} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
           }
-          // Trace for suspect names and for any acceptance
-          if (TRACE_NAMES.some(t => p.name.toLowerCase().includes(t)) || cls.accept) {
+          // Trace: log EVERY classify decision for classified categories (needed to diagnose moto/tyres/etc)
+          if (['garage','parts','tyres','petrol','it','moto','hardware','vet'].includes(cat)) {
             console.log(`[TRACE] rid=${rid} cat=${cat} CLASSIFY name="${p.name}" pt=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
           }
           if (!cls.accept) {
