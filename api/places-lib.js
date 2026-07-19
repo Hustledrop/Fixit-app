@@ -652,7 +652,10 @@ const CAT_ALLOW = {
   ]),
   moto: new Set([
     'motorcycle_dealer',
-    'car_dealer',           // some moto dealers are tagged car_dealer
+    'car_dealer',
+    'car_repair',
+    'auto_parts_store',
+    'store',
   ]),
 };
 
@@ -682,8 +685,13 @@ const CAT_DENY = {
     'tv_station',
   ]),
   moto: new Set([
-    'bicycle_store','bicycle_repair_shop','car_repair',
-    'auto_parts_store',         // generic parts — moto must be explicit
+    'bicycle_store','bicycle_repair_shop',
+    'transit_station','bus_station','electric_vehicle_charging_station',
+    'beauty_salon','hair_care','restaurant','cafe','bar',
+    'real_estate_agency','general_contractor',
+    // car_repair and auto_parts_store are NOT denied:
+    // Google uses these types for legitimate motorcycle repair/parts shops.
+    // The MOTO_NAME_RE keyword check distinguishes moto from car businesses.
   ]),
 };
 
@@ -697,7 +705,7 @@ const TYRE_NAME_RE = /vulcan|βουλκαν|vullkan|tyre|tire|guma|gumi|ελασ
 // Used because Google has no dedicated motorcycle_repair/parts primaryType;
 // real moto shops appear as car_repair, auto_parts_store, store, or null.
 // Word-boundary anchored to avoid matching 'automotive', 'tomato', etc.
-const MOTO_NAME_RE = /\bmotorcycle|\bmotorbike|\bmotor\s*bike|\bscooter|\bmoped|\bmotocross|\benduro|\batv\b|\bquad\s*bike|μοτο|\bμηχαν|\bσκούτερ|\bmotorrad|\bmotorräder|\bzweirad|\bmotocicletta|\bmotociclo|\bmotocyclette|\bmotocicleta|\bмото|\bмотор|\bскутер|\bmotosiklet|\bmotorsiklet|バイク|オートバイ|오토바이|摩托车|摩托|دراجة\s*نارية|\bmotoparts|\bmoto\b/i;
+const MOTO_NAME_RE = /(?<![a-zA-Z])moto|motorcycle|motorbike|motor\s*bike|\bscooter\b|\bmoped\b|\bmotocross\b|\benduro\b|\batv\b|\bquad\s*bike\b|\bmotorrad\b|\bmotorräder\b|\bzweirad\b|\bmotociclett|\bmotociclo\b|\bmotocyclett|\bmotocicleta\b|\bmotosiklet\b|\bmotorsiklet\bμοτο|μηχαν|μοτοσυκλ|σκούτερ|мото|мотор|мотоцикл|скутер|バイク|オートバイ|오토바이|摩托车|摩托|دراجة\s*نارية/i;
 
 function classifyGoogle(place, cat) {
   const primary = place.primaryType || '';

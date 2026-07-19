@@ -114,7 +114,7 @@ const TYRE_NAME_RE = /vulcan|βουλκαν|vullkan|tyre|tire|guma|gumi|ελασ
 // Used because Google has no dedicated motorcycle_repair/parts primaryType;
 // real moto shops appear as car_repair, auto_parts_store, store, or null.
 // Word-boundary anchored to avoid matching 'automotive', 'tomato', etc.
-const MOTO_NAME_RE = /\bmotorcycle|\bmotorbike|\bmotor\s*bike|\bscooter|\bmoped|\bmotocross|\benduro|\batv\b|\bquad\s*bike|μοτο|\bμηχαν|\bσκούτερ|\bmotorrad|\bmotorräder|\bzweirad|\bmotocicletta|\bmotociclo|\bmotocyclette|\bmotocicleta|\bмото|\bмотор|\bскутер|\bmotosiklet|\bmotorsiklet|バイク|オートバイ|오토바이|摩托车|摩托|دراجة\s*نارية|\bmotoparts|\bmoto\b/i;
+const MOTO_NAME_RE = /(?<![a-zA-Z])moto|motorcycle|motorbike|motor\s*bike|\bscooter\b|\bmoped\b|\bmotocross\b|\benduro\b|\batv\b|\bquad\s*bike\b|\bmotorrad\b|\bmotorräder\b|\bzweirad\b|\bmotociclett|\bmotociclo\b|\bmotocyclett|\bmotocicleta\b|\bmotosiklet\b|\bmotorsiklet\bμοτο|μηχαν|μοτοσυκλ|σκούτερ|мото|мотор|мотоцикл|скутер|バイク|オートバイ|오토바이|摩托车|摩托|دراجة\s*نارية/i;
 
 // ── Per-category explicit ALLOW / DENY ───────────────────────────────────────
 // Every category has an explicit allowlist of Google Place primaryTypes.
