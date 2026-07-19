@@ -35,10 +35,24 @@ const GOOGLE_NEVER_AUTO = new Set([
   'hospital','school','university','library','museum','church',
   'restaurant','cafe','bar','night_club','movie_theater','hotel','lodging',
   'storage','parking','laundry','gym','stadium','embassy',
+  // Transit / mobility — never automotive repair or fuel
+  'transit_station','bus_station','train_station','subway_station','light_rail_station',
+  'ferry_terminal','airport','taxi_stand',
+  // EV charging is NOT a petrol station
+  'electric_vehicle_charging_station',
+  // Cycling — excluded from garage/parts/petrol
+  'bicycle_repair_shop',
+  // Sporting goods — helmets etc
+  'sporting_goods_store',
+  // Marine / boat — not car repair
+  'marina','boat_rental',
+  // Architecture / construction offices
+  'general_contractor',
 ]);
 
 const OSM_NEVER_AUTO = new Set([
   'bicycle','boats','boat','marine','fashion','bag','bags','clothes','clothing',
+  'helmet','motorcycle_parts','moped','scooter_parts',
   'art','art_gallery','antiques','books','toys','gift','jewelry','jewellery',
   'beauty','hairdresser','optician','shoes','sports','alcohol','bakery',
   'butcher','seafood','supermarket','greengrocer','kiosk','convenience',

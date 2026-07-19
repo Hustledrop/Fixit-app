@@ -503,12 +503,26 @@ const GOOGLE_NEVER_AUTO = new Set([
   'restaurant','cafe','bar','night_club','movie_theater','hotel','lodging',
   // Other
   'storage','parking','laundry','gym','stadium','embassy',
+  // Transit / mobility — never automotive repair or fuel
+  'transit_station','bus_station','train_station','subway_station','light_rail_station',
+  'ferry_terminal','airport','taxi_stand',
+  // EV charging is NOT a petrol station
+  'electric_vehicle_charging_station',
+  // Cycling
+  'bicycle_repair_shop',
+  // Sporting goods — helmets etc
+  'sporting_goods_store',
+  // Marine / boat
+  'marina','boat_rental',
+  // Architecture / construction
+  'general_contractor',
 ]);
 
 // OSM tags whose presence excludes a node from all automotive categories
 const OSM_NEVER_AUTO = new Set([
   // shop= values
   'bicycle','boats','boat','marine','fashion','bag','bags','clothes','clothing',
+  'helmet','motorcycle_parts','moped','scooter_parts',
   'art','art_gallery','antiques','books','toys','gift','jewelry','jewellery',
   'beauty','hairdresser','optician','shoes','sports','alcohol','bakery',
   'butcher','seafood','supermarket','greengrocer','kiosk','convenience',
