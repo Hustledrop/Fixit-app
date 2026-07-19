@@ -610,71 +610,163 @@ function classifyOSM(tags, cat) {
 // place: raw Google Places result object (has .primaryType and .types[])
 // Returns { accept: bool, reason: string }
 
+// ── Per-category explicit ALLOW / DENY ───────────────────────────────────────
+// Every category has an explicit allowlist of Google Place primaryTypes.
+// Anything not on the allowlist is rejected (default-deny).
+// DENY entries that might slip through (e.g. car_repair appearing in petrol
+// results) are caught first.
+
+const CAT_ALLOW = {
+  garage: new Set([
+    'car_repair',          // primary type for repair workshops
+    'car_dealer',          // only if also has car_repair in types[]
+  ]),
+  parts: new Set([
+    'auto_parts_store',
+  ]),
+  tyres: new Set([
+    // No dedicated Google type for tyre shops — car_repair is the proxy.
+    // Accepted only when name also contains a tyre keyword (see classifyGoogle).
+    'car_repair',
+  ]),
+  petrol: new Set([
+    'gas_station',
+  ]),
+  hardware: new Set([
+    'hardware_store',
+    'home_improvement_store',
+    'general_store',
+  ]),
+  vet: new Set([
+    'veterinary_care',
+  ]),
+  it: new Set([
+    'computer_store',
+    'electronics_store',    // only when repair-focused (name check below)
+    'cell_phone_store',     // phone repair shops often tagged this way
+  ]),
+  moto: new Set([
+    'motorcycle_dealer',
+    'car_dealer',           // some moto dealers are tagged car_dealer
+  ]),
+};
+
+// Types that explicitly exclude a result for a given category even if they
+// appear alongside an allowed type (e.g. car_repair + transit_station).
+const CAT_DENY = {
+  garage: new Set([
+    'bicycle_store','bicycle_repair_shop','sporting_goods_store',
+    'transit_station','bus_station','electric_vehicle_charging_station',
+    'marina','boat_dealer','boat_rental',
+    'general_contractor',       // architecture / construction
+    'moving_company',
+  ]),
+  petrol: new Set([
+    'transit_station','bus_station','train_station','subway_station',
+    'light_rail_station','ferry_terminal','airport','taxi_stand',
+    'electric_vehicle_charging_station',
+    'cafe','restaurant','convenience_store','supermarket',
+  ]),
+  it: new Set([
+    'cafe','restaurant','bar','night_club',
+    'lighting_store','audio_video_electronics_store','camera_store',
+    'home_goods_store','furniture_store','department_store',
+    'bicycle_store','car_repair','auto_parts_store',
+    'security_system_service',  // security companies
+    'optician',                 // optics
+    'tv_station',
+  ]),
+  moto: new Set([
+    'bicycle_store','bicycle_repair_shop','car_repair',
+    'auto_parts_store',         // generic parts — moto must be explicit
+  ]),
+};
+
+// IT: electronics_store is in the allowlist but too broad —
+// only accept when the name suggests repair/IT focus
+const IT_REPAIR_RE = /repair|fix|service|it |computer|laptop|pc |phone|mobile|tablet|τεχνικ|επισκευ|servis|reparatur|informatik|riparaz|répar/i;
+
+const TYRE_NAME_RE = /vulcan|βουλκαν|vullkan|tyre|tire|guma|gumi|ελαστ|reife|pneu|gomm|gumiabr|llantas|neumát|lastik|pneus|タイヤ|타이어|轮胎|إطار|إطارات|टायर/i;
+
 function classifyGoogle(place, cat) {
-  const primary    = place.primaryType || '';
-  const types      = Array.isArray(place.types) ? place.types : [];
-  const allTypes   = new Set([primary, ...types]);
-  const name       = (place.displayName?.text || '').toLowerCase();
+  const primary = place.primaryType || '';
+  const types   = Array.isArray(place.types) ? place.types : [];
+  const allT    = new Set([primary, ...types]);
+  const name    = (place.displayName?.text || '').toLowerCase();
 
-  // Hard exclusion — any result whose primary OR secondary type is clearly unrelated
-  if (GOOGLE_NEVER_AUTO.has(primary))
-    return { accept: false, reason: `google:primaryType=${primary} excluded` };
+  const allow   = CAT_ALLOW[cat];
+  const deny    = CAT_DENY[cat];
 
-  // Also reject if ANY type is in the never-auto set AND no automotive type overrides it
-  const hasAutoType = allTypes.has('car_repair') || allTypes.has('auto_parts_store')
-    || allTypes.has('car_dealer') || allTypes.has('gas_station');
-  const hasExcludedType = [...allTypes].some(t => GOOGLE_NEVER_AUTO.has(t));
-  if (hasExcludedType && !hasAutoType)
-    return { accept: false, reason: `google:secondary type excluded` };
+  // 1. Hard deny — trumps everything
+  if (deny) {
+    for (const t of allT) {
+      if (deny.has(t)) {
+        return { accept: false, reason: `deny:${t}` };
+      }
+    }
+  }
 
-  // Strong automotive type indicators
-  const isRepair  = allTypes.has('car_repair') || primary==='car_repair';
-  const isParts   = allTypes.has('auto_parts_store') || primary==='auto_parts_store';
-  const isDealer  = primary==='car_dealer';
+  // 2. Must have at least one allowed type
+  if (allow) {
+    const hasAllowed = [...allT].some(t => allow.has(t));
+    if (!hasAllowed) {
+      return { accept: false, reason: `no_allowed_type(primary=${primary||'null'})` };
+    }
+  }
 
-  // Tyre keyword in name (last resort, only when no exclusion type present)
-  const TYRE_NAME_RE = /vulcan|βουλκαν|vullkan|tyre|tire|guma|gumi|ελαστ|reife|pneu|gomm|gumiabr|llantas|neumát|lastik|pneus|タイヤ|타이어|轮胎|إطار|إطارات|टायर/i;
-  const nameHasTyre  = TYRE_NAME_RE.test(name);
+  // 3. Category-specific sub-rules
 
   if (cat === 'garage') {
-    if (isDealer && !isRepair)  return { accept: false, reason: 'google:dealer-only, no repair type' };
-    if (isParts  && !isRepair)  return { accept: false, reason: 'google:parts-only, no repair type' };
-    if (isRepair)               return { accept: true,  reason: 'google:car_repair type' };
-    // No confirmed auto type — reject (default-deny)
-    return { accept: false, reason: `google:no garage type (primary=${primary})` };
+    // car_dealer without car_repair = showroom only, not a workshop
+    if (primary === 'car_dealer' && !allT.has('car_repair')) {
+      return { accept: false, reason: 'dealer_without_repair' };
+    }
+    return { accept: true, reason: `garage:${primary}` };
   }
 
   if (cat === 'parts') {
-    if (isRepair && !isParts)   return { accept: false, reason: 'google:repair-only, no parts type' };
-    if (isDealer && !isParts)   return { accept: false, reason: 'google:dealer-only, no parts type' };
-    if (isParts)                return { accept: true,  reason: 'google:auto_parts_store type' };
-    return { accept: false, reason: `google:no parts type (primary=${primary})` };
+    return { accept: true, reason: 'parts:auto_parts_store' };
   }
 
   if (cat === 'tyres') {
-    // car_repair alone does NOT qualify for tyres
-    if (isRepair && !nameHasTyre)
-      return { accept: false, reason: 'google:car_repair without tyre name keyword' };
-    // car_repair + tyre name = accept (real garage that also does tyres)
-    if (isRepair && nameHasTyre)
-      return { accept: true, reason: 'google:car_repair + tyre name confirmed' };
-    // parts store is not a tyre shop
-    if (isParts)
-      return { accept: false, reason: 'google:parts-only, no tyre evidence' };
-    // No confirmed automotive type: only accept if strong tyre name keyword present
-    if (!isRepair && !isParts && nameHasTyre)
-      return { accept: true, reason: 'google:tyre name keyword (no exclusion type)' };
-    return { accept: false, reason: `google:no tyre evidence (primary=${primary})` };
+    // car_repair is the only allowed type, but we require a tyre name keyword
+    // to distinguish from generic garages
+    if (!TYRE_NAME_RE.test(name)) {
+      return { accept: false, reason: 'tyre:car_repair_no_tyre_keyword' };
+    }
+    return { accept: true, reason: 'tyre:car_repair+keyword' };
   }
 
   if (cat === 'petrol') {
-    const isFuel = allTypes.has('gas_station') || primary === 'gas_station';
-    if (isFuel) return { accept: true,  reason: 'google:gas_station' };
-    return { accept: false, reason: `google:petrol requires gas_station (got ${primary||'null'})` };
+    return { accept: true, reason: 'petrol:gas_station' };
   }
 
-  return { accept: true, reason: 'google:non-classified category' };
+  if (cat === 'it') {
+    // electronics_store is broad — require repair/IT signal in name
+    if (allT.has('electronics_store') && !allT.has('computer_store') && !allT.has('cell_phone_store')) {
+      if (!IT_REPAIR_RE.test(name)) {
+        return { accept: false, reason: 'it:electronics_store_not_repair_focused' };
+      }
+    }
+    return { accept: true, reason: `it:${primary}` };
+  }
+
+  if (cat === 'moto') {
+    return { accept: true, reason: `moto:${primary}` };
+  }
+
+  if (cat === 'hardware') {
+    return { accept: true, reason: `hardware:${primary}` };
+  }
+
+  if (cat === 'vet') {
+    return { accept: true, reason: 'vet:veterinary_care' };
+  }
+
+  return { accept: true, reason: 'other' };
 }
+
+
 
 
 
@@ -695,18 +787,21 @@ function normalizePlaceResult(place, latN, lngN) {
   const name = place.displayName?.text || '';
   if (!name) return null;
   return {
-    id:      `google_${place.id}`,
-    source:  'google',
+    id:          `google_${place.id}`,
+    placeId:     place.id || null,      // kept for place_id dedup
+    source:      'google',
     name,
-    lat:     plat,
-    lng:     plng,
-    dist:    Math.round(haversine(latN, lngN, plat, plng) * 1000) / 1000,
-    addr:    place.formattedAddress || '',
-    phone:   place.nationalPhoneNumber || '',
-    website: place.websiteUri || '',
-    opening: place.regularOpeningHours?.weekdayDescriptions?.slice(0, 2).join('; ') || '',
-    rating:  place.rating || null,
-    mapsUrl: place.googleMapsUri || '',
+    lat:         plat,
+    lng:         plng,
+    dist:        Math.round(haversine(latN, lngN, plat, plng) * 1000) / 1000,
+    addr:        place.formattedAddress || '',
+    phone:       place.nationalPhoneNumber || '',
+    website:     place.websiteUri || '',
+    opening:     place.regularOpeningHours?.weekdayDescriptions?.slice(0, 2).join('; ') || '',
+    rating:      place.rating || null,
+    mapsUrl:     place.googleMapsUri || '',
+    primaryType: place.primaryType || null,   // preserved for final gate
+    types:       place.types || [],           // preserved for final gate
   };
 }
 
@@ -762,14 +857,27 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   await Promise.all(tasks);
 
   // Normalize, filter scrap, enforce 30km hard cap, dedup by name, sort by dist
-  const beforeFilter = allPlaces.length;
+  // Dedup by Google place_id first (fastest, most reliable)
+  const placeIdSeen = new Set();
+  const deduped_by_id = allPlaces.filter(p => {
+    const pid = p.id || p.placeId;
+    if (!pid || placeIdSeen.has(pid)) return false;
+    placeIdSeen.add(pid);
+    return true;
+  });
+  if (deduped_by_id.length < allPlaces.length) {
+    console.log(`[places] dedup_by_id: ${allPlaces.length} → ${deduped_by_id.length}`);
+  }
+  const allPlacesDeduped = deduped_by_id;
+
+  const beforeFilter = allPlacesDeduped.length;
   const seen = new Set();
 
   // ── Diagnostic: log ALL candidates for parts/tyres/petrol ─────────────────
   const DIAG_CATS = new Set(['parts','tyres','petrol','garage']);
   if (DIAG_CATS.has(cat)) {
-    console.log(`[places-diag] cat=${cat} raw_count=${allPlaces.length}`);
-    allPlaces.forEach((raw, i) => {
+    console.log(`[places-diag] cat=${cat} raw_count=${allPlacesDeduped.length}`);
+    allPlacesDeduped.forEach((raw, i) => {
       const nm  = raw.displayName?.text || '(no name)';
       const pt  = raw.primaryType || 'null';
       const tps = (raw.types||[]).join(',') || 'none';
@@ -779,14 +887,14 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   }
 
   let diagAccepted = 0, diagRejected = 0;
-  const results = allPlaces
+  const results = allPlacesDeduped
     .map(p => normalizePlaceResult(p, latN, lngN))
     .filter(p => {
       if (!p) return false;
       if (isScrap(p.name, [], cat)) return false;
       // Structured Google classifier — applied at Places level for early rejection
-      if (['garage','parts','tyres'].includes(cat)) {
-        const raw = allPlaces.find(r => (r.displayName?.text||'')=== p.name);
+      if (['garage','parts','tyres','petrol','it','moto','hardware','vet'].includes(cat)) {
+        const raw = allPlacesDeduped.find(r => (r.displayName?.text||'')=== p.name);
         if (raw) {
           const cls = classifyGooglePlace(raw, cat);
           if (DIAG_CATS.has(cat)) {

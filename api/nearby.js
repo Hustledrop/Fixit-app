@@ -110,51 +110,162 @@ function classifyOSM(tags, cat) {
 
 const TYRE_NAME_RE = /vulcan|βουλκαν|vullkan|tyre|tire|guma|gumi|ελαστ|reife|pneu|gomm|gumiabr|llantas|neumát|lastik|pneus|タイヤ|타이어|轮胎|إطار|إطارات|टायर/i;
 
+// ── Per-category explicit ALLOW / DENY ───────────────────────────────────────
+// Every category has an explicit allowlist of Google Place primaryTypes.
+// Anything not on the allowlist is rejected (default-deny).
+// DENY entries that might slip through (e.g. car_repair appearing in petrol
+// results) are caught first.
+
+const CAT_ALLOW = {
+  garage: new Set([
+    'car_repair',          // primary type for repair workshops
+    'car_dealer',          // only if also has car_repair in types[]
+  ]),
+  parts: new Set([
+    'auto_parts_store',
+  ]),
+  tyres: new Set([
+    // No dedicated Google type for tyre shops — car_repair is the proxy.
+    // Accepted only when name also contains a tyre keyword (see classifyGoogle).
+    'car_repair',
+  ]),
+  petrol: new Set([
+    'gas_station',
+  ]),
+  hardware: new Set([
+    'hardware_store',
+    'home_improvement_store',
+    'general_store',
+  ]),
+  vet: new Set([
+    'veterinary_care',
+  ]),
+  it: new Set([
+    'computer_store',
+    'electronics_store',    // only when repair-focused (name check below)
+    'cell_phone_store',     // phone repair shops often tagged this way
+  ]),
+  moto: new Set([
+    'motorcycle_dealer',
+    'car_dealer',           // some moto dealers are tagged car_dealer
+  ]),
+};
+
+// Types that explicitly exclude a result for a given category even if they
+// appear alongside an allowed type (e.g. car_repair + transit_station).
+const CAT_DENY = {
+  garage: new Set([
+    'bicycle_store','bicycle_repair_shop','sporting_goods_store',
+    'transit_station','bus_station','electric_vehicle_charging_station',
+    'marina','boat_dealer','boat_rental',
+    'general_contractor',       // architecture / construction
+    'moving_company',
+  ]),
+  petrol: new Set([
+    'transit_station','bus_station','train_station','subway_station',
+    'light_rail_station','ferry_terminal','airport','taxi_stand',
+    'electric_vehicle_charging_station',
+    'cafe','restaurant','convenience_store','supermarket',
+  ]),
+  it: new Set([
+    'cafe','restaurant','bar','night_club',
+    'lighting_store','audio_video_electronics_store','camera_store',
+    'home_goods_store','furniture_store','department_store',
+    'bicycle_store','car_repair','auto_parts_store',
+    'security_system_service',  // security companies
+    'optician',                 // optics
+    'tv_station',
+  ]),
+  moto: new Set([
+    'bicycle_store','bicycle_repair_shop','car_repair',
+    'auto_parts_store',         // generic parts — moto must be explicit
+  ]),
+};
+
+// IT: electronics_store is in the allowlist but too broad —
+// only accept when the name suggests repair/IT focus
+const IT_REPAIR_RE = /repair|fix|service|it |computer|laptop|pc |phone|mobile|tablet|τεχνικ|επισκευ|servis|reparatur|informatik|riparaz|répar/i;
+
+
 function classifyGoogle(place, cat) {
-  const primary  = place.primaryType || '';
-  const types    = Array.isArray(place.types) ? place.types : [];
-  const allTypes = new Set([primary, ...types]);
-  const name     = (place.displayName?.text || '').toLowerCase();
+  const primary = place.primaryType || '';
+  const types   = Array.isArray(place.types) ? place.types : [];
+  const allT    = new Set([primary, ...types]);
+  const name    = (place.displayName?.text || '').toLowerCase();
 
-  if (GOOGLE_NEVER_AUTO.has(primary)) return { accept: false, reason: `google:primary=${primary}` };
-  const hasAuto     = allTypes.has('car_repair')||allTypes.has('auto_parts_store')
-    ||allTypes.has('car_dealer')||allTypes.has('gas_station');
-  const hasExcluded = [...allTypes].some(t => GOOGLE_NEVER_AUTO.has(t));
-  if (hasExcluded && !hasAuto) return { accept: false, reason: 'google:secondary excluded' };
+  const allow   = CAT_ALLOW[cat];
+  const deny    = CAT_DENY[cat];
 
-  const isRepair = allTypes.has('car_repair') || primary === 'car_repair';
-  const isParts  = allTypes.has('auto_parts_store') || primary === 'auto_parts_store';
-  const isDealer = primary === 'car_dealer';
-  const tyreName = TYRE_NAME_RE.test(name);
+  // 1. Hard deny — trumps everything
+  if (deny) {
+    for (const t of allT) {
+      if (deny.has(t)) {
+        return { accept: false, reason: `deny:${t}` };
+      }
+    }
+  }
+
+  // 2. Must have at least one allowed type
+  if (allow) {
+    const hasAllowed = [...allT].some(t => allow.has(t));
+    if (!hasAllowed) {
+      return { accept: false, reason: `no_allowed_type(primary=${primary||'null'})` };
+    }
+  }
+
+  // 3. Category-specific sub-rules
 
   if (cat === 'garage') {
-    if (isDealer && !isRepair) return { accept: false, reason: 'google:dealer-only' };
-    if (isParts  && !isRepair) return { accept: false, reason: 'google:parts-only' };
-    if (isRepair)              return { accept: true,  reason: 'google:car_repair' };
-    return { accept: false, reason: `google:no type (${primary})` };
-  }
-  if (cat === 'parts') {
-    if (isRepair && !isParts) return { accept: false, reason: 'google:repair-only' };
-    if (isDealer && !isParts) return { accept: false, reason: 'google:dealer-only' };
-    if (isParts)              return { accept: true,  reason: 'google:auto_parts_store' };
-    return { accept: false, reason: `google:no type (${primary})` };
-  }
-  if (cat === 'tyres') {
-    if (isRepair && !tyreName) return { accept: false, reason: 'google:car_repair no tyre keyword' };
-    if (isRepair && tyreName)  return { accept: true,  reason: 'google:car_repair+tyre name' };
-    if (isParts)               return { accept: false, reason: 'google:parts-only' };
-    if (!isRepair && !isParts && tyreName) return { accept: true, reason: 'google:tyre keyword' };
-    return { accept: false, reason: `google:no evidence (${primary})` };
-  }
-  if (cat === 'petrol') {
-    // Only confirmed fuel stations — reject coffee shops, bus stations, EV chargers, supermarkets
-    const isFuel = allTypes.has('gas_station') || primary === 'gas_station';
-    if (isFuel) return { accept: true, reason: 'google:gas_station' };
-    return { accept: false, reason: `google:petrol requires gas_station type (got ${primary||'null'})` };
+    // car_dealer without car_repair = showroom only, not a workshop
+    if (primary === 'car_dealer' && !allT.has('car_repair')) {
+      return { accept: false, reason: 'dealer_without_repair' };
+    }
+    return { accept: true, reason: `garage:${primary}` };
   }
 
-  return { accept: true, reason: 'google:other' };
+  if (cat === 'parts') {
+    return { accept: true, reason: 'parts:auto_parts_store' };
+  }
+
+  if (cat === 'tyres') {
+    // car_repair is the only allowed type, but we require a tyre name keyword
+    // to distinguish from generic garages
+    if (!TYRE_NAME_RE.test(name)) {
+      return { accept: false, reason: 'tyre:car_repair_no_tyre_keyword' };
+    }
+    return { accept: true, reason: 'tyre:car_repair+keyword' };
+  }
+
+  if (cat === 'petrol') {
+    return { accept: true, reason: 'petrol:gas_station' };
+  }
+
+  if (cat === 'it') {
+    // electronics_store is broad — require repair/IT signal in name
+    if (allT.has('electronics_store') && !allT.has('computer_store') && !allT.has('cell_phone_store')) {
+      if (!IT_REPAIR_RE.test(name)) {
+        return { accept: false, reason: 'it:electronics_store_not_repair_focused' };
+      }
+    }
+    return { accept: true, reason: `it:${primary}` };
+  }
+
+  if (cat === 'moto') {
+    return { accept: true, reason: `moto:${primary}` };
+  }
+
+  if (cat === 'hardware') {
+    return { accept: true, reason: `hardware:${primary}` };
+  }
+
+  if (cat === 'vet') {
+    return { accept: true, reason: 'vet:veterinary_care' };
+  }
+
+  return { accept: true, reason: 'other' };
 }
+
+
 
 // ── OSM query builder ─────────────────────────────────────────────────────────
 function buildQuery(cat, south, west, north, east) {
@@ -398,15 +509,41 @@ module.exports = async function handler(req, res) {
   let results = [];
   let responded = false;
 
+  const CLASSIFIED = new Set(['garage','parts','tyres','petrol','it','moto','hardware','vet']);
+
   const respond = (finalResults, path) => {
     if (responded) return;
     responded = true;
+
+    // ── Final gate: classify before sending ──────────────────────────────────
+    // primaryType/types[] are preserved through normalizePlaceResult.
+    // This is the last line of defence — runs regardless of which code path
+    // produced the results (google_won, osm_won, full_wait).
+    let gated = finalResults;
+    if (CLASSIFIED.has(cat)) {
+      const before = finalResults.length;
+      gated = finalResults.filter(r => {
+        if (r.source !== 'google') return true;          // OSM always passes
+        if (!r.primaryType && !(r.types && r.types.length)) return true; // no metadata
+        const cls = classifyGoogle(r, cat);
+        if (!cls.accept) {
+          console.log(`[nearby] final_gate REJECT "${r.name}" reason=${cls.reason}`);
+          return false;
+        }
+        return true;
+      });
+      if (gated.length < before) {
+        console.log(`[nearby] final_gate ${cat}: ${before}→${gated.length} removed ${before-gated.length}`);
+      }
+    }
+
     const totalMs = Date.now()-startMs;
-    console.log(`[nearby] RESPOND path=${path} count=${finalResults.length} total_ms=${totalMs}`);
+    const names = gated.slice(0,5).map(r=>`${r.name}(${r.dist}km)`).join(',');
+    console.log(`[nearby] RESPOND path=${path} count=${gated.length} total_ms=${totalMs} names=[${names}]`);
     res.status(200).json({
-      results: finalResults,
-      fallbackUsed: finalResults.length===0,
-      fallbackReason: finalResults.length===0 ? 'both_providers_failed' : undefined,
+      results: gated,
+      fallbackUsed: gated.length===0,
+      fallbackReason: gated.length===0 ? 'both_providers_failed' : undefined,
       totalMs, cat,
     });
   };
