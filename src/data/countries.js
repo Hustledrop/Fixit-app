@@ -413,3 +413,84 @@ export function getOnlineStores(cc) {
      u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
   ];
 }
+
+// ── Emergency service search queries — keyed by GPS country, not UI language ──
+// Used for Google Maps search buttons in the emergency screen.
+// Fallback: English if no country-specific entry exists.
+// Never uses UI language — the search must use terms locals actually search for.
+const EMERGENCY_QUERIES = {
+  // plumber_emergency
+  plumber: {
+    DE:'Sanitär Notdienst Rohrbruch',
+    AT:'Klempner Notdienst Rohrbruch',
+    CH:'Sanitärinstallateur Notdienst',
+    GB:'emergency plumber 24h',
+    IE:'emergency plumber 24h',
+    US:'emergency plumber near me',
+    AU:'emergency plumber near me',
+    FR:'plombier urgence 24h',
+    ES:'fontanero urgencias 24h',
+    IT:'idraulico urgenza 24h',
+    PT:'canalizador urgência 24h',
+    PL:'awaryjny hydraulik 24h',
+    NL:'loodgieter spoed 24h',
+    BE:'plombier urgence 24h',
+    SE:'akut rörmokare 24h',
+    NO:'rørlegger nødhjelp 24h',
+    DK:'blikkenslager nødreparation',
+    FI:'putkimies hätäpalvelu 24h',
+    GR:'υδραυλικός 24 ώρες επείγον',
+    CY:'υδραυλικός 24 ώρες',
+    RO:'instalator urgenta 24h',
+    HU:'vízvezetékszerelő sürgős',
+    CZ:'havarijní instalatér 24h',
+    SK:'havarijný inštalatér 24h',
+    RS:'hitni vodoinstalater 24h',
+    HR:'hitni vodoinstalater 24h',
+    BA:'hitni vodoinstalater 24h',
+    ME:'hitni vodoinstalater 24h',
+    MK:'итен водоинсталатер 24 часа',
+    BG:'авариен водопроводчик 24h',
+    LT:'avarinis santechnikas 24h',
+    LV:'avārijas santehniķis 24h',
+    EE:'avariivõetud torumees 24h',
+    SI:'urgentni vodovodar 24h',
+    AL:'hidraulik urgjent 24h',
+    XK:'hidraulik urgjent 24h',
+    TR:'acil tesisatçı 24h',
+    IL:'שרברב חירום 24 שעות',
+    SA:'سباك طارئ 24 ساعة',
+    AE:'emergency plumber 24h',
+    JP:'緊急水道修理 24時間',
+    KR:'긴급 배관공 24시간',
+    CN:'紧急水管工 24小时',
+    IN:'emergency plumber 24h',
+    BR:'encanador emergência 24h',
+    AR:'plomero urgencias 24h',
+    ZA:'emergency plumber 24h',
+    NG:'emergency plumber 24h',
+    ID:'tukang ledeng darurat 24h',
+    PH:'emergency plumber 24h',
+  },
+};
+
+// Default English fallbacks per service key
+const EMERGENCY_QUERY_FALLBACKS = {
+  plumber: 'emergency plumber 24h',
+};
+
+/**
+ * Returns a Google Maps search query localized to the GPS country.
+ * Falls back to English if the country has no specific entry.
+ * Never uses UI language — the query language follows the GPS country.
+ *
+ * @param {string} serviceKey - e.g. 'plumber'
+ * @param {string} countryCode - ISO alpha-2 from GPS, e.g. 'GR'
+ * @returns {string} search query in the local language
+ */
+export function getEmergencySearchQuery(serviceKey, countryCode) {
+  const map = EMERGENCY_QUERIES[serviceKey];
+  if (!map) return EMERGENCY_QUERY_FALLBACKS[serviceKey] || 'emergency service near me';
+  return map[countryCode] || EMERGENCY_QUERY_FALLBACKS[serviceKey] || 'emergency service near me';
+}
+

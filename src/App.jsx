@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LANGS, tx } from './data/lang.js';
-import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch } from './data/countries.js';
+import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch, getEmergencySearchQuery } from './data/countries.js';
 import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
 import { getQP } from './data/quickproblems.js';
 import { useLocation } from './hooks/useLocation.js';
@@ -1795,7 +1795,7 @@ export default function App() {
             {ec.call==='roadside'&&<><CallBtn icon="🚗" label={`${cdGPS.rs?.n}: ${cdGPS.rs?.num}`} num={cdGPS.rs?.num||'112'} type="s"/><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🗺️" label={t('nearestGarage')} query="car garage mechanic near me"/></>}
             {ec.call==='vet'&&<>{cdGPS.ph?.num&&<CallBtn icon="🐾" label={`${cdGPS.ph.n}: ${cdGPS.ph.num}`} num={cdGPS.ph.num} type="s"/>}{cdGPS.pa?.num&&cdGPS.pa.num.length>3&&<CallBtn icon="🚑" label={`${cdGPS.pa.n}: ${cdGPS.pa.num}`} num={cdGPS.pa.num} type="i"/>}<MapBtn icon="🗺️" label={t('emergencyVet')} query="emergency vet open now 24h"/><MapBtn icon="🏥" label={t('animalClinicNear')} query="animal clinic veterinarian near me"/></>}
             {ec.call==='fire'&&<><CallBtn icon="🚒" label={`Fire: ${cdGPS.fire}`} num={cdGPS.fire}/><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/></>}
-            {ec.call==='plumber'&&<><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🔧" label={t('emergencyPlumber')} query={t('plumberQuery')}/></>}
+            {ec.call==='plumber'&&<><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🔧" label={t('emergencyPlumber')} query={getEmergencySearchQuery('plumber', ccGPS)}/></>}
             {ec.call==='power'&&<><CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="⚡" label={t('electricityProvider')} query={cc==='DE'?'Stadtwerke Strom Störung Netzbetreiber Stromausfall':cc==='AT'?'Stromnetz Störung Stadtwerke':cc==='CH'?'Stromnetzbetreiber Störung':cc==='FR'?'panne électrique signaler fournisseur':cc==='GB'?'power cut report network operator':cc==='US'?'power outage report electric utility':'electricity power outage report'}/></>}
             {ec.call==='emergency'&&<CallBtn icon="🆘" label={`Emergency: ${cdGPS.e}`} num={cdGPS.e}/>}
           </div>
