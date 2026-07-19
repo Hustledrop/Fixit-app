@@ -312,11 +312,13 @@ function buildCountryQueries(cat, cityHint, countryCode) {
     tyres:  ['tyre service','tyre shop','tire shop','vulcanizer','tyre fitting'],
   };
   const en = enFallback[cat] || [];
-  // Merge: country queries + English, append city, deduplicate
+  // Merge: country queries + English, deduplicate.
+  // City is NOT appended: locationRestriction enforces the GPS circle as the
+  // hard geographic boundary. Adding a city name to the query text previously
+  // caused Google to override the circle and return results 200+ km away.
   const all = [...catQueries, ...en];
   const seen = new Set();
-  return all.map(q => city ? `${q} ${city}`.trim() : q)
-    .filter(q => { if (seen.has(q)) return false; seen.add(q); return true; });
+  return all.filter(q => { if (!q || seen.has(q)) return false; seen.add(q); return true; });
 }
 
 
@@ -437,6 +439,7 @@ function httpsPost(path, body, extraHeaders) {
 // searchNearby — uses includedTypes, requires confirmed Table A types
 // IMPORTANT: radius (not radiusMeters) is the correct field for Places API (New)
 async function searchNearby(latN, lngN, radiusM, types) {
+  console.log(`[places] searchNearby types=${types.join(',')} lat=${latN} lng=${lngN} radiusM=${radiusM}`);
   const body = {
     includedTypes:       types,
     maxResultCount:      20,
@@ -454,14 +457,18 @@ async function searchNearby(latN, lngN, radiusM, types) {
 // searchText — uses a text query with locationBias circle
 // IMPORTANT: radius (not radiusMeters) is the correct field
 async function searchText(latN, lngN, radiusM, textQuery) {
+  // locationRestriction (not locationBias) enforces a hard geographic boundary.
+  // locationBias is a hint that Google can override when the query text contains
+  // a city name — causing results 200+ km away. locationRestriction prevents this.
+  console.log(`[places] searchText query="${textQuery}" lat=${latN} lng=${lngN} radiusM=${radiusM}`);
   const body = {
     textQuery,
     maxResultCount: 20,
     rankPreference: 'DISTANCE',
-    locationBias: {
+    locationRestriction: {
       circle: {
         center: { latitude: latN, longitude: lngN },
-        radius: radiusM,   // ← correct field name (NOT radiusMeters)
+        radius: radiusM,   // hard boundary — results outside this circle are excluded
       }
     },
   };

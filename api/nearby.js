@@ -291,7 +291,11 @@ async function runOSM(cat, latN, lngN, startMs) {
     if (remain<SOCKET_TIMEOUT_MS+1000) { console.warn(`[nearby] PASS${pi+1} skipped — no budget`); break; }
     const s=(latN-ns).toFixed(6),n=(latN+ns).toFixed(6),w=(lngN-ew).toFixed(6),e=(lngN+ew).toFixed(6);
     const {data,endpointFailed}=await fetchWithFailover(buildQuery(cat,s,w,n,e),startMs,radiusKm);
-    if (endpointFailed||!data) { console.warn(`[nearby] PASS${pi+1} failed — stopping OSM`); break; }
+    if (endpointFailed||!data) {
+      const remain2 = GLOBAL_DEADLINE-(Date.now()-startMs);
+      console.warn(`[nearby] PASS${pi+1} failed endpointFailed=${endpointFailed} hasData=${!!data} deadline_remaining=${remain2}ms`);
+      break;
+    }
     const newR=processElements(data.elements||[],cat,latN,lngN,radiusKm+5,seenSet);
     all=[...all,...newR].sort((a,b)=>a.dist-b.dist);
     console.log(`[nearby] PASS${pi+1} raw=${(data.elements||[]).length} new=${newR.length} total=${all.length}`);
@@ -308,9 +312,9 @@ function mergeGoogle(placesData, existing, cat) {
   if (!raw.length) return existing;
   console.log(`[nearby] google_count=${raw.length} names=[${raw.slice(0,5).map(r=>r.name).join(',')}]`);
   // Diagnostic: show what arrives from places-lib (already pre-filtered)
-  if (['parts','tyres','petrol'].includes(cat)) {
+  if (['parts','tyres','petrol','garage'].includes(cat)) {
     console.log(`[nearby-diag] cat=${cat} google_after_places_filter=${raw.length}`);
-    raw.slice(0,10).forEach((r,i) => console.log(`[nearby-diag] #${i} "${r.name}" dist=${r.dist}km`));
+    raw.slice(0,10).forEach((r,i) => console.log(`[nearby-diag] #${i} "${r.name}" dist=${r.dist}km lat=${r.lat} lng=${r.lng}`));
   }
   const osmNames=new Set(existing.map(r=>r.name.toLowerCase().trim()));
   let scrap=0, rejected=0;
@@ -345,7 +349,7 @@ module.exports = async function handler(req, res) {
   const HYBRID_THRESHOLD=5;
   const MK_GOOGLE_FIRST=countryCode==='MK'&&(cat==='tyres'||cat==='garage');
 
-  console.log(`[nearby] START cat=${cat} cc=${countryCode} city=${city}`);
+  console.log(`[nearby] START cat=${cat} cc=${countryCode} city=${city} lat=${latN} lng=${lngN}`);
 
   // ── Step 1: start BOTH providers concurrently at t=0 ─────────────────────
   const googleT0=Date.now();
