@@ -154,19 +154,20 @@ export function smartCC(gpsCountry, lang) {
 }
 
 export function mapsUrlFor(q, lat, lng, cc, lang) {
-  const domains = {
-    DE:'https://www.google.de/maps',AT:'https://www.google.at/maps',
-    CH:'https://www.google.ch/maps',GB:'https://www.google.co.uk/maps',
-    FR:'https://www.google.fr/maps',ES:'https://www.google.es/maps',
-    IT:'https://www.google.it/maps',RS:'https://www.google.rs/maps',
-    HR:'https://www.google.hr/maps',MK:'https://www.google.mk/maps',
-    TR:'https://www.google.com.tr/maps',PL:'https://www.google.pl/maps',
-    US:'https://www.google.com/maps',AU:'https://www.google.com.au/maps',
-  };
+  // Always use the ?api=1&query= endpoint — this guarantees a SEARCH RESULTS LIST.
+  // The legacy /search/QUERY/@lat,lng,14z path can redirect to a single business
+  // page when Google matches the query strongly to one place. The api=1 endpoint
+  // always shows the list regardless of query specificity.
   const enc = encodeURIComponent(q);
-  if (lat && lng) return `https://www.google.com/maps/search/${enc}/@${lat},${lng},14z`;
-  const base = domains[cc] || 'https://www.google.com/maps';
-  return `${base}/search/?api=1&query=${enc}&gl=${(cc||'us').toLowerCase()}&hl=${lang||'en'}`;
+  const gl  = (cc || 'us').toLowerCase();
+  const hl  = lang || 'en';
+  if (lat && lng) {
+    // Include GPS coordinates as the search center using the ll parameter.
+    // The api=1 endpoint does not accept @lat,lng in the path, but the ll
+    // parameter correctly centres the search on the user's GPS location.
+    return `https://www.google.com/maps/search/?api=1&query=${enc}&ll=${lat},${lng}&gl=${gl}&hl=${hl}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${enc}&gl=${gl}&hl=${hl}`;
 }
 
 // ── STORES: GPS-based (language is irrelevant for store selection) ────────────
