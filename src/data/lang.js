@@ -121,6 +121,27 @@ T.en = {
   enableGPS:"Enable GPS for better results", storesFor:"Stores for", resultsFor:"Results for",
   vehicle:"vehicle", hsnDetected:"HSN/TSN Detected",
   hsnDesc:"Opens Autodoc for 100% compatible parts for your exact vehicle.",
+  // Parts screen i18n
+  partsTitleCar:"Find Auto Parts",
+  partsTitleBike:"Find Bike Parts",
+  partsTitleTech:"Electronics & Parts",
+  partsTitleAppl:"Appliance Parts",
+  partsTitleGarden:"Find Garden Supplies",
+  partsTitlePets:"Find Pet Supplies",
+  partsTitleHome:"Find Parts & Tools",
+  localStoresNearby:"Local Stores Nearby",
+  findWord:"find",
+  gpsActiveNear:"GPS active — real results near you",
+  openGoogleMapsSearch:"Open Google Maps to search",
+  nearbyWord:"nearby",
+  searchOnGoogleMaps:"Search this product on Google Maps",
+  onlineShops:"Online Shops",
+  partsFromDiagnosis:"Parts from diagnosis — tap to search:",
+  addVehicleModel:"✏️ Add vehicle model (recommended for accurate search):",
+  searchWord:"Search",
+  tipAddModel:"Tip: Add the model above for exact part search.",
+  hsnDetected:"HSN/TSN detected — add the vehicle model above (e.g. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.de = {
@@ -193,6 +214,27 @@ T.de = {
   enableGPS:"GPS aktivieren für bessere Ergebnisse", storesFor:"Shops für", resultsFor:"Ergebnisse für",
   vehicle:"Fahrzeug", hsnDetected:"HSN/TSN Erkannt",
   hsnDesc:"Öffnet Autodoc.de für 100% kompatible Teile für Ihr genaues Fahrzeug.",
+  // Parts screen i18n
+  partsTitleCar:"Auto-Teile finden",
+  partsTitleBike:"Fahrrad-Teile finden",
+  partsTitleTech:"Elektronik & Zubehör",
+  partsTitleAppl:"Geräte-Ersatzteile",
+  partsTitleGarden:"Gartenbedarf finden",
+  partsTitlePets:"Tierbedarf finden",
+  partsTitleHome:"Haus & Geräte finden",
+  localStoresNearby:"Lokale Geschäfte in der Nähe",
+  findWord:"finden",
+  gpsActiveNear:"GPS aktiv — echte Ergebnisse in deiner Nähe",
+  openGoogleMapsSearch:"Google Maps öffnen und suchen",
+  nearbyWord:"in der Nähe",
+  searchOnGoogleMaps:"Produkt direkt in Google Maps suchen",
+  onlineShops:"Online-Shops",
+  partsFromDiagnosis:"Teile aus der Diagnose — tippe zum Suchen:",
+  addVehicleModel:"✏️ Fahrzeugmodell ergänzen (empfohlen für genaue Suche):",
+  searchWord:"Suche",
+  tipAddModel:"Tipp: Modell oben ergänzen für exakte Teilesuche.",
+  hsnDetected:"HSN/TSN erkannt — bitte Modell oben ergänzen (z.B. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.fr = {
@@ -263,6 +305,27 @@ T.fr = {
   enableGPS:"Activez GPS pour de meilleurs résultats", storesFor:"Magasins pour", resultsFor:"Résultats pour",
   vehicle:"véhicule", hsnDetected:"HSN/TSN Détecté",
   hsnDesc:"Ouvre Autodoc pour des pièces 100% compatibles avec votre véhicule.",
+  // Parts screen i18n
+  partsTitleCar:"Trouver des pièces auto",
+  partsTitleBike:"Trouver des pièces vélo",
+  partsTitleTech:"Électronique & Pièces",
+  partsTitleAppl:"Pièces électroménager",
+  partsTitleGarden:"Trouver du matériel jardin",
+  partsTitlePets:"Trouver des articles animaux",
+  partsTitleHome:"Trouver pièces et outils",
+  localStoresNearby:"Magasins locaux à proximité",
+  findWord:"trouver",
+  gpsActiveNear:"GPS actif — vrais résultats près de vous",
+  openGoogleMapsSearch:"Ouvrir Google Maps pour chercher",
+  nearbyWord:"à proximité",
+  searchOnGoogleMaps:"Rechercher ce produit sur Google Maps",
+  onlineShops:"Boutiques en ligne",
+  partsFromDiagnosis:"Pièces du diagnostic — appuyer pour chercher :",
+  addVehicleModel:"✏️ Ajouter le modèle de véhicule (recommandé pour une recherche précise) :",
+  searchWord:"Recherche",
+  tipAddModel:"Conseil : ajoutez le modèle ci-dessus pour une recherche précise.",
+  hsnDetected:"HSN/TSN détecté — ajoutez le modèle ci-dessus (ex. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.es = {
@@ -332,6 +395,27 @@ T.es = {
   enableGPS:"Activa GPS para mejores resultados", storesFor:"Tiendas para", resultsFor:"Resultados para",
   vehicle:"vehículo", hsnDetected:"HSN/TSN Detectado",
   hsnDesc:"Abre Autodoc para piezas 100% compatibles con tu vehículo exacto.",
+  // Parts screen i18n
+  partsTitleCar:"Encontrar piezas de coche",
+  partsTitleBike:"Encontrar piezas de bici",
+  partsTitleTech:"Electrónica y Piezas",
+  partsTitleAppl:"Recambios electrodomésticos",
+  partsTitleGarden:"Encontrar artículos jardín",
+  partsTitlePets:"Encontrar artículos mascotas",
+  partsTitleHome:"Encontrar piezas y herramientas",
+  localStoresNearby:"Tiendas locales cercanas",
+  findWord:"buscar",
+  gpsActiveNear:"GPS activo — resultados reales cerca",
+  openGoogleMapsSearch:"Abrir Google Maps para buscar",
+  nearbyWord:"cerca",
+  searchOnGoogleMaps:"Buscar este producto en Google Maps",
+  onlineShops:"Tiendas online",
+  partsFromDiagnosis:"Piezas del diagnóstico — toca para buscar:",
+  addVehicleModel:"✏️ Añadir modelo de vehículo (recomendado para búsqueda precisa):",
+  searchWord:"Buscar",
+  tipAddModel:"Consejo: añade el modelo arriba para búsqueda exacta.",
+  hsnDetected:"HSN/TSN detectado — añade el modelo arriba (ej. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.it = {
@@ -401,6 +485,27 @@ T.it = {
   enableGPS:"Attiva GPS per risultati migliori", storesFor:"Negozi per", resultsFor:"Risultati per",
   vehicle:"veicolo", hsnDetected:"HSN/TSN Rilevato",
   hsnDesc:"Apre Autodoc per ricambi 100% compatibili con il tuo veicolo.",
+  // Parts screen i18n
+  partsTitleCar:"Trova ricambi auto",
+  partsTitleBike:"Trova ricambi bici",
+  partsTitleTech:"Elettronica & Ricambi",
+  partsTitleAppl:"Ricambi elettrodomestici",
+  partsTitleGarden:"Trova articoli giardino",
+  partsTitlePets:"Trova prodotti animali",
+  partsTitleHome:"Trova ricambi e attrezzi",
+  localStoresNearby:"Negozi locali vicini",
+  findWord:"trova",
+  gpsActiveNear:"GPS attivo — risultati reali vicini",
+  openGoogleMapsSearch:"Apri Google Maps per cercare",
+  nearbyWord:"vicino",
+  searchOnGoogleMaps:"Cerca questo prodotto su Google Maps",
+  onlineShops:"Negozi online",
+  partsFromDiagnosis:"Ricambi dalla diagnosi — tocca per cercare:",
+  addVehicleModel:"✏️ Aggiungi modello veicolo (consigliato per ricerca precisa):",
+  searchWord:"Cerca",
+  tipAddModel:"Suggerimento: aggiungi il modello sopra per una ricerca precisa.",
+  hsnDetected:"HSN/TSN rilevato — aggiungi il modello sopra (es. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.pl = {
@@ -470,6 +575,27 @@ T.pl = {
   enableGPS:"Włącz GPS dla lepszych wyników", storesFor:"Sklepy dla", resultsFor:"Wyniki dla",
   vehicle:"pojazd", hsnDetected:"HSN/TSN Wykryty",
   hsnDesc:"Otwiera Autodoc dla 100% kompatybilnych części z Twoim pojazdem.",
+  // Parts screen i18n
+  partsTitleCar:"Znajdź części do auta",
+  partsTitleBike:"Znajdź części do roweru",
+  partsTitleTech:"Elektronika & Akcesoria",
+  partsTitleAppl:"Części do AGD",
+  partsTitleGarden:"Znajdź artykuły ogrodowe",
+  partsTitlePets:"Znajdź produkty dla zwierząt",
+  partsTitleHome:"Znajdź części & narzędzia",
+  localStoresNearby:"Lokalne sklepy w pobliżu",
+  findWord:"znajdź",
+  gpsActiveNear:"GPS aktywny — prawdziwe wyniki w pobliżu",
+  openGoogleMapsSearch:"Otwórz Google Maps i szukaj",
+  nearbyWord:"w pobliżu",
+  searchOnGoogleMaps:"Szukaj tego produktu w Google Maps",
+  onlineShops:"Sklepy internetowe",
+  partsFromDiagnosis:"Części z diagnozy — dotknij aby wyszukać:",
+  addVehicleModel:"✏️ Dodaj model pojazdu (zalecane dla dokładnego wyszukiwania):",
+  searchWord:"Szukaj",
+  tipAddModel:"Wskazówka: dodaj model powyżej dla dokładnego wyszukiwania.",
+  hsnDetected:"Wykryto HSN/TSN — dodaj model powyżej (np. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.sr = {
@@ -539,6 +665,27 @@ T.sr = {
   enableGPS:"Aktiviraj GPS za bolje rezultate", storesFor:"Prodavnice za", resultsFor:"Rezultati za",
   vehicle:"vozilo", hsnDetected:"HSN/TSN Otkriven",
   hsnDesc:"Otvara Autodoc za 100% kompatibilne delove za tvoje vozilo.",
+  // Parts screen i18n
+  partsTitleCar:"Pronađi delove za auto",
+  partsTitleBike:"Pronađi delove za bicikl",
+  partsTitleTech:"Elektronika i delovi",
+  partsTitleAppl:"Delovi za uređaje",
+  partsTitleGarden:"Pronađi vrtne potrepštine",
+  partsTitlePets:"Pronađi potrepštine za ljubimce",
+  partsTitleHome:"Pronađi delove i alate",
+  localStoresNearby:"Lokalne prodavnice u blizini",
+  findWord:"pronađi",
+  gpsActiveNear:"GPS aktivan — pravi rezultati u blizini",
+  openGoogleMapsSearch:"Otvori Google Maps i traži",
+  nearbyWord:"u blizini",
+  searchOnGoogleMaps:"Pretraži ovaj proizvod na Google Maps",
+  onlineShops:"Online prodavnice",
+  partsFromDiagnosis:"Delovi iz dijagnoze — dodirnite za pretragu:",
+  addVehicleModel:"✏️ Dodajte model vozila (preporučuje se za preciznu pretragu):",
+  searchWord:"Pretraga",
+  tipAddModel:"Savet: dodajte model gore za preciznu pretragu.",
+  hsnDetected:"Detektovan HSN/TSN — dodajte model gore (npr. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.hr = {
@@ -608,6 +755,27 @@ T.hr = {
   enableGPS:"Aktiviraj GPS za bolje rezultate", storesFor:"Prodavaonice za", resultsFor:"Rezultati za",
   vehicle:"vozilo", hsnDetected:"HSN/TSN Otkriven",
   hsnDesc:"Otvara Autodoc za 100% kompatibilne dijelove za tvoje vozilo.",
+  // Parts screen i18n
+  partsTitleCar:"Pronađi dijelove za auto",
+  partsTitleBike:"Pronađi dijelove za bicikl",
+  partsTitleTech:"Elektronika i dijelovi",
+  partsTitleAppl:"Dijelovi za uređaje",
+  partsTitleGarden:"Pronađi vrtne potrepštine",
+  partsTitlePets:"Pronađi potrepštine za ljubimce",
+  partsTitleHome:"Pronađi dijelove i alate",
+  localStoresNearby:"Lokalne prodavaonice u blizini",
+  findWord:"pronađi",
+  gpsActiveNear:"GPS aktivan — pravi rezultati u blizini",
+  openGoogleMapsSearch:"Otvori Google Maps i traži",
+  nearbyWord:"u blizini",
+  searchOnGoogleMaps:"Pretraži ovaj proizvod na Google Maps",
+  onlineShops:"Online prodavaonice",
+  partsFromDiagnosis:"Dijelovi iz dijagnoze — dodirnite za pretragu:",
+  addVehicleModel:"✏️ Dodajte model vozila (preporučuje se za preciznu pretragu):",
+  searchWord:"Pretraga",
+  tipAddModel:"Savjet: dodajte model gore za preciznu pretragu.",
+  hsnDetected:"Detektiran HSN/TSN — dodajte model gore (npr. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.mk = {
@@ -677,6 +845,27 @@ T.mk = {
   enableGPS:"Активирај GPS за подобри резултати", storesFor:"Продавници за", resultsFor:"Резултати за",
   vehicle:"возило", hsnDetected:"HSN/TSN Откриен",
   hsnDesc:"Отвора Autodoc за 100% компатибилни делови за твоето возило.",
+  // Parts screen i18n
+  partsTitleCar:"Најди авто делови",
+  partsTitleBike:"Најди велосипедски делови",
+  partsTitleTech:"Електроника и делови",
+  partsTitleAppl:"Делови за апарати",
+  partsTitleGarden:"Најди градински потреби",
+  partsTitlePets:"Најди производи за миленици",
+  partsTitleHome:"Најди делови и алати",
+  localStoresNearby:"Локални продавници во близина",
+  findWord:"најди",
+  gpsActiveNear:"GPS активен — вистински резултати во близина",
+  openGoogleMapsSearch:"Отвори Google Maps за пребарување",
+  nearbyWord:"во близина",
+  searchOnGoogleMaps:"Пребарај го производот на Google Maps",
+  onlineShops:"Онлајн продавници",
+  partsFromDiagnosis:"Делови од дијагноза — допри за пребарување:",
+  addVehicleModel:"✏️ Додај модел возило (препорачано за точно пребарување):",
+  searchWord:"Пребарај",
+  tipAddModel:"Совет: додај модел погоре за точно пребарување.",
+  hsnDetected:"Открен HSN/TSN — додај модел погоре (пр. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 T.tr = {
@@ -746,6 +935,27 @@ T.tr = {
   enableGPS:"Daha iyi sonuçlar için GPS'i etkinleştirin", storesFor:"Mağazalar", resultsFor:"Sonuçlar",
   vehicle:"araç", hsnDetected:"HSN/TSN Algılandı",
   hsnDesc:"Aracınız için %100 uyumlu parçalar için Autodoc açar.",
+  // Parts screen i18n
+  partsTitleCar:"Araba Parçası Bul",
+  partsTitleBike:"Bisiklet Parçası Bul",
+  partsTitleTech:"Elektronik & Aksesuar",
+  partsTitleAppl:"Cihaz Yedek Parçaları",
+  partsTitleGarden:"Bahçe Malzemesi Bul",
+  partsTitlePets:"Evcil Hayvan Ürünleri Bul",
+  partsTitleHome:"Ev & Alet Bul",
+  localStoresNearby:"Yakındaki Yerel Mağazalar",
+  findWord:"bul",
+  gpsActiveNear:"GPS aktif — yakınındaki gerçek sonuçlar",
+  openGoogleMapsSearch:"Google Maps'ı aç ve ara",
+  nearbyWord:"yakınımda",
+  searchOnGoogleMaps:"Bu ürünü Google Maps'ta ara",
+  onlineShops:"Online Mağazalar",
+  partsFromDiagnosis:"Teşhisten parçalar — aramak için dokun:",
+  addVehicleModel:"✏️ Araç modeli ekle (kesin arama için önerilir):",
+  searchWord:"Arama",
+  tipAddModel:"İpucu: Kesin parça araması için yukarıya modeli ekleyin.",
+  hsnDetected:"HSN/TSN tespit edildi — yukarıya modeli ekleyin (örn. \"VW Golf 7 2.0 TDI 2017\")",
+
 };
 
 // ─── VERIFY ALL LANGUAGES HAVE ALL KEYS ──────────────────────────────────────

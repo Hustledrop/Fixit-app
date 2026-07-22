@@ -1996,13 +1996,7 @@ export default function App() {
         <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <BackBtn/>
           <div style={{fontSize:'1.35rem',fontWeight:800,letterSpacing:'-0.02em',marginBottom:4}}>
-            {vType==='car'   ?(lang==='de'?'Auto-Teile finden':lang==='tr'?'Araba Parçası Bul':lang==='pl'?'Znajdź części do auta':'Find Auto Parts'):
-             vType==='bike'  ?(lang==='de'?'Fahrrad-Teile finden':lang==='tr'?'Bisiklet Parçası Bul':lang==='pl'?'Znajdź części do roweru':'Find Bike Parts'):
-             vType==='tech'  ?(lang==='de'?'Elektronik & Zubehör':lang==='tr'?'Elektronik & Aksesuar':lang==='pl'?'Elektronika & Akcesoria':'Electronics & Parts'):
-             vType==='appliances'?(lang==='de'?'Geräte-Ersatzteile':lang==='tr'?'Cihaz Yedek Parçaları':lang==='pl'?'Części do AGD':'Appliance Parts'):
-             vType==='garden'?(lang==='de'?'Gartenbedarf finden':lang==='tr'?'Bahçe Malzemesi Bul':lang==='pl'?'Znajdź artykuły ogrodowe':'Find Garden Supplies'):
-             vType==='pets'  ?(lang==='de'?'Tierbedarf finden':lang==='tr'?'Evcil Hayvan Ürünleri Bul':lang==='pl'?'Znajdź produkty dla zwierząt':'Find Pet Supplies'):
-                              (lang==='de'?'Haus & Geräte finden':lang==='tr'?'Ev & Alet Bul':lang==='pl'?'Znajdź części & narzędzia':'Find Parts & Tools')}
+            {vType==='car'?t('partsTitleCar'):vType==='bike'?t('partsTitleBike'):vType==='tech'?t('partsTitleTech'):vType==='appliances'?t('partsTitleAppl'):vType==='garden'?t('partsTitleGarden'):vType==='pets'?t('partsTitlePets'):t('partsTitleHome')}
           </div>
           <div style={{fontSize:'0.82rem',color:C.m}}>{t('partsSubtitle')}</div>
         </div>
@@ -2019,7 +2013,7 @@ export default function App() {
             {/^\d{4}/.test(vInput.trim()) && (
               <div style={{marginTop:10,padding:'10px 12px',background:'rgba(232,178,26,0.08)',border:'1px solid rgba(232,178,26,0.2)',borderRadius:10}}>
                 <div style={{fontSize:'0.65rem',color:C.y,fontWeight:700,marginBottom:6}}>
-                  {lang==='de'?'✏️ Fahrzeugmodell ergänzen (empfohlen für genaue Suche):':lang==='tr'?'✏️ Araç modeli ekle (kesin arama için önerilir):':lang==='pl'?'✏️ Dodaj model pojazdu (zalecane dla dokładnego wyszukiwania):':'✏️ Add vehicle model (recommended for accurate search):'}
+                  {t('addVehicleModel')}
                 </div>
                 <input
                   value={hsnModel}
@@ -2054,7 +2048,7 @@ export default function App() {
             {pResults.fromDiagnosis && aiResult?.partsNeeded?.length > 1 ? (
               <div style={{marginBottom:10}}>
                 <div style={{fontSize:'0.7rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>
-                  {lang==='de'?'Teile aus der Diagnose — tippe zum Suchen:':lang==='tr'?'Teşhisten parçalar — aramak için dokun:':lang==='pl'?'Części z diagnozy — dotknij aby wyszukać:':'Parts from diagnosis — tap to search:'}
+                  {t('partsFromDiagnosis')}
                 </div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                   {aiResult.partsNeeded.map((part,pi)=>(
@@ -2099,13 +2093,12 @@ export default function App() {
               <div style={{fontSize:'0.78rem',color:C.t,lineHeight:1.6,marginBottom:6}}>
                 {pResults.isHSN
                   ? (pResults.hsnModel
-                    ? `${lang==='de'?'Modell':lang==='tr'?'Model':lang==='pl'?'Model':'Model'}: ${pResults.hsnModel} — ${lang==='de'?'Suche':lang==='tr'?'Arama':lang==='pl'?'Szukaj':'Search'}: "${pResults.searchQ}"`
-                    : (lang==='de'?'HSN/TSN erkannt — bitte Modell oben ergänzen (z.B. "VW Golf 7 2.0 TDI 2017")':
-                       'HSN/TSN detected — add the vehicle model above (e.g. "VW Golf 7 2.0 TDI 2017")'))
-                  : `${lang==='de'?'Suche':lang==='tr'?'Arama':lang==='pl'?'Szukaj':'Search'}: "${pResults.searchQ}"`}
+                    ? `${t('searchWord')}: "${pResults.hsnModel}" — ${t('searchWord')}: "${pResults.searchQ}"`
+                    : t('hsnDetected'))
+                  : `${t('searchWord')}: "${pResults.searchQ}"`}
               </div>
               {pResults.isHSN && !pResults.hsnModel && <div style={{fontSize:'0.7rem',color:C.m}}>
-                {lang==='de'?'Tipp: Modell oben ergänzen für exakte Teilesuche.':'Tip: Add the model above for exact part search.'}
+                {t('tipAddModel')}
               </div>}
             </div>}
             {/* VIN compatibility warning — shown when vehicle was auto-detected */}
@@ -2128,7 +2121,7 @@ export default function App() {
             {/* LOKALE GESCHÄFTE — real nearby stores via Google Maps, NOT online shops */}
             <div style={{...s.card,background:'rgba(26,158,92,0.05)',borderColor:'rgba(26,158,92,0.2)',marginBottom:10}}>
               <div style={{fontSize:'0.62rem',fontWeight:700,color:C.g,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
-                📍 {lang==='de'?'Lokale Geschäfte in der Nähe':'Local Stores Nearby'} {lat?'(GPS)':''}
+                📍 {t('localStoresNearby')} {lat?'(GPS)':''}
               </div>
               {/* Single Google Maps button — opens real nearby local stores for this category */}
               <div onClick={()=>window.open(localMapsUrl, '_blank', 'noopener,noreferrer')}
@@ -2136,10 +2129,10 @@ export default function App() {
                 <div style={{fontSize:'1.4rem'}}>🗺️</div>
                 <div style={{flex:1}}>
                   <div style={{fontSize:'0.86rem',fontWeight:700,color:C.g}}>
-                    {localSearchTerm} {lang==='de'?'finden':'find'}
+                    {localSearchTerm} {t('findWord')}
                   </div>
                   <div style={{fontSize:'0.65rem',color:C.m}}>
-                    {lat ? (lang==='de'?'GPS aktiv — echte Ergebnisse in deiner Nähe':'GPS active — real results near you') : (lang==='de'?'Google Maps öffnen und suchen':'Open Google Maps to search')}
+                    {lat ? t('gpsActiveNear') : t('openGoogleMapsSearch')}
                   </div>
                 </div>
                 <div style={{color:C.g,fontWeight:700}}>→</div>
@@ -2149,8 +2142,8 @@ export default function App() {
                 style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                 <div style={{fontSize:'1.2rem'}}>🔍</div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:'0.78rem',fontWeight:600}}>{lang==='de'?`"${pResults.searchQ}" in der Nähe`:'"'+pResults.searchQ+'" nearby'}</div>
-                  <div style={{fontSize:'0.62rem',color:C.m}}>{lang==='de'?'Produkt direkt in Google Maps suchen':'Search this product on Google Maps'}</div>
+                  <div style={{fontSize:'0.78rem',fontWeight:600}}>"{pResults.searchQ}" {t('nearbyWord')}</div>
+                  <div style={{fontSize:'0.62rem',color:C.m}}>{t('searchOnGoogleMaps')}</div>
                 </div>
                 <div style={{color:C.g}}>→</div>
               </div>}
@@ -2158,7 +2151,7 @@ export default function App() {
             {/* ONLINE-SHOPS — category-specific + generic */}
             <div style={s.card}>
               <div style={{fontSize:'0.62rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
-                🛒 {lang==='de'?'Online-Shops':'Online Shops'}
+                🛒 {t('onlineShops')}
               </div>
               {/* Category-specific online stores (Autodoc for car, MediaMarkt for tech, etc.) */}
               {localStores.map((st,i)=>(
