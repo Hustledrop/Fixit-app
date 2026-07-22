@@ -449,7 +449,7 @@ const EMERGENCY_QUERIES = {
     HR:'hitni vodoinstalater 24h',
     BA:'hitni vodoinstalater 24h',
     ME:'hitni vodoinstalater 24h',
-    MK:'итен водоинсталатер 24 часа',
+    MK:'водоводџија водоинсталатер итен',  // водоводџија is MK-specific (not Serbian), anchors Google Maps to North Macedonia
     BG:'авариен водопроводчик 24h',
     LT:'avarinis santechnikas 24h',
     LV:'avārijas santehniķis 24h',
