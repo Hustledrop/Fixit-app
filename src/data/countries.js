@@ -387,18 +387,95 @@ export function getStores(category, cc) {
 
 // Local store search terms per category — used to open Google Maps nearby search
 export const LOCAL_STORE_SEARCH = {
-  car:        { de:'Autoteile KFZ Teile',            en:'auto parts store' },
-  bike:       { de:'Fahrradladen Fahrradgeschäft',   en:'bike shop bicycle store' },
-  tech:       { de:'Elektronik Reparatur Handy',      en:'electronics repair phone shop' },
-  appliances: { de:'Haushaltsgeräte Reparatur',       en:'appliance repair shop' },
-  home:       { de:'Baumarkt Eisenwaren',             en:'hardware store DIY shop' },
-  garden:     { de:'Gartencenter Pflanzen',           en:'garden center plant nursery' },
-  pets:       { de:'Zoohandlung Tierhandlung',        en:'pet shop pet store' },
+  car: {
+    en:'auto parts store',
+    de:'Autoteile KFZ Teile',
+    fr:'magasin de pièces auto',
+    es:'tienda de repuestos de coche',
+    it:'negozio ricambi auto',
+    pl:'sklep z częściami samochodowymi',
+    sr:'prodavnica auto delova',
+    hr:'prodavaonica auto dijelova',
+    mk:'продавница за авто делови',
+    tr:'araba parçaları mağazası',
+  },
+  bike: {
+    en:'bike shop bicycle store',
+    de:'Fahrradladen Fahrradgeschäft',
+    fr:'magasin de vélos',
+    es:'tienda de bicicletas',
+    it:'negozio biciclette',
+    pl:'sklep rowerowy',
+    sr:'prodavnica bicikala',
+    hr:'prodavaonica bicikala',
+    mk:'продавница за велосипеди',
+    tr:'bisiklet mağazası',
+  },
+  tech: {
+    en:'electronics repair phone shop',
+    de:'Elektronik Reparatur Handy',
+    fr:'réparation électronique téléphone',
+    es:'reparación electrónica móvil',
+    it:'riparazione elettronica telefono',
+    pl:'serwis elektroniczny naprawa telefonu',
+    sr:'servis elektronike popravka telefona',
+    hr:'servis elektronike popravak telefona',
+    mk:'сервис за електроника поправка телефон',
+    tr:'elektronik tamir telefon mağazası',
+  },
+  appliances: {
+    en:'appliance repair shop',
+    de:'Haushaltsgeräte Reparatur',
+    fr:'réparation électroménager',
+    es:'reparación electrodomésticos',
+    it:'riparazione elettrodomestici',
+    pl:'naprawa sprzętu AGD',
+    sr:'popravka kućnih aparata',
+    hr:'popravak kućanskih aparata',
+    mk:'поправка на апарати за домаќинство',
+    tr:'beyaz eşya tamir servisi',
+  },
+  home: {
+    en:'hardware store DIY shop',
+    de:'Baumarkt Eisenwaren',
+    fr:'quincaillerie magasin de bricolage',
+    es:'ferretería bricolaje',
+    it:'ferramenta fai da te',
+    pl:'sklep budowlany artykuły metalowe',
+    sr:'prodavnica građevinskog materijala',
+    hr:'prodavaonica građevinskog materijala',
+    mk:'продавница за градежен материјал',
+    tr:'yapı market hırdavatçı',
+  },
+  garden: {
+    en:'garden center plant nursery',
+    de:'Gartencenter Pflanzen',
+    fr:'jardinerie pépinière',
+    es:'centro de jardinería vivero',
+    it:'centro giardinaggio vivaio',
+    pl:'centrum ogrodnicze szkółka roślin',
+    sr:'baštovansko-cvetni centar',
+    hr:'vrtni centar rasadnik',
+    mk:'градинарски центар расадник',
+    tr:'bahçe merkezi fidanlık',
+  },
+  pets: {
+    en:'pet shop pet store',
+    de:'Zoohandlung Tierhandlung',
+    fr:'animalerie magasin animaux',
+    es:'tienda de mascotas animales',
+    it:'negozio animali domestici',
+    pl:'sklep zoologiczny',
+    sr:'prodavnica za kućne ljubimce',
+    hr:'prodavaonica za kućne ljubimce',
+    mk:'продавница за миленици',
+    tr:'evcil hayvan mağazası',
+  },
 };
 
 export function getLocalStoreSearch(category, lang) {
   const entry = LOCAL_STORE_SEARCH[category] || LOCAL_STORE_SEARCH.home;
-  return (lang === 'de') ? entry.de : entry.en;
+  return entry[lang] || entry.en;
 }
 
 export function getOnlineStores(cc) {
