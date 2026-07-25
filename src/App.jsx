@@ -514,9 +514,11 @@ export default function App() {
     const ts = new Date(h.date);
     if (isNaN(ts.getTime())) return false;
     if (h._error || h._fallback || h._loading) return false;
-    const bad = ['try again','timed out','error','invalid','undefined'];
-    const dl  = h.diagnosis.toLowerCase();
-    if (bad.some(p => dl === p || dl.startsWith(p + ' '))) return false;
+    // Only reject exact-match placeholder strings that indicate a failed/loading state.
+    // Do NOT use startsWith — real AI diagnoses often begin with "Error code...",
+    // "Invalid sensor reading..." etc. which are legitimate diagnostic content.
+    const BAD_EXACT = new Set(['try again','timed out','error','invalid','undefined','loading','…']);
+    if (BAD_EXACT.has(h.diagnosis.toLowerCase().trim())) return false;
     return true;
   }
 
