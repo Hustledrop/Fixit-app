@@ -183,8 +183,27 @@ export default function App() {
   const [aiMsgIdx, setAiMsgIdx]   = useState(0);
   const [feedback, setFeedback]   = useState(null); // null | 'fixed' | 'broken'
   const [toast, setToast]         = useState(null);
-  const [history, setHistory]     = useState(() => LS.get('history') || []);
+  // ── Navigation stack (in-memory only — never persisted) ──────────────────
+  const [navStack, setNavStack]       = useState([]);
+
+  // ── Diagnosis history (persisted in fixit_history) ─────────────────────
+  // Loaded once on mount with migration: removes corrupted string entries
+  // (screen-name strings that were previously mixed in via the same state variable)
+  const [diagHistory, setDiagHistory] = useState(() => {
+    const raw = LS.get('history') || [];
+    const cleaned = raw.filter(isValidDiagEntry);
+    // Write back immediately so corrupted entries don't survive a refresh
+    if (cleaned.length !== raw.length) {
+      try { localStorage.setItem('fixit_history', JSON.stringify(cleaned)); } catch {}
+    }
+    return cleaned;
+  });
   const [showHistory, setShowHistory] = useState(false);
+  const [restoredResult, setRestoredResult] = useState(null); // set when viewing a history entry
+
+  // ── diagnosisRunId: unique per submit, carried through to save guard ───
+  const diagRunIdRef   = useRef(null);   // set on each new submission
+  const savedRunIdsRef = useRef(new Set()); // prevents double-save per run
   const [nearbyBump,  setNearbyBump]  = useState(0); // increment to force nearby refresh
   const [nearbyForce, setNearbyForce] = useState(false); // true = bypass 30min cache
   const [isOnline, setIsOnline]   = useState(navigator.onLine);
@@ -342,15 +361,18 @@ export default function App() {
   }, []); // eslint-disable-line
 
   // Save to history when AI result arrives (top-level, legal)
+  // diagRunIdRef.current is set by handleSubmit before calling diagnose()
+  // so each diagnosis run has a unique ID that prevents double-saves
   useEffect(() => {
-    if (aiResult) saveToHistory(aiResult, problemRef.current);
+    if (aiResult) saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
   }, [aiResult]); // eslint-disable-line
 
   function goto(s) {
-    // Push current screen to history before navigating (skip transient screens)
+    // Push current screen onto navStack before navigating (skip transient screens)
+    // navStack is ONLY for back-navigation; never persisted, never mixed with diagHistory
     const skip = ['splash','splash-r','onboarding','loc-ask'];
     if (!skip.includes(screen) && screen !== s) {
-      setHistory(h => [...h.slice(-19), screen]); // keep last 20 screens
+      setNavStack(h => [...h.slice(-19), screen]); // keep last 20 screens
     }
     setScreen(s);
     if (s === 'nearby') {
@@ -361,7 +383,7 @@ export default function App() {
   }
 
   function goBack() {
-    setHistory(h => {
+    setNavStack(h => {
       if (h.length === 0) { setScreen('home'); return h; }
       const prev = h[h.length - 1];
       setScreen(prev);
@@ -371,7 +393,7 @@ export default function App() {
 
   // Back button — always shows when history has entries (or when forced via onPress)
   const BackBtn = ({ onPress } = {}) => {
-    const canGoBack = history.length > 0 || !!onPress;
+    const canGoBack = navStack.length > 0 || !!onPress;
     if (!canGoBack) return null;
     return (
       <button onClick={onPress || goBack} style={{
@@ -471,59 +493,117 @@ export default function App() {
     diagCategoryRef.current = curFix;
     setPrevScr('fix-now');
     setFeedback(null);
+    // Generate a new runId for this submission; prevents double-save from
+    // React StrictMode double-effects and rapid resubmits/retries
+    diagRunIdRef.current = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    setRestoredResult(null); // clear any restored history result
     goto('result');
     await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, userProfile: profile });
   }
 
-  function saveToHistory(result, prob) {
+  // ── Shared validator for diagnosis history entries ──────────────────────
+  // Used when loading from LS (migration) and before saving a new entry.
+  function isValidDiagEntry(h) {
+    if (!h || typeof h !== 'object' || Array.isArray(h)) return false;
+    const hasInput = (typeof h.problem === 'string' && h.problem.trim().length > 0)
+                  || h.problem === 'Photo diagnosis';
+    if (!hasInput) return false;
+    if (!h.diagnosis || typeof h.diagnosis !== 'string' || h.diagnosis.trim().length === 0) return false;
+    if (!h.date || typeof h.date !== 'string') return false;
+    const ts = new Date(h.date);
+    if (isNaN(ts.getTime())) return false;
+    if (h._error || h._fallback || h._loading) return false;
+    const bad = ['try again','timed out','error','invalid','undefined'];
+    const dl  = h.diagnosis.toLowerCase();
+    if (bad.some(p => dl === p || dl.startsWith(p + ' '))) return false;
+    return true;
+  }
+
+  function saveToHistory(result, prob, runId) {
     if (!result) return;
-    // Mark free diagnosis as used — only after real successful result
+
+    // ── Run-ID dedup: one save per diagnosis run, even in React StrictMode ──
+    // runId is generated in handleSubmit and carried through to this call.
+    // savedRunIdsRef persists across re-renders so StrictMode double-effects
+    // and rapid retries are both safe.
+    if (runId) {
+      if (savedRunIdsRef.current.has(runId)) {
+        console.log('[FixIt] saveToHistory: skipped duplicate save for runId', runId);
+        return;
+      }
+      savedRunIdsRef.current.add(runId);
+    }
+
+    // ── Reject error/fallback results ────────────────────────────────────
+    if (result._fallback || result._error || !result.diagnosis) return;
+    const prob_ = prob || problemRef.current || 'Photo diagnosis';
+    if (!prob_?.trim() && prob_ !== 'Photo diagnosis') return;
+
+    // ── Mark free diagnosis as used ──────────────────────────────────────
     if (!result.callPro && !result._fallback) {
-      LS.set('free_diagnosis_used', true);          // guest tracking
+      LS.set('free_diagnosis_used', true);
       if (user && AUTH_AVAILABLE && !isPro) {
-        incrementUsage(user.id).catch(() => {});    // Supabase tracking (fire-and-forget)
+        incrementUsage(user.id).catch(() => {});
       }
     }
-    // Parse estimatedCost into a number for savings tracking
-    // Format: "€5–15", "£10–25", "$8" — extract midpoint
+
+    // ── Parse estimatedCost midpoint for savings tracking ────────────────
     function parseSaving(costStr) {
       if (!costStr) return 0;
       const nums = (costStr.match(/[\d]+/g) || []).map(Number);
       if (nums.length === 0) return 0;
       if (nums.length === 1) return nums[0];
-      return Math.round((nums[0] + nums[nums.length-1]) / 2); // midpoint
+      return Math.round((nums[0] + nums[nums.length-1]) / 2);
     }
     const savedAmt = parseSaving(result.estimatedCost);
-    // NOTE: totalSaved is NOT incremented here.
-    // It is only incremented when the user confirms "Yes, fixed!" (handleFeedback).
-    // savedAmt is stored on the history entry so handleFeedback can use it.
 
+    // ── Build the complete entry (store full result for restore) ─────────
     const entry = {
-      id: Date.now(),
-      problem: prob || problemRef.current || 'Photo diagnosis',
-      diagnosis: result.diagnosis?.substring(0, 120),
-      confidence: result.confidence,
+      id:            Date.now(),
+      problem:       prob_,
+      // Full result stored so the result screen can be fully restored
+      diagnosis:     result.diagnosis || '',
+      confidence:    result.confidence   ?? null,
       estimatedCost: result.estimatedCost || '',
+      timeEstimate:  result.timeEstimate  || '',
+      proSearchQuery:result.proSearchQuery|| '',
+      callPro:       result.callPro       ?? false,
+      safetyWarning: result.safetyWarning || '',
+      warningLevel:  result.warningLevel  || '',
+      status:        result.status        || 'success',
       savedAmt,
-      category: curFix,
-      date: new Date().toISOString(),
+      category:      curFix,
+      lang:          lang,
+      date:          new Date().toISOString(),
       cc,
-      fixed: null,
+      fixed:         null,
     };
-    const updated = [entry, ...(history || [])].slice(0, 20);
-    setHistory(updated);
-    LS.set('history', updated);
+
+    // ── Validate the entry before saving ─────────────────────────────────
+    if (!isValidDiagEntry(entry)) {
+      console.warn('[FixIt] saveToHistory: entry failed validation, not saving', entry);
+      return;
+    }
+
+    // ── Prepend to diagHistory (use functional update to avoid stale closure) ─
+    setDiagHistory(prev => {
+      const updated = [entry, ...prev].slice(0, 20);
+      LS.set('history', updated);
+      return updated;
+    });
   }
 
   function handleFeedback(val) {
     setFeedback(val);
-    const updated = (history || []).map((h, i) => i === 0 ? {...h, fixed: val === 'fixed'} : h);
-    setHistory(updated);
-    LS.set('history', updated);
+    setDiagHistory(prev => {
+      const updated = prev.map((h, i) => i === 0 ? {...h, fixed: val === 'fixed'} : h);
+      LS.set('history', updated);
+      return updated;
+    });
 
     // Only count savings when user CONFIRMS the repair worked
     if (val === 'fixed') {
-      const thisEntry = (history || [])[0];
+      const thisEntry = (diagHistory || [])[0];
       const amt = thisEntry?.savedAmt || 0;
       if (amt > 0) {
         const prev = LS.get('totalSaved') || 0;
@@ -1216,10 +1296,10 @@ export default function App() {
           <div style={{fontSize:'1.45rem',fontWeight:900,letterSpacing:'-0.01em',flexShrink:0}}>FIX<span style={{color:C.o}}>IT</span></div>
           {/* Right: history + lang flag + user icon */}
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'flex-end',gap:6,minWidth:0}}>
-            {history.length > 0 &&
+            {diagHistory.length > 0 &&
               <button onClick={()=>setShowHistory(true)} title="History"
                 style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:10,width:34,height:34,cursor:'pointer',color:C.m,fontFamily:'inherit',fontSize:'0.7rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                🕐{history.length}
+                🕐{diagHistory.length}
               </button>}
             {/* Language — shows flag only */}
             <button onClick={()=>setShowLP(true)} title={LANGS[lang]?.n}
@@ -1263,26 +1343,62 @@ export default function App() {
           <div onClick={()=>setShowHistory(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:100,display:'flex',alignItems:'flex-end'}}>
             <div onClick={e=>e.stopPropagation()} style={{background:'#151310',borderRadius:'26px 26px 0 0',width:'100%',maxHeight:'70vh',overflowY:'auto',padding:20}}>
               <div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
-              {history.map(h=>(
-                <div key={h.id} style={{...s.card,marginBottom:8}}>
-                  <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
-                  <div style={{fontSize:'0.72rem',color:C.m,marginBottom:6}}>{h.diagnosis}</div>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-              
-                    <span style={{fontSize:'0.65rem',color:C.m}}>{new Date(h.date).toLocaleDateString()}</span>
-                    {h.fixed===true && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
-                    {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
-                    <button onClick={()=>{problemRef.current=h.problem;setCurFix('home');setShowHistory(false);goto('result');diagnose({problem:h.problem,category:'home',lang,countryName:cd.name});}} style={{marginLeft:'auto',background:C.o,border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:'0.65rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Erneut':'Try again'}</button>
+              {diagHistory.filter(isValidDiagEntry).map(h=>{
+                // Safe date formatting — never call new Date() on an unvalidated value
+                const dateStr = (() => {
+                  const d = new Date(h.date);
+                  return isNaN(d.getTime()) ? '' : d.toLocaleDateString(lang, {day:'numeric',month:'short',year:'numeric'});
+                })();
+                return (
+                  <div key={h.id} style={{...s.card,marginBottom:8,cursor:'pointer'}}
+                       onClick={()=>{
+                         // Restore the full saved result to the result screen
+                         setRestoredResult({
+                           diagnosis:     h.diagnosis,
+                           confidence:    h.confidence    ?? 0,
+                           estimatedCost: h.estimatedCost || '',
+                           timeEstimate:  h.timeEstimate  || '',
+                           proSearchQuery:h.proSearchQuery|| '',
+                           callPro:       h.callPro       ?? false,
+                           safetyWarning: h.safetyWarning || '',
+                           warningLevel:  h.warningLevel  || '',
+                           status:        h.status        || 'success',
+                         });
+                         problemRef.current = h.problem;
+                         setCurFix(h.category || 'home');
+                         setShowHistory(false);
+                         goto('result');
+                       }}>
+                    <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
+                    <div style={{fontSize:'0.72rem',color:C.m,marginBottom:6,WebkitLineClamp:2,display:'-webkit-box',WebkitBoxOrient:'vertical',overflow:'hidden'}}>{h.diagnosis}</div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      {dateStr && <span style={{fontSize:'0.65rem',color:C.m}}>{dateStr}</span>}
+                      {h.fixed===true  && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
+                      {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
+                      <button onClick={e=>{
+                        e.stopPropagation(); // don't also trigger the view onClick
+                        // Retry: generate a new runId so this is a fresh diagnosis run
+                        diagRunIdRef.current = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+                        setRestoredResult(null);
+                        problemRef.current = h.problem;
+                        setCurFix(h.category || 'home');
+                        setShowHistory(false);
+                        goto('result');
+                        diagnose({problem:h.problem,category:h.category||'home',lang,countryName:cd.name});
+                      }} style={{marginLeft:'auto',background:C.o,border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:'0.65rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                        {lang==='de'?'Erneut':lang==='tr'?'Tekrar':lang==='pl'?'Ponów':lang==='mk'?'Повтори':t('retryBtn')||'↻ Retry'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {history.length === 0 && <div style={{textAlign:'center',color:C.m,padding:'20px 0'}}>No repairs yet</div>}
+                );
+              })}
+              {diagHistory.length === 0 && <div style={{textAlign:'center',color:C.m,padding:'20px 0'}}>No repairs yet</div>}
               {totalSaved > 0 && <div style={{background:'rgba(26,158,92,0.08)',border:'1px solid rgba(26,158,92,0.18)',borderRadius:10,padding:'10px 14px',marginBottom:12,textAlign:'center'}}>
                 <div style={{fontSize:'0.65rem',color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{lang==='de'?'Mögliches Sparpotenzial mit FixIt':lang==='tr'?'FixIt ile tahmini tasarruf':lang==='pl'?'Potencjalne oszczędności z FixIt':'Estimated savings with FixIt'}</div>
                 <div style={{fontSize:'1.5rem',fontWeight:900,color:C.g}}>ca. €{totalSaved}</div>
                 <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.22)',marginTop:4}}>{lang==='de'?'Schätzung basierend auf typischen Reparaturkosten. Keine Garantie.':lang==='tr'?'Tipik onarım maliyetlerine göre tahmin. Garanti yoktur.':lang==='pl'?'Szacunek oparty na typowych kosztach naprawy. Bez gwarancji.':'Estimate based on typical repair costs. No guarantee.'}</div>
               </div>}
-              <button onClick={()=>{setHistory([]);LS.set('history',[]);setTotalSaved(0);LS.set('totalSaved',0);}} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{lang==='de'?'Verlauf löschen':lang==='tr'?'Geçmişi temizle':lang==='pl'?'Wyczyść historię':'Clear history'}</button>
+              <button onClick={()=>{setDiagHistory([]);LS.set('history',[]);setTotalSaved(0);LS.set('totalSaved',0);}} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{lang==='de'?'Verlauf löschen':lang==='tr'?'Geçmişi temizle':lang==='pl'?'Wyczyść historię':'Clear history'}</button>
             </div>
           </div>
         )}
@@ -1377,7 +1493,7 @@ export default function App() {
 
   // ── RESULT ───────────────────────────────────────────────────────────────────
   if (screen === 'result') {
-    const r   = aiResult;
+    const r   = restoredResult || aiResult;
     const pct = r?.confidence||0;
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
