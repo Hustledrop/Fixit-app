@@ -142,6 +142,30 @@ T.en = {
   tipAddModel:"Tip: Add the model above for exact part search.",
   hsnDetected:"HSN/TSN detected — add the vehicle model above (e.g. \"VW Golf 7 2.0 TDI 2017\")",
 
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS not permitted",
+  locationCouldNotResolve:"Location could not be resolved",
+  detectingLocation:"Detecting location…",
+  tapToRetry:"Tap to retry",
+  enableGpsForEmergency:"Enable GPS for local emergency numbers",
+  retryWord:"Retry",
+  ambulance:"Ambulance",
+  fireDepartment:"Fire Department",
+  policeLabel:"Police",
+  medicalAssistance:"Medical Assistance",
+  roadAssistance:"Road Assistance",
+  veterinaryEmergency:"Veterinary Emergency",
+  generalEmergencyNumber:"General emergency number",
+  fireCallLabel:"Fire",
+  emergencyCallLabel:"Emergency",
+  roadsideCallLabel:"Road assistance",
+  vetCallLabel:"Vet emergency",
+  localDataUnavailable:"Local emergency dataset unavailable",
+  offlineEmergencyBanner:"Offline mode — emergency numbers still available",
+  badgeUrgent:"URGENT",
+  badgeAsap:"ASAP",
+  countryNotDetected:"Country not detected — showing default emergency number (112)",
+
 };
 
 T.de = {
@@ -235,6 +259,30 @@ T.de = {
   tipAddModel:"Tipp: Modell oben ergänzen für exakte Teilesuche.",
   hsnDetected:"HSN/TSN erkannt — bitte Modell oben ergänzen (z.B. \"VW Golf 7 2.0 TDI 2017\")",
 
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS nicht erlaubt",
+  locationCouldNotResolve:"Standort konnte nicht ermittelt werden",
+  detectingLocation:"Standort wird ermittelt…",
+  tapToRetry:"Antippen zum erneuten Versuch",
+  enableGpsForEmergency:"Bitte GPS aktivieren für lokale Notrufnummern",
+  retryWord:"Erneut versuchen",
+  ambulance:"Rettungsdienst",
+  fireDepartment:"Feuerwehr",
+  policeLabel:"Polizei",
+  medicalAssistance:"Ärztlicher Notdienst",
+  roadAssistance:"Pannenhilfe",
+  veterinaryEmergency:"Tierärztlicher Notdienst",
+  generalEmergencyNumber:"Allgemeiner Notruf",
+  fireCallLabel:"Feuerwehr",
+  emergencyCallLabel:"Notruf",
+  roadsideCallLabel:"Pannenhilfe",
+  vetCallLabel:"Tiernotdienst",
+  localDataUnavailable:"Lokaler Notfalldatensatz nicht verfügbar",
+  offlineEmergencyBanner:"Offline-Modus — Notrufnummern sind weiterhin verfügbar",
+  badgeUrgent:"DRINGEND",
+  badgeAsap:"SOFORT",
+  countryNotDetected:"Land nicht erkannt — allgemeiner Notruf (112)",
+
 };
 
 T.fr = {
@@ -326,6 +374,30 @@ T.fr = {
   tipAddModel:"Conseil : ajoutez le modèle ci-dessus pour une recherche précise.",
   hsnDetected:"HSN/TSN détecté — ajoutez le modèle ci-dessus (ex. \"VW Golf 7 2.0 TDI 2017\")",
 
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS non autorisé",
+  locationCouldNotResolve:"La localisation n\'a pas pu être résolue",
+  detectingLocation:"Détection de la localisation…",
+  tapToRetry:"Appuyez pour réessayer",
+  enableGpsForEmergency:"Activez le GPS pour les numéros d\'urgence locaux",
+  retryWord:"Réessayer",
+  ambulance:"Ambulance",
+  fireDepartment:"Pompiers",
+  policeLabel:"Police",
+  medicalAssistance:"Assistance médicale",
+  roadAssistance:"Assistance routière",
+  veterinaryEmergency:"Urgence vétérinaire",
+  generalEmergencyNumber:"Numéro d\'urgence général",
+  fireCallLabel:"Incendie",
+  emergencyCallLabel:"Urgence",
+  roadsideCallLabel:"Dépannage",
+  vetCallLabel:"Vét. urgence",
+  localDataUnavailable:"Données d\'urgence locales indisponibles",
+  offlineEmergencyBanner:"Mode hors ligne — numéros d\'urgence toujours disponibles",
+  badgeUrgent:"URGENT",
+  badgeAsap:"IMMÉDIAT",
+  countryNotDetected:"Pays non détecté — numéro urgence général (112)",
+
 };
 
 T.es = {
@@ -415,6 +487,30 @@ T.es = {
   searchWord:"Buscar",
   tipAddModel:"Consejo: añade el modelo arriba para búsqueda exacta.",
   hsnDetected:"HSN/TSN detectado — añade el modelo arriba (ej. \"VW Golf 7 2.0 TDI 2017\")",
+
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS no permitido",
+  locationCouldNotResolve:"No se pudo resolver la ubicación",
+  detectingLocation:"Detectando ubicación…",
+  tapToRetry:"Toca para reintentar",
+  enableGpsForEmergency:"Activa el GPS para números de emergencia locales",
+  retryWord:"Reintentar",
+  ambulance:"Ambulancia",
+  fireDepartment:"Bomberos",
+  policeLabel:"Policía",
+  medicalAssistance:"Asistencia médica",
+  roadAssistance:"Asistencia en carretera",
+  veterinaryEmergency:"Emergencia veterinaria",
+  generalEmergencyNumber:"Número de emergencia general",
+  fireCallLabel:"Incendio",
+  emergencyCallLabel:"Emergencia",
+  roadsideCallLabel:"Asistencia",
+  vetCallLabel:"Vet. urgencia",
+  localDataUnavailable:"Datos de emergencia locales no disponibles",
+  offlineEmergencyBanner:"Modo sin conexión — números de emergencia disponibles",
+  badgeUrgent:"URGENTE",
+  badgeAsap:"YA",
+  countryNotDetected:"País no detectado — número de emergencia general (112)",
 
 };
 
@@ -506,6 +602,30 @@ T.it = {
   tipAddModel:"Suggerimento: aggiungi il modello sopra per una ricerca precisa.",
   hsnDetected:"HSN/TSN rilevato — aggiungi il modello sopra (es. \"VW Golf 7 2.0 TDI 2017\")",
 
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS non autorizzato",
+  locationCouldNotResolve:"Impossibile risolvere la posizione",
+  detectingLocation:"Rilevamento posizione…",
+  tapToRetry:"Tocca per riprovare",
+  enableGpsForEmergency:"Attiva il GPS per i numeri di emergenza locali",
+  retryWord:"Riprova",
+  ambulance:"Ambulanza",
+  fireDepartment:"Vigili del fuoco",
+  policeLabel:"Polizia",
+  medicalAssistance:"Assistenza medica",
+  roadAssistance:"Soccorso stradale",
+  veterinaryEmergency:"Urgenza veterinaria",
+  generalEmergencyNumber:"Numero di emergenza generale",
+  fireCallLabel:"Incendio",
+  emergencyCallLabel:"Emergenza",
+  roadsideCallLabel:"Soccorso",
+  vetCallLabel:"Vet. urgenza",
+  localDataUnavailable:"Dati di emergenza locali non disponibili",
+  offlineEmergencyBanner:"Modalità offline — numeri di emergenza ancora disponibili",
+  badgeUrgent:"URGENTE",
+  badgeAsap:"SUBITO",
+  countryNotDetected:"Paese non rilevato — numero di emergenza generale (112)",
+
 };
 
 T.pl = {
@@ -595,6 +715,30 @@ T.pl = {
   searchWord:"Szukaj",
   tipAddModel:"Wskazówka: dodaj model powyżej dla dokładnego wyszukiwania.",
   hsnDetected:"Wykryto HSN/TSN — dodaj model powyżej (np. \"VW Golf 7 2.0 TDI 2017\")",
+
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS nie jest dozwolony",
+  locationCouldNotResolve:"Nie można ustalić lokalizacji",
+  detectingLocation:"Wykrywanie lokalizacji…",
+  tapToRetry:"Dotknij aby spróbować ponownie",
+  enableGpsForEmergency:"Włącz GPS aby uzyskać lokalne numery alarmowe",
+  retryWord:"Spróbuj ponownie",
+  ambulance:"Pogotowie",
+  fireDepartment:"Straż pożarna",
+  policeLabel:"Policja",
+  medicalAssistance:"Pomoc medyczna",
+  roadAssistance:"Pomoc drogowa",
+  veterinaryEmergency:"Pilna pomoc weterynaryjna",
+  generalEmergencyNumber:"Ogólny numer alarmowy",
+  fireCallLabel:"Pożar",
+  emergencyCallLabel:"Alarm",
+  roadsideCallLabel:"Drogowa",
+  vetCallLabel:"Wet. nagły",
+  localDataUnavailable:"Lokalne dane alarmowe niedostępne",
+  offlineEmergencyBanner:"Tryb offline — numery alarmowe nadal dostępne",
+  badgeUrgent:"PILNE",
+  badgeAsap:"NATYCHMIAST",
+  countryNotDetected:"Kraj nieznany — ogólny numer alarmowy (112)",
 
 };
 
@@ -686,6 +830,30 @@ T.sr = {
   tipAddModel:"Savet: dodajte model gore za preciznu pretragu.",
   hsnDetected:"Detektovan HSN/TSN — dodajte model gore (npr. \"VW Golf 7 2.0 TDI 2017\")",
 
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS nije dozvoljen",
+  locationCouldNotResolve:"Lokacija nije mogla biti određena",
+  detectingLocation:"Otkrivanje lokacije…",
+  tapToRetry:"Dodirnite za ponovni pokušaj",
+  enableGpsForEmergency:"Uključite GPS za lokalne brojeve za hitne slučajeve",
+  retryWord:"Pokušaj ponovo",
+  ambulance:"Hitna pomoć",
+  fireDepartment:"Vatrogasci",
+  policeLabel:"Policija",
+  medicalAssistance:"Medicinska pomoć",
+  roadAssistance:"Pomoć na putu",
+  veterinaryEmergency:"Hitna veterinarska pomoć",
+  generalEmergencyNumber:"Opšti broj za hitne slučajeve",
+  fireCallLabel:"Požar",
+  emergencyCallLabel:"Hitna",
+  roadsideCallLabel:"Putna",
+  vetCallLabel:"Vet. hitna",
+  localDataUnavailable:"Lokalni podaci za hitne slučajeve nedostupni",
+  offlineEmergencyBanner:"Offline režim — brojevi za hitne slučajeve dostupni",
+  badgeUrgent:"HITNO",
+  badgeAsap:"ODMAH",
+  countryNotDetected:"Zemlja nije otkrivena — opšti hitni broj (112)",
+
 };
 
 T.hr = {
@@ -775,6 +943,30 @@ T.hr = {
   searchWord:"Pretraga",
   tipAddModel:"Savjet: dodajte model gore za preciznu pretragu.",
   hsnDetected:"Detektiran HSN/TSN — dodajte model gore (npr. \"VW Golf 7 2.0 TDI 2017\")",
+
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS nije dopušten",
+  locationCouldNotResolve:"Lokacija nije mogla biti određena",
+  detectingLocation:"Otkrivanje lokacije…",
+  tapToRetry:"Dodirnite za ponovni pokušaj",
+  enableGpsForEmergency:"Uključite GPS za lokalne brojeve za hitne slučajeve",
+  retryWord:"Pokušaj ponovo",
+  ambulance:"Hitna pomoć",
+  fireDepartment:"Vatrogasci",
+  policeLabel:"Policija",
+  medicalAssistance:"Medicinska pomoć",
+  roadAssistance:"Pomoć na cesti",
+  veterinaryEmergency:"Hitna veterinarska pomoć",
+  generalEmergencyNumber:"Opći broj za hitne slučajeve",
+  fireCallLabel:"Požar",
+  emergencyCallLabel:"Hitna",
+  roadsideCallLabel:"Cestovna",
+  vetCallLabel:"Vet. hitna",
+  localDataUnavailable:"Lokalni podaci za hitne slučajeve nedostupni",
+  offlineEmergencyBanner:"Offline način — hitni brojevi su dostupni",
+  badgeUrgent:"HITNO",
+  badgeAsap:"ODMAH",
+  countryNotDetected:"Zemlja nije otkrivena — opći hitni broj (112)",
 
 };
 
@@ -866,6 +1058,30 @@ T.mk = {
   tipAddModel:"Совет: додај модел погоре за точно пребарување.",
   hsnDetected:"Открен HSN/TSN — додај модел погоре (пр. \"VW Golf 7 2.0 TDI 2017\")",
 
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS не е дозволен",
+  locationCouldNotResolve:"Локацијата не може да се одреди",
+  detectingLocation:"Откривање локација…",
+  tapToRetry:"Допри за повторен обид",
+  enableGpsForEmergency:"Вклучи GPS за локални броеви за итни случаи",
+  retryWord:"Обиди се повторно",
+  ambulance:"Брза помош",
+  fireDepartment:"Пожарна",
+  policeLabel:"Полиција",
+  medicalAssistance:"Итна медицина",
+  roadAssistance:"Патна помош",
+  veterinaryEmergency:"Итна ветеринарна помош",
+  generalEmergencyNumber:"Општ број за итни случаи",
+  fireCallLabel:"Пожар",
+  emergencyCallLabel:"Итна",
+  roadsideCallLabel:"Патна",
+  vetCallLabel:"Вет. итна",
+  localDataUnavailable:"Локален датасет за итни случаи не е достапен",
+  offlineEmergencyBanner:"Офлајн режим — броевите за итни случаи се достапни",
+  badgeUrgent:"ИТНО",
+  badgeAsap:"ВЕЌ",
+  countryNotDetected:"Земјата не е откриена — општ итен број (112)",
+
 };
 
 T.tr = {
@@ -955,6 +1171,30 @@ T.tr = {
   searchWord:"Arama",
   tipAddModel:"İpucu: Kesin parça araması için yukarıya modeli ekleyin.",
   hsnDetected:"HSN/TSN tespit edildi — yukarıya modeli ekleyin (örn. \"VW Golf 7 2.0 TDI 2017\")",
+
+  // Emergency screen i18n
+  gpsNotPermitted:"GPS izin verilmedi",
+  locationCouldNotResolve:"Konum belirlenemedi",
+  detectingLocation:"Konum tespit ediliyor…",
+  tapToRetry:"Yeniden denemek için dokun",
+  enableGpsForEmergency:"Yerel acil numaralar için GPS\'i etkinleştirin",
+  retryWord:"Tekrar dene",
+  ambulance:"Ambulans",
+  fireDepartment:"İtfaiye",
+  policeLabel:"Polis",
+  medicalAssistance:"Tıbbi yardım",
+  roadAssistance:"Yol yardımı",
+  veterinaryEmergency:"Acil veteriner",
+  generalEmergencyNumber:"Genel acil numarası",
+  fireCallLabel:"Yangın",
+  emergencyCallLabel:"Acil",
+  roadsideCallLabel:"Yol",
+  vetCallLabel:"Acil vet.",
+  localDataUnavailable:"Yerel acil veri seti mevcut değil",
+  offlineEmergencyBanner:"Çevrimdışı mod — acil numaralar hâlâ mevcut",
+  badgeUrgent:"ACİL",
+  badgeAsap:"HEMEN",
+  countryNotDetected:"Ülke tespit edilemedi — genel acil numarası (112)",
 
 };
 
