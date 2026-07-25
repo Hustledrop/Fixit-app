@@ -1233,3 +1233,228 @@ export const tx = (lang, key) => {
   const obj = T[lang] || T.en;
   return obj[key] ?? T.en[key] ?? key;
 };
+
+// ── Status and difficulty label maps ───────────────────────────────────
+// Maps internal AI enum values to localized display strings.
+// Never render raw enum values (needs_repair, intermediate) directly in the UI.
+export const STATUS_LABEL = {
+  en: {
+    solvable:'Solvable',
+    needs_repair:'Needs Repair',
+    call_pro:'Call a Pro',
+    unsafe:'Unsafe — Call a Pro',
+    needs_parts:'Needs Parts',
+    success:'Solvable',
+    failed:'Needs Help',
+    error:'Needs Help',
+  },
+  de: {
+    solvable:'Lösbar',
+    needs_repair:'Reparatur nötig',
+    call_pro:'Fachmann rufen',
+    unsafe:'Gefährlich — Fachmann rufen',
+    needs_parts:'Ersatzteile nötig',
+    success:'Lösbar',
+    failed:'Hilfe benötigt',
+    error:'Hilfe benötigt',
+  },
+  fr: {
+    solvable:'Réparable',
+    needs_repair:'Réparation nécessaire',
+    call_pro:'Appeler un pro',
+    unsafe:'Dangereux — appeler un pro',
+    needs_parts:'Pièces nécessaires',
+    success:'Réparable',
+    failed:'Aide nécessaire',
+    error:'Aide nécessaire',
+  },
+  es: {
+    solvable:'Reparable',
+    needs_repair:'Necesita reparación',
+    call_pro:'Llamar a un profesional',
+    unsafe:'Peligroso — llamar a un pro',
+    needs_parts:'Necesita piezas',
+    success:'Reparable',
+    failed:'Necesita ayuda',
+    error:'Necesita ayuda',
+  },
+  it: {
+    solvable:'Riparabile',
+    needs_repair:'Riparazione necessaria',
+    call_pro:'Chiamare un professionista',
+    unsafe:'Pericoloso — chiamare un pro',
+    needs_parts:'Pezzi necessari',
+    success:'Riparabile',
+    failed:'Serve aiuto',
+    error:'Serve aiuto',
+  },
+  pl: {
+    solvable:'Do naprawy',
+    needs_repair:'Wymaga naprawy',
+    call_pro:'Zadzwoń po fachowca',
+    unsafe:'Niebezpieczne — zadzwoń po fachowca',
+    needs_parts:'Potrzebne części',
+    success:'Do naprawy',
+    failed:'Potrzebna pomoc',
+    error:'Potrzebna pomoc',
+  },
+  sr: {
+    solvable:'Popravljivo',
+    needs_repair:'Potrebna popravka',
+    call_pro:'Pozovi stručnjaka',
+    unsafe:'Opasno — pozovi stručnjaka',
+    needs_parts:'Potrebni delovi',
+    success:'Popravljivo',
+    failed:'Potrebna pomoć',
+    error:'Potrebna pomoć',
+  },
+  hr: {
+    solvable:'Popravljivo',
+    needs_repair:'Potrebna popravka',
+    call_pro:'Pozovi stručnjaka',
+    unsafe:'Opasno — pozovi stručnjaka',
+    needs_parts:'Potrebni dijelovi',
+    success:'Popravljivo',
+    failed:'Potrebna pomoć',
+    error:'Potrebna pomoć',
+  },
+  mk: {
+    solvable:'Поправливо',
+    needs_repair:'Потребна поправка',
+    call_pro:'Повикај стручњак',
+    unsafe:'Опасно — повикај стручњак',
+    needs_parts:'Потребни делови',
+    success:'Поправливо',
+    failed:'Потребна помош',
+    error:'Потребна помош',
+  },
+  tr: {
+    solvable:'Onarılabilir',
+    needs_repair:'Onarım gerekli',
+    call_pro:'Uzman çağır',
+    unsafe:'Tehlikeli — uzman çağır',
+    needs_parts:'Parça gerekli',
+    success:'Onarılabilir',
+    failed:'Yardım gerekli',
+    error:'Yardım gerekli',
+  },
+};
+
+export const DIFF_LABEL = {
+  en: {
+    easy:'Easy',
+    beginner:'Easy',
+    medium:'Medium',
+    intermediate:'Medium',
+    hard:'Difficult',
+    advanced:'Difficult',
+    expert:'Expert',
+  },
+  de: {
+    easy:'Einfach',
+    beginner:'Einfach',
+    medium:'Mittel',
+    intermediate:'Mittel',
+    hard:'Schwierig',
+    advanced:'Schwierig',
+    expert:'Experte',
+  },
+  fr: {
+    easy:'Facile',
+    beginner:'Facile',
+    medium:'Moyen',
+    intermediate:'Moyen',
+    hard:'Difficile',
+    advanced:'Difficile',
+    expert:'Expert',
+  },
+  es: {
+    easy:'Fácil',
+    beginner:'Fácil',
+    medium:'Medio',
+    intermediate:'Medio',
+    hard:'Difícil',
+    advanced:'Difícil',
+    expert:'Experto',
+  },
+  it: {
+    easy:'Facile',
+    beginner:'Facile',
+    medium:'Medio',
+    intermediate:'Medio',
+    hard:'Difficile',
+    advanced:'Difficile',
+    expert:'Esperto',
+  },
+  pl: {
+    easy:'Łatwy',
+    beginner:'Łatwy',
+    medium:'Średni',
+    intermediate:'Średni',
+    hard:'Trudny',
+    advanced:'Trudny',
+    expert:'Ekspert',
+  },
+  sr: {
+    easy:'Lako',
+    beginner:'Lako',
+    medium:'Srednje',
+    intermediate:'Srednje',
+    hard:'Teško',
+    advanced:'Teško',
+    expert:'Ekspert',
+  },
+  hr: {
+    easy:'Lako',
+    beginner:'Lako',
+    medium:'Srednje',
+    intermediate:'Srednje',
+    hard:'Teško',
+    advanced:'Teško',
+    expert:'Ekspert',
+  },
+  mk: {
+    easy:'Лесно',
+    beginner:'Лесно',
+    medium:'Средно',
+    intermediate:'Средно',
+    hard:'Тешко',
+    advanced:'Тешко',
+    expert:'Eксперт',
+  },
+  tr: {
+    easy:'Kolay',
+    beginner:'Kolay',
+    medium:'Orta',
+    intermediate:'Orta',
+    hard:'Zor',
+    advanced:'Zor',
+    expert:'Uzman',
+  },
+};
+
+// Helper: resolve a status enum to a display label in the active language
+// Known internal status enums that must never be shown verbatim
+const INTERNAL_STATUS_ENUMS = new Set([
+  'success','solvable','needs_repair','call_pro','unsafe','needs_parts',
+  'failed','error','pending','unknown','loading',
+]);
+
+export function getStatusLabel(statusEnum, lang) {
+  const map = STATUS_LABEL[lang] || STATUS_LABEL.en;
+  if (!statusEnum) return null;
+  const key = statusEnum.toLowerCase().replace(/[- ]/g,'_');
+  // If it's a known internal enum, always return the localized label
+  if (INTERNAL_STATUS_ENUMS.has(key)) {
+    return map[key] || STATUS_LABEL.en[key] || null;
+  }
+  // If not a known enum, it's an AI-generated human-readable label — show as-is
+  return statusEnum;
+}
+
+export function getDiffLabel(diffEnum, lang) {
+  const map = DIFF_LABEL[lang] || DIFF_LABEL.en;
+  if (!diffEnum) return null;
+  const key = diffEnum.toLowerCase().replace(/[- ]/g,'_');
+  return map[key] || DIFF_LABEL.en[key] || diffEnum; // show original if truly unknown
+}

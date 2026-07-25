@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { LANGS, tx } from './data/lang.js';
+import { LANGS, tx, getStatusLabel, getDiffLabel } from './data/lang.js';
 import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch, getEmergencySearchQuery, getCountryName } from './data/countries.js';
 import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
 import { getQP } from './data/quickproblems.js';
@@ -364,6 +364,7 @@ export default function App() {
   // diagRunIdRef.current is set by handleSubmit before calling diagnose()
   // so each diagnosis run has a unique ID that prevents double-saves
   useEffect(() => {
+    console.log('[FixIt] saveHistory useEffect fired', { hasResult: !!aiResult, runId: diagRunIdRef.current });
     if (aiResult) saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
   }, [aiResult]); // eslint-disable-line
 
@@ -495,7 +496,7 @@ export default function App() {
     setFeedback(null);
     // Generate a new runId for this submission; prevents double-save from
     // React StrictMode double-effects and rapid resubmits/retries
-    diagRunIdRef.current = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
     setRestoredResult(null); // clear any restored history result
     goto('result');
     await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, userProfile: profile });
@@ -520,24 +521,38 @@ export default function App() {
   }
 
   function saveToHistory(result, prob, runId) {
-    if (!result) return;
+    console.log('[FixIt] saveToHistory CALLED', {
+      hasResult: !!result,
+      runId,
+      diagnosis: result?.diagnosis?.slice(0,40),
+      problem: (prob || problemRef.current || '').slice(0,40),
+      savedRunIds: Array.from(savedRunIdsRef.current),
+    });
+    if (!result) { console.log('[FixIt] saveToHistory EXIT: no result'); return; }
 
-    // ── Run-ID dedup: one save per diagnosis run, even in React StrictMode ──
-    // runId is generated in handleSubmit and carried through to this call.
-    // savedRunIdsRef persists across re-renders so StrictMode double-effects
-    // and rapid retries are both safe.
+    // ── Run-ID dedup: one save per diagnosis run ──────────────────────────
+    // runId is set by handleSubmit before calling diagnose().
+    // We use crypto.randomUUID() to guarantee uniqueness even on fast double-clicks.
     if (runId) {
       if (savedRunIdsRef.current.has(runId)) {
-        console.log('[FixIt] saveToHistory: skipped duplicate save for runId', runId);
+        console.log('[FixIt] saveToHistory EXIT: duplicate runId', runId);
         return;
       }
       savedRunIdsRef.current.add(runId);
+    } else {
+      console.warn('[FixIt] saveToHistory: no runId — dedup skipped');
     }
 
     // ── Reject error/fallback results ────────────────────────────────────
-    if (result._fallback || result._error || !result.diagnosis) return;
+    if (result._fallback) { console.log('[FixIt] saveToHistory EXIT: _fallback'); return; }
+    if (result._error)    { console.log('[FixIt] saveToHistory EXIT: _error'); return; }
+    if (!result.diagnosis){ console.log('[FixIt] saveToHistory EXIT: no diagnosis'); return; }
+
     const prob_ = prob || problemRef.current || 'Photo diagnosis';
-    if (!prob_?.trim() && prob_ !== 'Photo diagnosis') return;
+    if (!prob_?.trim() && prob_ !== 'Photo diagnosis') {
+      console.log('[FixIt] saveToHistory EXIT: empty problem', prob_);
+      return;
+    }
 
     // ── Mark free diagnosis as used ──────────────────────────────────────
     if (!result.callPro && !result._fallback) {
@@ -596,9 +611,14 @@ export default function App() {
 
     // ── Validate the entry before saving ─────────────────────────────────
     if (!isValidDiagEntry(entry)) {
-      console.warn('[FixIt] saveToHistory: entry failed validation, not saving', entry);
+      console.warn('[FixIt] saveToHistory EXIT: validation failed', {
+        problem: entry.problem?.slice(0,30),
+        diagnosis: entry.diagnosis?.slice(0,30),
+        date: entry.date,
+      });
       return;
     }
+    console.log('[FixIt] saveToHistory: validation PASSED, saving entry id', entry.id);
 
     // ── Prepend to diagHistory (use functional update to avoid stale closure) ─
     setDiagHistory(prev => {
@@ -1401,7 +1421,7 @@ export default function App() {
                       <button onClick={e=>{
                         e.stopPropagation(); // don't also trigger the view onClick
                         // Retry: generate a new runId so this is a fresh diagnosis run
-                        diagRunIdRef.current = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+                        diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
                         setRestoredResult(null);
                         problemRef.current = h.problem;
                         setCurFix(h.category || 'home');
@@ -1568,7 +1588,7 @@ export default function App() {
               <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.8rem',fontWeight:800}}>{r?`${pct}%`:'…'}</div>
             </div>
             <div>
-              <div style={{fontSize:'1rem',fontWeight:800,marginBottom:3,color:r?.callPro?C.r:C.t}}>{(r?.status && r.status !== 'success') ? r.status : (aiLoading?(ct.loading||AI_MSGS[lang]||AI_MSGS.en)[aiMsgIdx % (ct.loading||AI_MSGS[lang]||AI_MSGS.en).length]:'…')}</div>
+              <div style={{fontSize:'1rem',fontWeight:800,marginBottom:3,color:r?.callPro?C.r:C.t}}>{getStatusLabel(r?.status, lang) || (aiLoading?(ct.loading||AI_MSGS[lang]||AI_MSGS.en)[aiMsgIdx % (ct.loading||AI_MSGS[lang]||AI_MSGS.en).length]:'…')}</div>
               <div style={{fontSize:'0.75rem',color:C.m}}>{r?`⏱ ${r.timeEstimate} · ${r.estimatedCost}`:(aiLoading?'':'' )}</div>
             </div>
           </div>
@@ -1671,7 +1691,7 @@ export default function App() {
                 <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>
                   💰 {lang==='de'?'Sparpotenzial ca.':lang==='tr'?'Tahmini tasarruf':lang==='pl'?'Potencjał oszczędności':'Est. saving'} {r.estimatedCost}
                 </span>
-                {r.difficulty && <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>{r.difficulty}</span>}
+                {r.difficulty && <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>{getDiffLabel(r.difficulty, lang)}</span>}
               </div>
             </div>
             {/* Steps with real images */}
