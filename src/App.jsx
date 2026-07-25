@@ -561,8 +561,9 @@ export default function App() {
     const entry = {
       id:            Date.now(),
       problem:       prob_,
-      // Full result stored so the result screen can be fully restored
+      // All fields needed to fully restore the result screen without a new API call
       diagnosis:     result.diagnosis || '',
+      causes:        Array.isArray(result.causes) ? result.causes.slice(0, 4) : [],
       confidence:    result.confidence   ?? null,
       estimatedCost: result.estimatedCost || '',
       timeEstimate:  result.timeEstimate  || '',
@@ -570,7 +571,9 @@ export default function App() {
       callPro:       result.callPro       ?? false,
       safetyWarning: result.safetyWarning || '',
       warningLevel:  result.warningLevel  || '',
-      status:        result.status        || 'success',
+      // status from the AI is a localised label (e.g. "Lösbar", "Solvable")
+      // Do NOT store the fallback string 'success' — store null if missing
+      status:        (result.status && result.status !== 'success') ? result.status : null,
       savedAmt,
       category:      curFix,
       lang:          lang,
@@ -1355,6 +1358,7 @@ export default function App() {
                          // Restore the full saved result to the result screen
                          setRestoredResult({
                            diagnosis:     h.diagnosis,
+                           causes:        Array.isArray(h.causes) ? h.causes : [],
                            confidence:    h.confidence    ?? 0,
                            estimatedCost: h.estimatedCost || '',
                            timeEstimate:  h.timeEstimate  || '',
@@ -1362,7 +1366,7 @@ export default function App() {
                            callPro:       h.callPro       ?? false,
                            safetyWarning: h.safetyWarning || '',
                            warningLevel:  h.warningLevel  || '',
-                           status:        h.status        || 'success',
+                           status:        h.status || null, // null renders loading msg path, not 'success'
                          });
                          problemRef.current = h.problem;
                          setCurFix(h.category || 'home');
@@ -1545,7 +1549,7 @@ export default function App() {
               <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.8rem',fontWeight:800}}>{r?`${pct}%`:'…'}</div>
             </div>
             <div>
-              <div style={{fontSize:'1rem',fontWeight:800,marginBottom:3,color:r?.callPro?C.r:C.t}}>{r?.status||(aiLoading?(ct.loading||AI_MSGS[lang]||AI_MSGS.en)[aiMsgIdx % (ct.loading||AI_MSGS[lang]||AI_MSGS.en).length]:'…')}</div>
+              <div style={{fontSize:'1rem',fontWeight:800,marginBottom:3,color:r?.callPro?C.r:C.t}}>{(r?.status && r.status !== 'success') ? r.status : (aiLoading?(ct.loading||AI_MSGS[lang]||AI_MSGS.en)[aiMsgIdx % (ct.loading||AI_MSGS[lang]||AI_MSGS.en).length]:'…')}</div>
               <div style={{fontSize:'0.75rem',color:C.m}}>{r?`⏱ ${r.timeEstimate} · ${r.estimatedCost}`:(aiLoading?'':'' )}</div>
             </div>
           </div>
