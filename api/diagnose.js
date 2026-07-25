@@ -369,7 +369,7 @@ async function callAnthropic(apiKey, content, attemptNum) {
       },
       body: JSON.stringify({
         model:       'claude-sonnet-4-6',
-        max_tokens:  1200,
+        max_tokens:  1800,  // increased from 1200 — was causing mid-sentence truncation in step descriptions
         temperature: 0,
         messages:    [{ role: 'user', content }],
       }),
@@ -578,6 +578,13 @@ module.exports = async function handler(req, res) {
     }
 
     rawText = envelope?.content?.[0]?.text;
+    // Detect max_tokens truncation — this causes mid-sentence cuts in step descriptions
+    const stopReason = envelope?.stop_reason;
+    if (stopReason === 'max_tokens') {
+      console.error('[FixIt] TRUNCATED_BY_MAX_TOKENS — raw response was cut by token limit. len=%d', rawText?.length ?? 0);
+    } else {
+      console.log('[FixIt] stop_reason=%s len=%d', stopReason, rawText?.length ?? 0);
+    }
     if (typeof rawText !== 'string' || rawText.length === 0) {
       console.error('[FixIt] STAGE_FAILED: noText — envelope:', JSON.stringify(envelope).slice(0, 300));
       return res.status(500).json({ error: 'no_text', debug: JSON.stringify(envelope).slice(0, 300), version: DEPLOY_VERSION });
@@ -698,7 +705,7 @@ module.exports = async function handler(req, res) {
       try {
         const repairPayload = {
           model:       'claude-sonnet-4-6',
-          max_tokens:  1200,
+          max_tokens:  1800,  // increased from 1200 — was causing mid-sentence truncation in step descriptions
           temperature: 0,
           messages: [{
             role: 'user',
@@ -766,21 +773,21 @@ if (Array.isArray(parsed.steps)) {
       : step.title,
 
     description: typeof step.description === 'string'
-      ? step.description.slice(0, 300)
+      ? step.description.slice(0, 500)
       : step.description,
 
     tip: typeof step.tip === 'string'
-      ? step.tip.slice(0, 140)
+      ? step.tip.slice(0, 200)
       : step.tip,
   }));
 }
 
 if (typeof parsed.diagnosis === 'string') {
-  parsed.diagnosis = parsed.diagnosis.slice(0, 420);
+  parsed.diagnosis = parsed.diagnosis.slice(0, 500);  // was 420 — slight increase for completeness
 }
 
 if (typeof parsed.proTip === 'string') {
-  parsed.proTip = parsed.proTip.slice(0, 220);
+  parsed.proTip = parsed.proTip.slice(0, 350);  // was 220 — increased to prevent truncation
 }
 
 // Electrical safety disclaimer injection
