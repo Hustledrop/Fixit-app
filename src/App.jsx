@@ -561,19 +561,31 @@ export default function App() {
     const entry = {
       id:            Date.now(),
       problem:       prob_,
-      // All fields needed to fully restore the result screen without a new API call
-      diagnosis:     result.diagnosis || '',
-      causes:        Array.isArray(result.causes) ? result.causes.slice(0, 4) : [],
-      confidence:    result.confidence   ?? null,
-      estimatedCost: result.estimatedCost || '',
-      timeEstimate:  result.timeEstimate  || '',
-      proSearchQuery:result.proSearchQuery|| '',
-      callPro:       result.callPro       ?? false,
-      safetyWarning: result.safetyWarning || '',
-      warningLevel:  result.warningLevel  || '',
-      // status from the AI is a localised label (e.g. "Lösbar", "Solvable")
-      // Do NOT store the fallback string 'success' — store null if missing
+      // ── Complete AI result — every field rendered by the result screen ────
+      // Stored verbatim so history restore is pixel-identical to original result.
+      // No truncation except what the API already applied (diagnosis≤420, steps≤4).
+      // Base fields
+      diagnosis:     result.diagnosis     || '',
+      confidence:    result.confidence    ?? null,
       status:        (result.status && result.status !== 'success') ? result.status : null,
+      difficulty:    result.difficulty    || '',
+      timeEstimate:  result.timeEstimate  || '',
+      estimatedCost: result.estimatedCost || '',
+      warningLevel:  result.warningLevel  || '',
+      safetyWarning: result.safetyWarning || '',
+      // Causes (rendered as bullet list)
+      causes:        Array.isArray(result.causes)     ? result.causes.slice(0, 4)  : [],
+      // Repair steps (rendered as numbered cards with emoji + tip)
+      steps:         Array.isArray(result.steps)      ? result.steps.slice(0, 4)   : [],
+      // Tools and parts (rendered as pill tags / shopping links)
+      tools:         Array.isArray(result.tools)      ? result.tools               : [],
+      partsNeeded:   Array.isArray(result.partsNeeded)? result.partsNeeded         : [],
+      // Expert tip and pro-call reason
+      proTip:        result.proTip        || '',
+      proReason:     result.proReason     || '',
+      callPro:       result.callPro       ?? false,
+      proSearchQuery:result.proSearchQuery|| '',
+      // ── Metadata (not rendered, used for history management) ────────────
       savedAmt,
       category:      curFix,
       lang:          lang,
@@ -1357,16 +1369,23 @@ export default function App() {
                        onClick={()=>{
                          // Restore the full saved result to the result screen
                          setRestoredResult({
+                           // All fields the result screen renders — must match what saveToHistory stores
                            diagnosis:     h.diagnosis,
-                           causes:        Array.isArray(h.causes) ? h.causes : [],
                            confidence:    h.confidence    ?? 0,
-                           estimatedCost: h.estimatedCost || '',
+                           status:        h.status        || null,
+                           difficulty:    h.difficulty    || '',
                            timeEstimate:  h.timeEstimate  || '',
-                           proSearchQuery:h.proSearchQuery|| '',
-                           callPro:       h.callPro       ?? false,
-                           safetyWarning: h.safetyWarning || '',
+                           estimatedCost: h.estimatedCost || '',
                            warningLevel:  h.warningLevel  || '',
-                           status:        h.status || null, // null renders loading msg path, not 'success'
+                           safetyWarning: h.safetyWarning || '',
+                           causes:        Array.isArray(h.causes)      ? h.causes      : [],
+                           steps:         Array.isArray(h.steps)       ? h.steps       : [],
+                           tools:         Array.isArray(h.tools)       ? h.tools       : [],
+                           partsNeeded:   Array.isArray(h.partsNeeded) ? h.partsNeeded : [],
+                           proTip:        h.proTip        || '',
+                           proReason:     h.proReason     || '',
+                           callPro:       h.callPro       ?? false,
+                           proSearchQuery:h.proSearchQuery|| '',
                          });
                          problemRef.current = h.problem;
                          setCurFix(h.category || 'home');
