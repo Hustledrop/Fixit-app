@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LANGS, tx } from './data/lang.js';
-import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch, getEmergencySearchQuery } from './data/countries.js';
+import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch, getEmergencySearchQuery, getCountryName } from './data/countries.js';
 import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
 import { getQP } from './data/quickproblems.js';
 import { useLocation } from './hooks/useLocation.js';
@@ -1711,20 +1711,21 @@ export default function App() {
         <a href={`tel:${cdGPS.e}`} style={{background:ccGPS==='DEFAULT'?'rgba(214,59,47,0.5)':C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
           <div style={{fontSize:'2rem'}}>🆘</div>
           <div style={{flex:1}}>
-            <div style={{fontSize:'0.92rem',fontWeight:800,color:'#fff',marginBottom:3}}>CALL {cdGPS.e} — {cdGPS.name.toUpperCase()}</div>
+            <div style={{fontSize:'0.92rem',fontWeight:800,color:'#fff',marginBottom:3}}>{t('callWord')} {cdGPS.e} — {getCountryName(ccGPS, lang).toUpperCase()}</div>
             <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.75)'}}>{t('generalEmergencyNumber')}</div>
           </div>
           <div style={{color:'#fff',fontSize:'1.2rem'}}>→</div>
         </a>
         {/* ── Individual service call buttons ── */}
         {!cdGPS.noData && (() => {
-          const svcBtn = (href, icon, label, num) => num ? (
+          const svcBtn = (href, icon, label, num, providerName) => num ? (
             <a key={href} href={`tel:${num.replace(/\s/g,'')}`}
                style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 16px',display:'flex',alignItems:'center',gap:12,marginBottom:6,textDecoration:'none',color:C.t}}>
               <span style={{fontSize:'1.3rem',flexShrink:0,width:28,textAlign:'center'}}>{icon}</span>
               <div style={{flex:1}}>
                 <div style={{fontSize:'0.8rem',fontWeight:600}}>{label}</div>
-                <div style={{fontSize:'0.72rem',color:C.m,marginTop:1}}>{num}</div>
+                {providerName && <div style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.45)',marginTop:1,fontStyle:'italic'}}>{providerName}</div>}
+                <div style={{fontSize:'0.72rem',color:C.m,marginTop:providerName?0:1}}>{num}</div>
               </div>
               <div style={{fontSize:'0.9rem',color:'rgba(255,255,255,0.35)'}}>→</div>
             </a>
@@ -1735,7 +1736,7 @@ export default function App() {
             {svcBtn('pol',  '👮', t('policeLabel'),            cdGPS.police)}
             {svcBtn('doc',  '👨‍⚕️', t('medicalAssistance'),  cdGPS.doc)}
             {cdGPS.rs?.num  && svcBtn('rs',  '🚗', cdGPS.rs.n,   cdGPS.rs.num)}
-            {cdGPS.ph?.num  && svcBtn('ph',  '🐾', cdGPS.ph.n,   cdGPS.ph.num)}
+            {cdGPS.ph?.num  && svcBtn('ph',  '🐾', t('veterinaryEmergency'), cdGPS.ph.num, cdGPS.ph.n)}
           </>);
         })()}
         {cdGPS.noData && (
@@ -1793,7 +1794,7 @@ export default function App() {
           <div style={{background:'rgba(214,59,47,0.06)',border:'1px solid rgba(214,59,47,0.2)',borderRadius:14,padding:14,marginBottom:12}}>
             <div style={{fontSize:'0.62rem',fontWeight:700,color:C.r,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>{t('callNow')}</div>
             {ec.call==='roadside'&&<><CallBtn icon="🚗" label={`${cdGPS.rs?.n}: ${cdGPS.rs?.num}`} num={cdGPS.rs?.num||'112'} type="s"/><CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🗺️" label={t('nearestGarage')} query="car garage mechanic near me"/></>}
-            {ec.call==='vet'&&<>{cdGPS.ph?.num&&<CallBtn icon="🐾" label={`${cdGPS.ph.n}: ${cdGPS.ph.num}`} num={cdGPS.ph.num} type="s"/>}{cdGPS.pa?.num&&cdGPS.pa.num.length>3&&<CallBtn icon="🚑" label={`${cdGPS.pa.n}: ${cdGPS.pa.num}`} num={cdGPS.pa.num} type="i"/>}<MapBtn icon="🗺️" label={t('emergencyVet')} query="emergency vet open now 24h"/><MapBtn icon="🏥" label={t('animalClinicNear')} query="animal clinic veterinarian near me"/></>}
+            {ec.call==='vet'&&<>{cdGPS.ph?.num&&<CallBtn icon="🐾" label={`${t('veterinaryEmergency')}${cdGPS.ph.n ? ` — ${cdGPS.ph.n}` : ''}`} num={cdGPS.ph.num} type="s"/>}{cdGPS.pa?.num&&cdGPS.pa.num.length>3&&<CallBtn icon="🚑" label={`${cdGPS.pa.n}: ${cdGPS.pa.num}`} num={cdGPS.pa.num} type="i"/>}<MapBtn icon="🗺️" label={t('emergencyVet')} query="emergency vet open now 24h"/><MapBtn icon="🏥" label={t('animalClinicNear')} query="animal clinic veterinarian near me"/></>}
             {ec.call==='fire'&&<><CallBtn icon="🚒" label={`${t('fireCallLabel')}: ${cdGPS.fire}`} num={cdGPS.fire}/><CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/></>}
             {ec.call==='plumber'&&<><CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🔧" label={t('emergencyPlumber')} query={getEmergencySearchQuery('plumber', ccGPS)}/></>}
             {ec.call==='power'&&<><CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="⚡" label={t('electricityProvider')} query={cc==='DE'?'Stadtwerke Strom Störung Netzbetreiber Stromausfall':cc==='AT'?'Stromnetz Störung Stadtwerke':cc==='CH'?'Stromnetzbetreiber Störung':cc==='FR'?'panne électrique signaler fournisseur':cc==='GB'?'power cut report network operator':cc==='US'?'power outage report electric utility':'electricity power outage report'}/></>}

@@ -572,3 +572,30 @@ export function getEmergencySearchQuery(serviceKey, countryCode) {
   return map[countryCode] || EMERGENCY_QUERY_FALLBACKS[serviceKey] || 'emergency service near me';
 }
 
+// ── Localized country name resolver ──────────────────────────────────────────
+// Uses Intl.DisplayNames (built into every modern browser and Node 22+).
+// GPS country code determines WHICH country; UI lang determines HOW it reads.
+// 'sr' (Serbian) uses Latin script in this app → mapped to 'sr-Latn'.
+const INTL_LANG_MAP = { sr: 'sr-Latn' };
+
+/**
+ * Returns the country name for `cc` localized to `lang`.
+ * Falls back to English if the locale or region is not supported.
+ * Never hardcodes country name strings — all data comes from the browser's
+ * ICU dataset via Intl.DisplayNames.
+ *
+ * @param {string} cc   - ISO 3166-1 alpha-2 country code, e.g. 'DE'
+ * @param {string} lang - UI language code, e.g. 'it'
+ * @returns {string}    - localized country name, e.g. 'Germania'
+ */
+export function getCountryName(cc, lang) {
+  if (!cc || cc === 'DEFAULT') return '';
+  const locale = INTL_LANG_MAP[lang] || lang;
+  try {
+    const dn = new Intl.DisplayNames([locale, 'en'], { type: 'region' });
+    return dn.of(cc.toUpperCase()) || cc;
+  } catch (_) {
+    return cc;
+  }
+}
+

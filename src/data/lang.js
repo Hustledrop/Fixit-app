@@ -166,6 +166,8 @@ T.en = {
   badgeAsap:"ASAP",
   countryNotDetected:"Country not detected — showing default emergency number (112)",
 
+  callWord:"CALL",
+
 };
 
 T.de = {
@@ -283,6 +285,8 @@ T.de = {
   badgeAsap:"SOFORT",
   countryNotDetected:"Land nicht erkannt — allgemeiner Notruf (112)",
 
+  callWord:"RUF",
+
 };
 
 T.fr = {
@@ -398,6 +402,8 @@ T.fr = {
   badgeAsap:"IMMÉDIAT",
   countryNotDetected:"Pays non détecté — numéro urgence général (112)",
 
+  callWord:"APPEL",
+
 };
 
 T.es = {
@@ -511,6 +517,8 @@ T.es = {
   badgeUrgent:"URGENTE",
   badgeAsap:"YA",
   countryNotDetected:"País no detectado — número de emergencia general (112)",
+
+  callWord:"LLAMA",
 
 };
 
@@ -626,6 +634,8 @@ T.it = {
   badgeAsap:"SUBITO",
   countryNotDetected:"Paese non rilevato — numero di emergenza generale (112)",
 
+  callWord:"CHIAMA",
+
 };
 
 T.pl = {
@@ -739,6 +749,8 @@ T.pl = {
   badgeUrgent:"PILNE",
   badgeAsap:"NATYCHMIAST",
   countryNotDetected:"Kraj nieznany — ogólny numer alarmowy (112)",
+
+  callWord:"ZADZWOŃ",
 
 };
 
@@ -854,6 +866,8 @@ T.sr = {
   badgeAsap:"ODMAH",
   countryNotDetected:"Zemlja nije otkrivena — opšti hitni broj (112)",
 
+  callWord:"POZOVI",
+
 };
 
 T.hr = {
@@ -967,6 +981,8 @@ T.hr = {
   badgeUrgent:"HITNO",
   badgeAsap:"ODMAH",
   countryNotDetected:"Zemlja nije otkrivena — opći hitni broj (112)",
+
+  callWord:"POZOVI",
 
 };
 
@@ -1082,6 +1098,8 @@ T.mk = {
   badgeAsap:"ВЕЌ",
   countryNotDetected:"Земјата не е откриена — општ итен број (112)",
 
+  callWord:"ПОВИКАЈ",
+
 };
 
 T.tr = {
@@ -1195,6 +1213,8 @@ T.tr = {
   badgeUrgent:"ACİL",
   badgeAsap:"HEMEN",
   countryNotDetected:"Ülke tespit edilemedi — genel acil numarası (112)",
+
+  callWord:"ARA",
 
 };
 
