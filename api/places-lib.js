@@ -934,78 +934,73 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   const TRACE_NAMES = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
 
   let diagAccepted = 0, diagRejected = 0;
-  const results = allPlacesDeduped
-    .map(p => normalizePlaceResult(p, latN, lngN))
-    .filter(p => {
-      if (!p) return false;
-      if (isScrap(p.name, [], cat)) return false;
-      // ── Google classifier — source-aware, placeId-keyed ─────────────────────
-      // Uses placeId for lookup (not name) to avoid silent misses on encoding/whitespace.
-      // Default-deny: a result with no matching raw object is REJECTED, not passed.
-      if (['garage','parts','tyres','petrol','it','moto','hardware','vet'].includes(cat)) {
-        // Build a placeId → raw map (created once, reused per result via closure)
-        // We rebuild lazily since allPlacesDeduped may differ per call.
-        const raw = p.placeId
-          ? allPlacesDeduped.find(r => r.id === p.placeId)
-          : allPlacesDeduped.find(r => (r.displayName?.text||'') === p.name); // fallback
+  // ── Per-result pipeline instrumentation ──────────────────────────────────
+  // One [pipeline] log per result per stage. Search any name to trace it end-to-end.
+  const PIPE_CATS = new Set(['garage','parts','tyres']);
+  const normalised = allPlacesDeduped.map(p => normalizePlaceResult(p, latN, lngN));
+  if (PIPE_CATS.has(cat)) {
+    normalised.forEach(p => {
+      if (p) console.log(`[pipeline] rid=${rid} cat=${cat} FOUND_RAW placeId=${p.placeId||'?'} name="${p.name}" primaryType=${p.primaryType||'null'}`);
+    });
+  }
 
-        if (!raw) {
-          // No raw Google object found — cannot classify. Default-deny.
-          // This guards against normalisation mismatches silently passing results.
-          console.log(`[classify] rid=${rid} cat=${cat} RAW_MISS_DENY name="${p.name}" — no raw object, defaulting to REJECT`);
-          diagRejected++;
-          return false;
-        }
-
-        const cls = classifyGooglePlace(raw, cat);
-        const pt  = raw.primaryType || 'null';
-        const tps = (raw.types||[]).join(',') || 'none';
-
-        // Attach classification metadata to the normalized result (source-aware)
-        p.inferredCat    = cls.accept ? cat : null;
-        p.classifyReason = cls.reason;
-        p.googleTypes    = raw.types || [];
-        p.googlePrimary  = raw.primaryType || null;
-        p.sourceQuery    = raw._sourceQuery || p.sourceQuery;
-
-        // ── Dev logging: one line per result, all signals ───────────────────
-        console.log(`[classify] rid=${rid} cat=${cat} src=google name="${p.name}" primaryType=${pt} types=[${tps}] query="${raw._sourceQuery||'?'}" → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
-
-        if (!cls.accept) {
-          diagRejected++;
-          // Log rejection with placeId so we can cross-reference with raw-dump
-          if (['garage','parts','tyres'].includes(cat)) {
-            console.log(`[raw-dump] rid=${rid} cat=${cat} REJECT placeId=${raw.id||'?'} name="${p.name}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] reason=${cls.reason}`);
-          }
-          return false;
-        }
-        diagAccepted++;
-        // Log accepted results too
-        if (['garage','parts','tyres'].includes(cat)) {
-          console.log(`[raw-dump] rid=${rid} cat=${cat} ACCEPT placeId=${raw.id||'?'} name="${p.name}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] reason=${cls.reason}`);
-        }
+  const filtered = normalised.filter(p => {
+    if (!p) return false;
+    if (isScrap(p.name, [], cat)) {
+      if (PIPE_CATS.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} SCRAP_REJECT placeId=${p.placeId||'?'} name="${p.name}"`);
+      return false;
+    }
+    if (['garage','parts','tyres','petrol','it','moto','hardware','vet'].includes(cat)) {
+      const raw = p.placeId
+        ? allPlacesDeduped.find(r => r.id === p.placeId)
+        : allPlacesDeduped.find(r => (r.displayName?.text||'') === p.name);
+      if (!raw) {
+        console.log(`[pipeline] rid=${rid} cat=${cat} RAW_MISS_DENY placeId=${p.placeId||'?'} name="${p.name}"`);
+        diagRejected++; return false;
       }
-      if (p.dist > MAX_DIST_KM) {
-        if (['garage','parts'].includes(cat)) {
-          console.log(`[raw-dump] rid=${rid} cat=${cat} DIST_REJECT name="${p.name}" dist=${p.dist}km limit=${MAX_DIST_KM}km`);
-        }
-        return false;
+      const cls = classifyGooglePlace(raw, cat);
+      p.inferredCat    = cls.accept ? cat : null;
+      p.classifyReason = cls.reason;
+      p.googleTypes    = raw.types || [];
+      p.googlePrimary  = raw.primaryType || null;
+      p.sourceQuery    = raw._sourceQuery || p.sourceQuery;
+      if (PIPE_CATS.has(cat)) {
+        console.log(`[pipeline] rid=${rid} cat=${cat} CLASSIFIED placeId=${p.placeId||'?'} name="${p.name}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
       }
-      const key = p.name.toLowerCase().trim();
-      if (seen.has(key)) {
-        if (['garage','parts'].includes(cat)) {
-          console.log(`[raw-dump] rid=${rid} cat=${cat} NAMEDEDUP_REJECT name="${p.name}"`);
-        }
-        return false;
-      }
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => a.dist - b.dist)
-    .slice(0, 20);
-  // Log if slice cut any results (business may be result #21+)
-  if (['garage','parts'].includes(cat) && results.length === 20) {
-    console.log(`[raw-dump] rid=${rid} cat=${cat} SLICE_WARN: hit 20-result limit — some accepted results may have been truncated`);
+      if (!cls.accept) { diagRejected++; return false; }
+      diagAccepted++;
+    }
+    if (p.dist > MAX_DIST_KM) {
+      if (PIPE_CATS.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} DIST_REJECT placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
+      return false;
+    }
+    const key = p.name.toLowerCase().trim();
+    if (seen.has(key)) {
+      if (PIPE_CATS.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} NAMEDUPE_REJECT placeId=${p.placeId||'?'} name="${p.name}"`);
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  const sorted = filtered.sort((a, b) => a.dist - b.dist);
+  if (PIPE_CATS.has(cat)) {
+    sorted.forEach((p, i) => {
+      console.log(`[pipeline] rid=${rid} cat=${cat} SORT_INDEX #${i} placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
+    });
+  }
+
+  const results = sorted.slice(0, 20);
+  if (PIPE_CATS.has(cat)) {
+    results.forEach((p, i) => {
+      console.log(`[pipeline] rid=${rid} cat=${cat} FINAL_INCLUDED #${i} placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
+    });
+    if (sorted.length > 20) {
+      console.log(`[pipeline] rid=${rid} cat=${cat} SLICE_CUT: ${sorted.length - 20} results removed after index 19`);
+      sorted.slice(20).forEach((p, i) => {
+        console.log(`[pipeline] rid=${rid} cat=${cat} SLICE_DROPPED #${20+i} placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
+      });
+    }
   }
 
 

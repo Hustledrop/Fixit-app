@@ -548,21 +548,21 @@ function mergeGoogle(placesData, existing, cat, rid='--------') {
       console.log(`[TRACE] rid=${rid} cat=${cat} ARRIVED_AT_MERGE name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}]`);
     }
   });
+  const MERGE_PIPE = new Set(['garage','parts','tyres']);
   const deduped=raw.filter(p=>{
     const pn=(p.name||'').toLowerCase().trim();
-    // Scrapyard check on name
     if (MERGE_SCRAP.test(pn)){scrap++;return false;}
-    // NOTE: classifyGoogle is NOT called here.
-    // places-lib already ran classifyGoogle on raw Google objects (with primaryType/types)
-    // BEFORE normalization. Results in placesData.results are pre-classified.
-    // Re-running classifyGoogle on normalized results (which have no primaryType/types)
-    // would reject everything — normalized places have only name/lat/lng/dist/addr.
-    // Dedup: skip if OSM already has same name
-    if (osmNames.has(pn)) return false;
-    // Dedup: skip if within 50m of an existing result
-    const survived = !existing.some(r=>Math.abs(r.lat-p.lat)<0.0005&&Math.abs(r.lng-p.lng)<0.0005);
-    if (survived) console.log(`[nearby] rid=${rid} cat=${cat} merge_ACCEPT "${p.name}" dist=${p.dist}km`);
-    return survived;
+    if (osmNames.has(pn)) {
+      if (MERGE_PIPE.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} MERGE_OSMNAME_REJECT placeId=${p.placeId||'?'} name="${p.name}" (matched OSM name)`);
+      return false;
+    }
+    const proximityMatch = existing.find(r=>Math.abs(r.lat-p.lat)<0.0005&&Math.abs(r.lng-p.lng)<0.0005);
+    if (proximityMatch) {
+      if (MERGE_PIPE.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} MERGE_PROXIMITY_REJECT placeId=${p.placeId||'?'} name="${p.name}" (near OSM "${proximityMatch.name}")`);
+      return false;
+    }
+    if (MERGE_PIPE.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} MERGE_ACCEPT placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
+    return true;
   });
   const merged=[...existing,...deduped].sort((a,b)=>a.dist-b.dist).slice(0,25);
   console.log(`[nearby] rid=${rid} cat=${cat} merged=${merged.length} scrap=${scrap} dedup=${raw.length-deduped.length}`);
@@ -586,7 +586,7 @@ module.exports = async function handler(req, res) {
   const HYBRID_THRESHOLD=5;
   const MK_GOOGLE_FIRST=countryCode==='MK'&&(cat==='tyres'||cat==='garage');
 
-  console.log(`[automotive-classifier-v3] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
+  console.log(`[automotive-classifier-v4] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
 
   // ── Step 1: start BOTH providers concurrently at t=0 ─────────────────────
   const googleT0=Date.now();
@@ -680,7 +680,7 @@ module.exports = async function handler(req, res) {
     }));
     res.status(200).json({
       results: debugResults,
-      debugVersion: 'automotive-classifier-v3-rawdump',
+      debugVersion: 'automotive-classifier-v4-pipeline',
       fallbackUsed: gated.length===0,
       fallbackReason: gated.length===0 ? 'both_providers_failed' : undefined,
       totalMs, cat,
