@@ -760,6 +760,11 @@ function classifyGoogle(place, cat) {
   }
 
   if (cat === 'parts') {
+    // Only accept businesses whose Google primaryType is auto_parts_store.
+    // car_repair-primary businesses (workshops, glass repair, tyre fitters) are excluded
+    // even when auto_parts_store appears in their secondary types[], because Google
+    // includes auto_parts_store in types[] for many repair shops that do not
+    // primarily sell parts. primaryType is the only reliable discriminating signal.
     return { accept: true, reason: 'parts:auto_parts_store' };
   }
 
@@ -916,108 +921,44 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   const beforeFilter = allPlacesDeduped.length;
   const seen = new Set();
 
-  // ── RAW CANDIDATE DUMP — logs every Google result before any filtering ─────
-  // This includes results that will later be rejected by classification, distance,
-  // or deduplication. Used to trace missing businesses (e.g. those not in final list).
-  if (['garage','parts','tyres','petrol'].includes(cat)) {
-    console.log(`[raw-dump] rid=${rid} cat=${cat} raw_candidates=${allPlacesDeduped.length}`);
-    allPlacesDeduped.forEach((raw, i) => {
-      const nm  = raw.displayName?.text || '(no name)';
-      const pid = raw.id || '(no id)';
-      const pt  = raw.primaryType || 'null';
-      const tps = (raw.types||[]).join(',') || 'none';
-      const sq  = raw._sourceQuery || '(unknown)';
-      const loc = raw.location || {};
-      console.log(`[raw-dump] rid=${rid} cat=${cat} #${i} placeId=${pid} name="${nm}" primaryType=${pt} types=[${tps}] query="${sq}" lat=${loc.latitude||'?'} lng=${loc.longitude||'?'}`);
-    });
-  }
-  const TRACE_NAMES = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
+
 
   let diagAccepted = 0, diagRejected = 0;
-  // ── Per-result pipeline instrumentation ──────────────────────────────────
-  // One [pipeline] log per result per stage. Search any name to trace it end-to-end.
-  const PIPE_CATS = new Set(['garage','parts','tyres']);
-  const normalised = allPlacesDeduped.map(p => normalizePlaceResult(p, latN, lngN));
-  if (PIPE_CATS.has(cat)) {
-    normalised.forEach(p => {
-      if (p) console.log(`[pipeline] rid=${rid} cat=${cat} FOUND_RAW placeId=${p.placeId||'?'} name="${p.name}" primaryType=${p.primaryType||'null'}`);
-    });
-  }
-
-  const filtered = normalised.filter(p => {
-    if (!p) return false;
-    if (isScrap(p.name, [], cat)) {
-      if (PIPE_CATS.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} SCRAP_REJECT placeId=${p.placeId||'?'} name="${p.name}"`);
-      return false;
-    }
-    if (['garage','parts','tyres','petrol','it','moto','hardware','vet'].includes(cat)) {
-      const raw = p.placeId
-        ? allPlacesDeduped.find(r => r.id === p.placeId)
-        : allPlacesDeduped.find(r => (r.displayName?.text||'') === p.name);
-      if (!raw) {
-        console.log(`[pipeline] rid=${rid} cat=${cat} RAW_MISS_DENY placeId=${p.placeId||'?'} name="${p.name}"`);
-        diagRejected++; return false;
+  const results = allPlacesDeduped
+    .map(p => normalizePlaceResult(p, latN, lngN))
+    .filter(p => {
+      if (!p) return false;
+      if (isScrap(p.name, [], cat)) return false;
+      // ── Google classifier ─────────────────────────────────────────────────
+      if (['garage','parts','tyres','petrol','it','moto','hardware','vet'].includes(cat)) {
+        const raw = p.placeId
+          ? allPlacesDeduped.find(r => r.id === p.placeId)
+          : allPlacesDeduped.find(r => (r.displayName?.text||'') === p.name);
+        if (!raw) {
+          console.log(`[places] rid=${rid} cat=${cat} RAW_MISS_DENY name="${p.name}"`);
+          diagRejected++; return false;
+        }
+        const cls = classifyGooglePlace(raw, cat);
+        p.inferredCat    = cls.accept ? cat : null;
+        p.classifyReason = cls.reason;
+        p.googleTypes    = raw.types || [];
+        p.googlePrimary  = raw.primaryType || null;
+        p.sourceQuery    = raw._sourceQuery || p.sourceQuery;
+        if (process.env.NEARBY_DEBUG === 'true') {
+          console.log(`[classify] rid=${rid} cat=${cat} src=google name="${p.name}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
+        }
+        if (!cls.accept) { diagRejected++; return false; }
+        diagAccepted++;
       }
-      const cls = classifyGooglePlace(raw, cat);
-      p.inferredCat    = cls.accept ? cat : null;
-      p.classifyReason = cls.reason;
-      p.googleTypes    = raw.types || [];
-      p.googlePrimary  = raw.primaryType || null;
-      p.sourceQuery    = raw._sourceQuery || p.sourceQuery;
-      if (PIPE_CATS.has(cat)) {
-        console.log(`[pipeline] rid=${rid} cat=${cat} CLASSIFIED placeId=${p.placeId||'?'} name="${p.name}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
-      }
-      if (!cls.accept) { diagRejected++; return false; }
-      diagAccepted++;
-    }
-    if (p.dist > MAX_DIST_KM) {
-      if (PIPE_CATS.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} DIST_REJECT placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
-      return false;
-    }
-    const key = p.name.toLowerCase().trim();
-    if (seen.has(key)) {
-      if (PIPE_CATS.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} NAMEDUPE_REJECT placeId=${p.placeId||'?'} name="${p.name}"`);
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
+      if (p.dist > MAX_DIST_KM) return false;
+      const key = p.name.toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, 20);
 
-  const sorted = filtered.sort((a, b) => a.dist - b.dist);
-  if (PIPE_CATS.has(cat)) {
-    sorted.forEach((p, i) => {
-      console.log(`[pipeline] rid=${rid} cat=${cat} SORT_INDEX #${i} placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
-    });
-  }
-
-  const results = sorted.slice(0, 20);
-  if (PIPE_CATS.has(cat)) {
-    results.forEach((p, i) => {
-      console.log(`[pipeline] rid=${rid} cat=${cat} FINAL_INCLUDED #${i} placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
-    });
-    if (sorted.length > 20) {
-      console.log(`[pipeline] rid=${rid} cat=${cat} SLICE_CUT: ${sorted.length - 20} results removed after index 19`);
-      sorted.slice(20).forEach((p, i) => {
-        console.log(`[pipeline] rid=${rid} cat=${cat} SLICE_DROPPED #${20+i} placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
-      });
-    }
-  }
-
-
-  // Targeted trace: did any suspected false positive survive the filter?
-  if (['garage','parts','tyres','petrol','it','moto'].includes(cat)) {
-    console.log(`[TRACE] rid=${rid} cat=${cat} filtered_count=${results.length} names=[${results.slice(0,5).map(r=>r.name).join(',')}]`);
-    results.forEach(r => {
-      if (TRACE_NAMES.some(t => r.name.toLowerCase().includes(t))) {
-        console.log(`[TRACE] rid=${rid} cat=${cat} SURVIVED_FILTER name="${r.name}" pt=${r.primaryType||'null'} — UNEXPECTED IN RESULTS`);
-      }
-    });
-  }
-
-  const removedOver30 = allPlaces.filter(p => {
-    const loc = p.location || {};
-    return haversine(latN, lngN, loc.latitude || 0, loc.longitude || 0) > MAX_DIST_KM;
-  }).length;
 
   const nearest5 = results.slice(0, 5).map(r => `${r.name}(${r.dist}km)`).join(', ');
   console.log(`[places] rid=${rid} cat=${cat} DONE raw_before_filter=${beforeFilter} filtered_count=${results.length} nearest=[${nearest5}]${errors.length ? ' errors='+errors.join(',') : ''}`);

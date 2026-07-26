@@ -23,7 +23,7 @@ const FAILCACHE = new Map();  // key → ts        (60s cooldown after endpoint 
 const CACHE_TTL   = 30 * 60 * 1000;  // 30 minutes
 const FAIL_TTL    =      60 * 1000;  // 60 seconds
 
-const CACHE_VERSION = 'v15-pipeline'; // bumped: placeId lookup, default-deny on miss, inferredCat/classifyReason on results
+const CACHE_VERSION = 'v17-stable'; // bumped: placeId lookup, default-deny on miss, inferredCat/classifyReason on results
 
 // All cache helper functions share the same signature: (cat, lat, lng, city, cc)
 function cacheKey(cat, lat, lng, city, cc) {

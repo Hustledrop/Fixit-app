@@ -258,6 +258,11 @@ function classifyGoogle(place, cat) {
   }
 
   if (cat === 'parts') {
+    // Only accept businesses whose Google primaryType is auto_parts_store.
+    // car_repair-primary businesses (workshops, glass repair, tyre fitters) are excluded
+    // even when auto_parts_store appears in their secondary types[], because Google
+    // includes auto_parts_store in types[] for many repair shops that do not
+    // primarily sell parts. primaryType is the only reliable discriminating signal.
     return { accept: true, reason: 'parts:auto_parts_store' };
   }
 
@@ -442,15 +447,21 @@ function processElements(elements, cat, latN, lngN, distLimitKm, seen) {
   for (const el of elements) {
     const tags = el.tags||{};
     if (isScrapyard(tags)) continue;
+    // cls is declared unconditionally so it is always in scope below.
+    // For non-classified categories (petrol, hardware, vet, moto, it) cls stays null
+    // and cls?.reason safely returns undefined rather than throwing.
+    let cls = null;
     if (['garage','parts','tyres'].includes(cat)) {
-      const cls = classifyOSM(tags, cat);
+      cls = classifyOSM(tags, cat);
       if (!cls.accept) {
-        const osmTagSummary2 = [
-          tags.shop    ? `shop=${tags.shop}`    : null,
-          tags.craft   ? `craft=${tags.craft}`  : null,
-          tags.amenity ? `amenity=${tags.amenity}` : null,
-        ].filter(Boolean).join(',') || 'none';
-        console.log(`[classify] cat=${cat} src=osm name="${tags.name||'?'}" tags=[${osmTagSummary2}] → REJECT reason=${cls.reason}`);
+        if (process.env.NEARBY_DEBUG === 'true') {
+          const _osmTagDbg = [
+            tags.shop    ? `shop=${tags.shop}`    : null,
+            tags.craft   ? `craft=${tags.craft}`  : null,
+            tags.amenity ? `amenity=${tags.amenity}` : null,
+          ].filter(Boolean).join(',') || 'none';
+          console.log(`[classify] cat=${cat} src=osm name="${tags.name||'?'}" tags=[${_osmTagDbg}] → REJECT reason=${cls.reason}`);
+        }
         continue;
       }
     }
@@ -482,18 +493,16 @@ function processElements(elements, cat, latN, lngN, distLimitKm, seen) {
       // Source metadata — preserved for source-aware UI classification
       osmTags:      osmTagSummary,     // e.g. "shop=car_parts,craft=car_repair"
       inferredCat:  cat,               // the category this OSM result was accepted for
-      classifyReason: cls.reason,      // the specific OSM tag that matched
+      classifyReason: cls?.reason || null,  // the specific OSM tag that matched (null for non-classified cats)
       sourceQuery:  `osm:${tags.shop||tags.craft||tags.amenity||'?'}`, // which OSM tag drove this
     };
 
-    // ── Dev logging: one line per OSM result, all signals ──────────────────
-    console.log(`[classify] cat=${cat} src=osm name="${name}" tags=[${osmTagSummary}] → ACCEPT reason=${cls.reason}`);
-
-    // TRACE: flag suspicious names surviving OSM classification
-    const _nm = name.toLowerCase();
-    if (['ποδηλατα','helmetsgr','helmet','bicycle','bike'].some(t => _nm.includes(t))) {
-      console.log(`[TRACE] OSM_PASS cat=${cat} name="${name}" shop=${tags.shop||'?'} craft=${tags.craft||'?'} amenity=${tags.amenity||'?'} — UNEXPECTED`);
+    // Dev logging for OSM accepts (guarded by NEARBY_DEBUG)
+    if (process.env.NEARBY_DEBUG === 'true') {
+      console.log(`[classify] cat=${cat} src=osm name="${name}" tags=[${osmTagSummary}] → ACCEPT reason=${cls?.reason}`);
     }
+
+
     results.push(osmResult);
   }
   return results;
@@ -541,28 +550,14 @@ function mergeGoogle(placesData, existing, cat, rid='--------') {
   }
   const osmNames=new Set(existing.map(r=>r.name.toLowerCase().trim()));
   let scrap=0, rejected=0;
-  // Targeted trace: did any false-positive survive places-lib and arrive at merge?
   const TRACE = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
-  raw.forEach(r => {
-    if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
-      console.log(`[TRACE] rid=${rid} cat=${cat} ARRIVED_AT_MERGE name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}]`);
-    }
-  });
-  const MERGE_PIPE = new Set(['garage','parts','tyres']);
   const deduped=raw.filter(p=>{
     const pn=(p.name||'').toLowerCase().trim();
     if (MERGE_SCRAP.test(pn)){scrap++;return false;}
-    if (osmNames.has(pn)) {
-      if (MERGE_PIPE.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} MERGE_OSMNAME_REJECT placeId=${p.placeId||'?'} name="${p.name}" (matched OSM name)`);
-      return false;
-    }
-    const proximityMatch = existing.find(r=>Math.abs(r.lat-p.lat)<0.0005&&Math.abs(r.lng-p.lng)<0.0005);
-    if (proximityMatch) {
-      if (MERGE_PIPE.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} MERGE_PROXIMITY_REJECT placeId=${p.placeId||'?'} name="${p.name}" (near OSM "${proximityMatch.name}")`);
-      return false;
-    }
-    if (MERGE_PIPE.has(cat)) console.log(`[pipeline] rid=${rid} cat=${cat} MERGE_ACCEPT placeId=${p.placeId||'?'} name="${p.name}" dist=${p.dist}km`);
-    return true;
+    if (osmNames.has(pn)) return false;
+    const survived = !existing.some(r=>Math.abs(r.lat-p.lat)<0.0005&&Math.abs(r.lng-p.lng)<0.0005);
+    if (survived) console.log(`[nearby] rid=${rid} cat=${cat} merge_ACCEPT "${p.name}" dist=${p.dist}km`);
+    return survived;
   });
   const merged=[...existing,...deduped].sort((a,b)=>a.dist-b.dist).slice(0,25);
   console.log(`[nearby] rid=${rid} cat=${cat} merged=${merged.length} scrap=${scrap} dedup=${raw.length-deduped.length}`);
@@ -586,7 +581,7 @@ module.exports = async function handler(req, res) {
   const HYBRID_THRESHOLD=5;
   const MK_GOOGLE_FIRST=countryCode==='MK'&&(cat==='tyres'||cat==='garage');
 
-  console.log(`[automotive-classifier-v4] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
+  console.log(`[nearby] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
 
   // ── Step 1: start BOTH providers concurrently at t=0 ─────────────────────
   const googleT0=Date.now();
@@ -634,7 +629,7 @@ module.exports = async function handler(req, res) {
         const _isTrace = TRACE.some(t => _tn.includes(t));
         if (r.source !== 'google') {
           // OSM result — passes final gate
-          if (_isTrace) console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE_OSM name="${r.name}" source=osm shop=${r.shop||'?'} — passes (OSM not Google-classified)`);
+          if (_isTrace && process.env.NEARBY_DEBUG === 'true') console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE_OSM name="${r.name}" source=osm — passes`);
           return true;
         }
         // NOTE: removed the "no metadata → pass" shortcut.
@@ -642,7 +637,7 @@ module.exports = async function handler(req, res) {
         // Default-deny: classify regardless of whether type metadata is present.
         // For tyres: classifyGoogle handles the tyre-name-keyword path even with null type.
         const cls = classifyGoogle(r, cat);
-        if (_isTrace) {
+        if (_isTrace && process.env.NEARBY_DEBUG === 'true') {
           console.log(`[TRACE] rid=${rid} cat=${cat} FINAL_GATE name="${r.name}" primaryType=${r.primaryType||'null'} types=[${(r.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
         }
         if (!cls.accept) {
@@ -659,28 +654,9 @@ module.exports = async function handler(req, res) {
     const totalMs = Date.now()-startMs;
     const names = gated.slice(0,5).map(r=>`${r.name}(${r.dist}km)`).join(',');
     console.log(`[nearby] rid=${rid} cat=${cat} RESPOND path=${path} count=${gated.length} total_ms=${totalMs} names=[${names}]`);
-    // Targeted trace: flag if any false positive made it to the final response
-    gated.forEach(r => {
-      if (TRACE.some(t => (r.name||'').toLowerCase().includes(t))) {
-        console.log(`[TRACE] rid=${rid} cat=${cat} IN_FINAL_RESPONSE name="${r.name}" source=${r.source||'?'} primaryType=${r.primaryType||'null'} shop=${r.shop||'?'} — IN OUTPUT`);
-      }
-    });
-    // ── Debug: attach per-result classification metadata ──────────────────
-    const debugResults = gated.map(r => ({
-      ...r,
-      _debug: {
-        name:          r.name,
-        source:        r.source,
-        primaryType:   r.primaryType  || null,
-        types:         r.types        || [],
-        inferredCat:   r.inferredCat  || null,
-        classifyReason:r.classifyReason || null,
-        requestedCat:  cat,
-      },
-    }));
+
     res.status(200).json({
-      results: debugResults,
-      debugVersion: 'automotive-classifier-v4-pipeline',
+      results: gated,
       fallbackUsed: gated.length===0,
       fallbackReason: gated.length===0 ? 'both_providers_failed' : undefined,
       totalMs, cat,
