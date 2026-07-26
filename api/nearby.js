@@ -583,7 +583,7 @@ module.exports = async function handler(req, res) {
   const HYBRID_THRESHOLD=5;
   const MK_GOOGLE_FIRST=countryCode==='MK'&&(cat==='tyres'||cat==='garage');
 
-  console.log(`[nearby] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
+  console.log(`[automotive-classifier-v2] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
 
   // ── Step 1: start BOTH providers concurrently at t=0 ─────────────────────
   const googleT0=Date.now();
@@ -662,8 +662,22 @@ module.exports = async function handler(req, res) {
         console.log(`[TRACE] rid=${rid} cat=${cat} IN_FINAL_RESPONSE name="${r.name}" source=${r.source||'?'} primaryType=${r.primaryType||'null'} shop=${r.shop||'?'} — IN OUTPUT`);
       }
     });
+    // ── Debug: attach per-result classification metadata ──────────────────
+    const debugResults = gated.map(r => ({
+      ...r,
+      _debug: {
+        name:          r.name,
+        source:        r.source,
+        primaryType:   r.primaryType  || null,
+        types:         r.types        || [],
+        inferredCat:   r.inferredCat  || null,
+        classifyReason:r.classifyReason || null,
+        requestedCat:  cat,
+      },
+    }));
     res.status(200).json({
-      results: gated,
+      results: debugResults,
+      debugVersion: 'automotive-classifier-v2',
       fallbackUsed: gated.length===0,
       fallbackReason: gated.length===0 ? 'both_providers_failed' : undefined,
       totalMs, cat,
