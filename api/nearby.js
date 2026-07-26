@@ -236,10 +236,14 @@ function classifyGoogle(place, cat) {
     }
   }
 
-  // 2. Must have at least one allowed type
+  // 2. primaryType must be an allowed type for this category.
+  // We check primaryType ONLY (not secondary types[]) because primaryType is Google's
+  // strongest signal of what the business primarily is.
+  // A parts store (primaryType=auto_parts_store) with car_repair in secondary types[]
+  // is still primarily a parts store, not a workshop.
+  // Exception: car_dealer is validated against secondary types[] in the garage sub-rule below.
   if (allow) {
-    const hasAllowed = [...allT].some(t => allow.has(t));
-    if (!hasAllowed) {
+    if (!allow.has(primary)) {
       return { accept: false, reason: `no_allowed_type(primary=${primary||'null'})` };
     }
   }
