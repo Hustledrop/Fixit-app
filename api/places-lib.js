@@ -740,21 +740,11 @@ function classifyGoogle(place, cat) {
 
   // 2. primaryType must be an allowed type for this category.
   // primaryType is Google's strongest signal of what the business primarily is.
-  // EXCEPTION for garage: a business with primaryType=auto_parts_store that ALSO has
-  // car_repair in its secondary types[] is a dual-service workshop+parts business.
-  // Google sometimes tags these as auto_parts_store even when repair is their main service.
-  // Evidence requirement: BOTH auto_parts_store AND car_repair must be present in types[].
-  // This is the multi-service rule — it does NOT apply to pure parts stores.
+  // Secondary types[] are NOT used for the allow check — they cannot override primaryType.
+  // (Rationale: parts stores, workshops, and dealerships commonly appear in each other's
+  //  secondary types[], making secondary types[] an unreliable cross-category signal.)
   if (allow) {
-    if (allow.has(primary)) {
-      // Primary type is directly allowed — proceed to sub-rules
-    } else if (cat === 'garage'
-               && primary === 'auto_parts_store'
-               && Array.isArray(place.types)
-               && place.types.includes('car_repair')) {
-      // Dual-service exception: parts store with explicit car_repair evidence in types[]
-      // Accept for garage; the garage sub-rule will handle the final check below
-    } else {
+    if (!allow.has(primary)) {
       return { accept: false, reason: `no_allowed_type(primary=${primary||'null'})` };
     }
   }
@@ -766,12 +756,7 @@ function classifyGoogle(place, cat) {
     if (primary === 'car_dealer' && !allT.has('car_repair')) {
       return { accept: false, reason: 'dealer_without_repair' };
     }
-    // For dual-service business (primaryType=auto_parts_store + car_repair in types[])
-    // the reason explicitly labels it to distinguish from a pure workshop
-    const garageReason = (primary === 'auto_parts_store')
-      ? 'garage:auto_parts_store+car_repair(dual_service)'
-      : `garage:${primary}`;
-    return { accept: true, reason: garageReason };
+    return { accept: true, reason: `garage:${primary}` };
   }
 
   if (cat === 'parts') {
@@ -931,35 +916,22 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
   const beforeFilter = allPlacesDeduped.length;
   const seen = new Set();
 
-  // ── Diagnostic: log ALL candidates for parts/tyres/petrol ─────────────────
-  const DIAG_CATS = new Set(['parts','tyres','petrol','garage']);
-  if (DIAG_CATS.has(cat)) {
-    console.log(`[places] rid=${rid} cat=${cat} raw_count=${allPlacesDeduped.length}`);
+  // ── RAW CANDIDATE DUMP — logs every Google result before any filtering ─────
+  // This includes results that will later be rejected by classification, distance,
+  // or deduplication. Used to trace missing businesses (e.g. those not in final list).
+  if (['garage','parts','tyres','petrol'].includes(cat)) {
+    console.log(`[raw-dump] rid=${rid} cat=${cat} raw_candidates=${allPlacesDeduped.length}`);
     allPlacesDeduped.forEach((raw, i) => {
       const nm  = raw.displayName?.text || '(no name)';
+      const pid = raw.id || '(no id)';
       const pt  = raw.primaryType || 'null';
       const tps = (raw.types||[]).join(',') || 'none';
       const sq  = raw._sourceQuery || '(unknown)';
-      console.log(`[places] rid=${rid} cat=${cat} raw#${i} query="${sq}" name="${nm}" pt=${pt} types=[${tps}]`);
+      const loc = raw.location || {};
+      console.log(`[raw-dump] rid=${rid} cat=${cat} #${i} placeId=${pid} name="${nm}" primaryType=${pt} types=[${tps}] query="${sq}" lat=${loc.latitude||'?'} lng=${loc.longitude||'?'}`);
     });
   }
-  // Unconditional TRACE: log every raw candidate's type metadata so we can
-  // see exactly what Google returned and whether classification fires on it.
   const TRACE_NAMES = ['ποδηλατα','helmetsgr','helmet','bicycle','bike'];
-  if (['garage','parts','tyres','petrol','it','moto'].includes(cat)) {
-    allPlacesDeduped.forEach((raw, _ti) => {
-      const nm  = raw.displayName?.text || '(no name)';
-      const pt  = raw.primaryType || 'null';
-      const tps = (raw.types||[]).join(',') || 'none';
-      const sq  = raw._sourceQuery || '?';
-      const isSuspect = TRACE_NAMES.some(t => nm.toLowerCase().includes(t));
-      // Always log suspect names; log others at condensed level
-      if (isSuspect) {
-        console.log(`[TRACE] rid=${rid} cat=${cat} FOUND_IN_RAW name="${nm}" pt=${pt} types=[${tps}] query="${sq}"`);
-      }
-    });
-    console.log(`[TRACE] rid=${rid} cat=${cat} raw_total=${allPlacesDeduped.length} names=[${allPlacesDeduped.slice(0,5).map(r=>r.displayName?.text||'?').join(',')}]`);
-  }
 
   let diagAccepted = 0, diagRejected = 0;
   const results = allPlacesDeduped
@@ -1001,21 +973,40 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
 
         if (!cls.accept) {
           diagRejected++;
+          // Log rejection with placeId so we can cross-reference with raw-dump
+          if (['garage','parts','tyres'].includes(cat)) {
+            console.log(`[raw-dump] rid=${rid} cat=${cat} REJECT placeId=${raw.id||'?'} name="${p.name}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] reason=${cls.reason}`);
+          }
           return false;
         }
         diagAccepted++;
+        // Log accepted results too
+        if (['garage','parts','tyres'].includes(cat)) {
+          console.log(`[raw-dump] rid=${rid} cat=${cat} ACCEPT placeId=${raw.id||'?'} name="${p.name}" primaryType=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] reason=${cls.reason}`);
+        }
       }
       if (p.dist > MAX_DIST_KM) {
-        console.log(`[places] rid=${rid} cat=${cat} dist_REJECT name="${p.name}" dist=${p.dist}km`);
+        if (['garage','parts'].includes(cat)) {
+          console.log(`[raw-dump] rid=${rid} cat=${cat} DIST_REJECT name="${p.name}" dist=${p.dist}km limit=${MAX_DIST_KM}km`);
+        }
         return false;
       }
       const key = p.name.toLowerCase().trim();
-      if (seen.has(key)) return false;
+      if (seen.has(key)) {
+        if (['garage','parts'].includes(cat)) {
+          console.log(`[raw-dump] rid=${rid} cat=${cat} NAMEDEDUP_REJECT name="${p.name}"`);
+        }
+        return false;
+      }
       seen.add(key);
       return true;
     })
     .sort((a, b) => a.dist - b.dist)
     .slice(0, 20);
+  // Log if slice cut any results (business may be result #21+)
+  if (['garage','parts'].includes(cat) && results.length === 20) {
+    console.log(`[raw-dump] rid=${rid} cat=${cat} SLICE_WARN: hit 20-result limit — some accepted results may have been truncated`);
+  }
 
 
   // Targeted trace: did any suspected false positive survive the filter?

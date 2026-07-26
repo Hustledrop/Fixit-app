@@ -238,21 +238,11 @@ function classifyGoogle(place, cat) {
 
   // 2. primaryType must be an allowed type for this category.
   // primaryType is Google's strongest signal of what the business primarily is.
-  // EXCEPTION for garage: a business with primaryType=auto_parts_store that ALSO has
-  // car_repair in its secondary types[] is a dual-service workshop+parts business.
-  // Google sometimes tags these as auto_parts_store even when repair is their main service.
-  // Evidence requirement: BOTH auto_parts_store AND car_repair must be present in types[].
-  // This is the multi-service rule — it does NOT apply to pure parts stores.
+  // Secondary types[] are NOT used for the allow check — they cannot override primaryType.
+  // (Rationale: parts stores, workshops, and dealerships commonly appear in each other's
+  //  secondary types[], making secondary types[] an unreliable cross-category signal.)
   if (allow) {
-    if (allow.has(primary)) {
-      // Primary type is directly allowed — proceed to sub-rules
-    } else if (cat === 'garage'
-               && primary === 'auto_parts_store'
-               && Array.isArray(place.types)
-               && place.types.includes('car_repair')) {
-      // Dual-service exception: parts store with explicit car_repair evidence in types[]
-      // Accept for garage; the garage sub-rule will handle the final check below
-    } else {
+    if (!allow.has(primary)) {
       return { accept: false, reason: `no_allowed_type(primary=${primary||'null'})` };
     }
   }
@@ -264,12 +254,7 @@ function classifyGoogle(place, cat) {
     if (primary === 'car_dealer' && !allT.has('car_repair')) {
       return { accept: false, reason: 'dealer_without_repair' };
     }
-    // For dual-service business (primaryType=auto_parts_store + car_repair in types[])
-    // the reason explicitly labels it to distinguish from a pure workshop
-    const garageReason = (primary === 'auto_parts_store')
-      ? 'garage:auto_parts_store+car_repair(dual_service)'
-      : `garage:${primary}`;
-    return { accept: true, reason: garageReason };
+    return { accept: true, reason: `garage:${primary}` };
   }
 
   if (cat === 'parts') {
@@ -601,7 +586,7 @@ module.exports = async function handler(req, res) {
   const HYBRID_THRESHOLD=5;
   const MK_GOOGLE_FIRST=countryCode==='MK'&&(cat==='tyres'||cat==='garage');
 
-  console.log(`[automotive-classifier-v2] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
+  console.log(`[automotive-classifier-v3] rid=${rid} cat=${cat} START cc=${countryCode} lat=${latN} lng=${lngN}`);
 
   // ── Step 1: start BOTH providers concurrently at t=0 ─────────────────────
   const googleT0=Date.now();
@@ -695,7 +680,7 @@ module.exports = async function handler(req, res) {
     }));
     res.status(200).json({
       results: debugResults,
-      debugVersion: 'automotive-classifier-v2',
+      debugVersion: 'automotive-classifier-v3-rawdump',
       fallbackUsed: gated.length===0,
       fallbackReason: gated.length===0 ? 'both_providers_failed' : undefined,
       totalMs, cat,
