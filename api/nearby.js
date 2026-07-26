@@ -237,13 +237,22 @@ function classifyGoogle(place, cat) {
   }
 
   // 2. primaryType must be an allowed type for this category.
-  // We check primaryType ONLY (not secondary types[]) because primaryType is Google's
-  // strongest signal of what the business primarily is.
-  // A parts store (primaryType=auto_parts_store) with car_repair in secondary types[]
-  // is still primarily a parts store, not a workshop.
-  // Exception: car_dealer is validated against secondary types[] in the garage sub-rule below.
+  // primaryType is Google's strongest signal of what the business primarily is.
+  // EXCEPTION for garage: a business with primaryType=auto_parts_store that ALSO has
+  // car_repair in its secondary types[] is a dual-service workshop+parts business.
+  // Google sometimes tags these as auto_parts_store even when repair is their main service.
+  // Evidence requirement: BOTH auto_parts_store AND car_repair must be present in types[].
+  // This is the multi-service rule — it does NOT apply to pure parts stores.
   if (allow) {
-    if (!allow.has(primary)) {
+    if (allow.has(primary)) {
+      // Primary type is directly allowed — proceed to sub-rules
+    } else if (cat === 'garage'
+               && primary === 'auto_parts_store'
+               && Array.isArray(place.types)
+               && place.types.includes('car_repair')) {
+      // Dual-service exception: parts store with explicit car_repair evidence in types[]
+      // Accept for garage; the garage sub-rule will handle the final check below
+    } else {
       return { accept: false, reason: `no_allowed_type(primary=${primary||'null'})` };
     }
   }
@@ -255,7 +264,12 @@ function classifyGoogle(place, cat) {
     if (primary === 'car_dealer' && !allT.has('car_repair')) {
       return { accept: false, reason: 'dealer_without_repair' };
     }
-    return { accept: true, reason: `garage:${primary}` };
+    // For dual-service business (primaryType=auto_parts_store + car_repair in types[])
+    // the reason explicitly labels it to distinguish from a pure workshop
+    const garageReason = (primary === 'auto_parts_store')
+      ? 'garage:auto_parts_store+car_repair(dual_service)'
+      : `garage:${primary}`;
+    return { accept: true, reason: garageReason };
   }
 
   if (cat === 'parts') {
