@@ -825,21 +825,23 @@ function normalizePlaceResult(place, latN, lngN) {
   const name = place.displayName?.text || '';
   if (!name) return null;
   return {
-    id:          `google_${place.id}`,
-    placeId:     place.id || null,      // kept for place_id dedup
-    source:      'google',
+    id:           `google_${place.id}`,
+    placeId:      place.id || null,       // kept for place_id dedup and raw lookup
+    source:       'google',
     name,
-    lat:         plat,
-    lng:         plng,
-    dist:        Math.round(haversine(latN, lngN, plat, plng) * 1000) / 1000,
-    addr:        place.formattedAddress || '',
-    phone:       place.nationalPhoneNumber || '',
-    website:     place.websiteUri || '',
-    opening:     place.regularOpeningHours?.weekdayDescriptions?.slice(0, 2).join('; ') || '',
-    rating:      place.rating || null,
-    mapsUrl:     place.googleMapsUri || '',
-    primaryType: place.primaryType || null,   // preserved for final gate
-    types:       place.types || [],           // preserved for final gate
+    lat:          plat,
+    lng:          plng,
+    dist:         Math.round(haversine(latN, lngN, plat, plng) * 1000) / 1000,
+    addr:         place.formattedAddress || '',
+    phone:        place.nationalPhoneNumber || '',
+    website:      place.websiteUri || '',
+    opening:      place.regularOpeningHours?.weekdayDescriptions?.slice(0, 2).join('; ') || '',
+    rating:       place.rating || null,
+    mapsUrl:      place.googleMapsUri || '',
+    primaryType:  place.primaryType || null,   // preserved for classifier
+    types:        place.types || [],           // preserved for classifier
+    sourceQuery:  place._sourceQuery || null,  // which query/type returned this result
+    // inferredCat and classifyReason are set by the filter block below
   };
 }
 
@@ -947,31 +949,43 @@ async function fetchPlacesForCategory(cat, latN, lngN, radiusM = 30000, cityHint
     .filter(p => {
       if (!p) return false;
       if (isScrap(p.name, [], cat)) return false;
-      // Structured Google classifier — applied at Places level for early rejection
+      // ── Google classifier — source-aware, placeId-keyed ─────────────────────
+      // Uses placeId for lookup (not name) to avoid silent misses on encoding/whitespace.
+      // Default-deny: a result with no matching raw object is REJECTED, not passed.
       if (['garage','parts','tyres','petrol','it','moto','hardware','vet'].includes(cat)) {
-        const raw = allPlacesDeduped.find(r => (r.displayName?.text||'')=== p.name);
-        if (raw) {
-          const cls = classifyGooglePlace(raw, cat);
-          if (DIAG_CATS.has(cat)) {
-            const q = raw._sourceQuery || '(unknown query)';
-            const pt = raw.primaryType || 'null';
-            const tps = (raw.types||[]).join(',') || 'none';
-            const dist = p.dist != null ? p.dist+'km' : '?';
-            console.log(`[places] rid=${rid} cat=${cat} classify name="${p.name}" pt=${pt} types=[${tps}] dist=${dist} → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
-          }
-          // Trace: log EVERY classify decision for classified categories (needed to diagnose moto/tyres/etc)
-          if (['garage','parts','tyres','petrol','it','moto','hardware','vet'].includes(cat)) {
-            console.log(`[TRACE] rid=${rid} cat=${cat} CLASSIFY name="${p.name}" pt=${raw.primaryType||'null'} types=[${(raw.types||[]).join(',')}] → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
-          }
-          if (!cls.accept) {
-            diagRejected++;
-            return false;
-          } else diagAccepted++;
-        } else if (DIAG_CATS.has(cat)) {
-          if (TRACE_NAMES.some(t => p.name.toLowerCase().includes(t))) {
-            console.log(`[TRACE] rid=${rid} cat=${cat} RAW_LOOKUP_MISS name="${p.name}" — classification SKIPPED, result passes`);
-          }
+        // Build a placeId → raw map (created once, reused per result via closure)
+        // We rebuild lazily since allPlacesDeduped may differ per call.
+        const raw = p.placeId
+          ? allPlacesDeduped.find(r => r.id === p.placeId)
+          : allPlacesDeduped.find(r => (r.displayName?.text||'') === p.name); // fallback
+
+        if (!raw) {
+          // No raw Google object found — cannot classify. Default-deny.
+          // This guards against normalisation mismatches silently passing results.
+          console.log(`[classify] rid=${rid} cat=${cat} RAW_MISS_DENY name="${p.name}" — no raw object, defaulting to REJECT`);
+          diagRejected++;
+          return false;
         }
+
+        const cls = classifyGooglePlace(raw, cat);
+        const pt  = raw.primaryType || 'null';
+        const tps = (raw.types||[]).join(',') || 'none';
+
+        // Attach classification metadata to the normalized result (source-aware)
+        p.inferredCat    = cls.accept ? cat : null;
+        p.classifyReason = cls.reason;
+        p.googleTypes    = raw.types || [];
+        p.googlePrimary  = raw.primaryType || null;
+        p.sourceQuery    = raw._sourceQuery || p.sourceQuery;
+
+        // ── Dev logging: one line per result, all signals ───────────────────
+        console.log(`[classify] rid=${rid} cat=${cat} src=google name="${p.name}" primaryType=${pt} types=[${tps}] query="${raw._sourceQuery||'?'}" → ${cls.accept?'ACCEPT':'REJECT'} reason=${cls.reason}`);
+
+        if (!cls.accept) {
+          diagRejected++;
+          return false;
+        }
+        diagAccepted++;
       }
       if (p.dist > MAX_DIST_KM) {
         console.log(`[places] rid=${rid} cat=${cat} dist_REJECT name="${p.name}" dist=${p.dist}km`);

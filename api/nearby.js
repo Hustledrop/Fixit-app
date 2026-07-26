@@ -441,7 +441,15 @@ function processElements(elements, cat, latN, lngN, distLimitKm, seen) {
     if (isScrapyard(tags)) continue;
     if (['garage','parts','tyres'].includes(cat)) {
       const cls = classifyOSM(tags, cat);
-      if (!cls.accept) { console.log(`[nearby] OSM reject "${tags.name||'?'}" reason=${cls.reason}`); continue; }
+      if (!cls.accept) {
+        const osmTagSummary2 = [
+          tags.shop    ? `shop=${tags.shop}`    : null,
+          tags.craft   ? `craft=${tags.craft}`  : null,
+          tags.amenity ? `amenity=${tags.amenity}` : null,
+        ].filter(Boolean).join(',') || 'none';
+        console.log(`[classify] cat=${cat} src=osm name="${tags.name||'?'}" tags=[${osmTagSummary2}] → REJECT reason=${cls.reason}`);
+        continue;
+      }
     }
     const name = tags.name||tags.brand||tags.operator||tags.amenity||null;
     if (!name||seen.has(name)) continue;
@@ -452,11 +460,32 @@ function processElements(elements, cat, latN, lngN, distLimitKm, seen) {
     seen.add(name);
     const street = tags['addr:street']
       ? tags['addr:street']+(tags['addr:housenumber']?' '+tags['addr:housenumber']:'') : null;
-    const osmResult = { name, source:'osm', lat:parseFloat(elLat), lng:parseFloat(elLon),
-      dist:Math.round(dist*1000)/1000,
-      addr:[street,tags['addr:city'],tags['addr:postcode']].filter(Boolean).join(', ')||'',
-      phone:tags.phone||tags['contact:phone']||'', opening:tags.opening_hours||'',
-      website:tags.website||tags['contact:website']||'' };
+    // Collect relevant OSM tags for source-aware classification logging
+    const osmTagSummary = [
+      tags.shop    ? `shop=${tags.shop}`    : null,
+      tags.craft   ? `craft=${tags.craft}`  : null,
+      tags.amenity ? `amenity=${tags.amenity}` : null,
+      ...Object.keys(tags).filter(k => k.startsWith('service:vehicle:')).map(k => `${k}=${tags[k]}`),
+    ].filter(Boolean).join(',') || 'none';
+
+    const osmResult = {
+      name, source:'osm',
+      lat: parseFloat(elLat), lng: parseFloat(elLon),
+      dist: Math.round(dist*1000)/1000,
+      addr: [street, tags['addr:city'], tags['addr:postcode']].filter(Boolean).join(', ') || '',
+      phone:   tags.phone   || tags['contact:phone']   || '',
+      opening: tags.opening_hours || '',
+      website: tags.website || tags['contact:website'] || '',
+      // Source metadata — preserved for source-aware UI classification
+      osmTags:      osmTagSummary,     // e.g. "shop=car_parts,craft=car_repair"
+      inferredCat:  cat,               // the category this OSM result was accepted for
+      classifyReason: cls.reason,      // the specific OSM tag that matched
+      sourceQuery:  `osm:${tags.shop||tags.craft||tags.amenity||'?'}`, // which OSM tag drove this
+    };
+
+    // ── Dev logging: one line per OSM result, all signals ──────────────────
+    console.log(`[classify] cat=${cat} src=osm name="${name}" tags=[${osmTagSummary}] → ACCEPT reason=${cls.reason}`);
+
     // TRACE: flag suspicious names surviving OSM classification
     const _nm = name.toLowerCase();
     if (['ποδηλατα','helmetsgr','helmet','bicycle','bike'].some(t => _nm.includes(t))) {
