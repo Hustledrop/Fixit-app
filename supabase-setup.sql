@@ -47,7 +47,7 @@ create table if not exists public.profiles (
   id                 uuid        primary key references auth.users(id) on delete cascade,
   email              text        not null default '',
   is_pro             boolean     not null default false,
-  plan               text,                          -- 'monthly' | 'lifetime' | null
+  plan               text,                          -- 'monthly' | 'yearly' | null
   stripe_customer_id text,                          -- written by webhook only
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
@@ -93,7 +93,7 @@ grant select on public.profiles to authenticated;
 -- Free model (from auth.js):
 --   free_limit = 1 (one free diagnosis)
 --   Pro users bypass this check entirely (is_pro checked first)
---   No daily/monthly reset — intentionally a total lifetime counter
+--   No daily/monthly reset — intentionally a total usage counter (persists for account lifetime)
 -- ════════════════════════════════════════════════════════════
 
 create table if not exists public.usage (
@@ -137,7 +137,7 @@ create table if not exists public.payments (
   user_id            uuid        references auth.users(id) on delete set null,
   stripe_customer_id text,
   stripe_session_id  text        unique,             -- prevents duplicate webhook inserts
-  plan               text,                           -- 'monthly' | 'lifetime'
+  plan               text,                           -- 'monthly' | 'yearly'
   status             text,                           -- 'completed'
   created_at         timestamptz not null default now()
 );
@@ -302,7 +302,7 @@ grant  execute on function public.consume_free_diagnosis(uuid) to authenticated;
 
 -- 4. Manually grant Pro (testing only):
 -- update public.profiles
---    set is_pro = true, plan = 'lifetime', updated_at = now()
+--    set is_pro = true, plan = 'yearly', updated_at = now()
 --  where email = 'you@example.com';
 
 -- 5. Check a user's full state:

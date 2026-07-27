@@ -4,18 +4,17 @@
 //
 // Required Vercel env vars:
 //   STRIPE_SECRET_KEY              sk_live_... or sk_test_...
-//   VITE_STRIPE_MONTHLY_PRICE_ID   price_xxx  (€3.99/month recurring)
-//   VITE_STRIPE_LIFETIME_PRICE_ID  price_yyy  (€17.99 one-time)
+//   VITE_STRIPE_MONTHLY_PRICE_ID   price_xxx  (€4.99/month recurring)
+//   VITE_STRIPE_YEARLY_PRICE_ID    price_yyy  (€39.99/year recurring)
 //   VITE_APP_URL                   https://www.fixit-app.com
 
 import Stripe from 'stripe';
 
-const STRIPE_KEY     = process.env.STRIPE_SECRET_KEY;
-const MONTHLY_PRICE  = process.env.VITE_STRIPE_MONTHLY_PRICE_ID;
-const LIFETIME_PRICE = process.env.VITE_STRIPE_LIFETIME_PRICE_ID;
-const APP_URL        = process.env.VITE_APP_URL || 'https://www.fixit-app.com';
+const STRIPE_KEY    = process.env.STRIPE_SECRET_KEY;
+const MONTHLY_PRICE = process.env.VITE_STRIPE_MONTHLY_PRICE_ID;
+const YEARLY_PRICE  = process.env.VITE_STRIPE_YEARLY_PRICE_ID;
+const APP_URL       = process.env.VITE_APP_URL || 'https://www.fixit-app.com';
 
-// Read raw body for Vercel (bodyParser may already have parsed it)
 async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
   const raw = await new Promise(r => { let d = ''; req.on('data', c => d += c); req.on('end', () => r(d)); });
@@ -41,11 +40,11 @@ export default async function handler(req, res) {
   if (!plan || !userId) {
     return res.status(400).json({ error: 'missing_fields', message: 'plan and userId are required' });
   }
-  if (!['monthly', 'lifetime'].includes(plan)) {
-    return res.status(400).json({ error: 'invalid_plan', message: 'plan must be monthly or lifetime' });
+  if (!['monthly', 'yearly'].includes(plan)) {
+    return res.status(400).json({ error: 'invalid_plan', message: 'plan must be monthly or yearly' });
   }
 
-  const priceId = plan === 'lifetime' ? LIFETIME_PRICE : MONTHLY_PRICE;
+  const priceId = plan === 'yearly' ? YEARLY_PRICE : MONTHLY_PRICE;
   if (!priceId) {
     return res.status(503).json({
       error: 'price_not_configured',
@@ -64,7 +63,7 @@ export default async function handler(req, res) {
     }
 
     const session = await stripe.checkout.sessions.create({
-      mode: plan === 'lifetime' ? 'payment' : 'subscription',
+      mode: 'subscription',   // both monthly and yearly are recurring subscriptions
       line_items: [{ price: priceId, quantity: 1 }],
 
       // Attach user identity for webhook reconciliation

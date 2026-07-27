@@ -83,12 +83,6 @@ async function grantPro(supabase, userId, plan, stripeCustomerId) {
 async function revokePro(supabase, stripeCustomerId) {
   const profile = await getProfileByCustomer(supabase, stripeCustomerId);
 
-  // LIFETIME IS PERMANENT — never revoke via subscription events
-  if (profile?.plan === 'lifetime') {
-    console.log(`[webhook] revokePro SKIPPED — plan=lifetime customerId=${stripeCustomerId}`);
-    return;
-  }
-
   if (!profile) {
     console.warn(`[webhook] revokePro: no profile found for customerId=${stripeCustomerId}`);
     return;
@@ -117,29 +111,6 @@ async function recordPayment(supabase, userId, stripeCustomerId, sessionId, plan
     console.error('[webhook] recordPayment error:', error.message);
   } else if (!error) {
     console.log(`[webhook] ✅ payment recorded plan=${plan} userId=${userId}`);
-  }
-}
-
-async function cancelActiveMonthlySubscription(stripe, stripeCustomerId, lifetimeSessionId) {
-  try {
-    const subs = await stripe.subscriptions.list({
-      customer: stripeCustomerId,
-      status:   'active',
-      limit:    10,
-    });
-    console.log(`[webhook] found ${subs.data.length} active sub(s) to cancel for customer=${stripeCustomerId}`);
-    for (const sub of subs.data) {
-      await stripe.subscriptions.update(sub.id, {
-        cancel_at_period_end: true,
-        metadata: {
-          cancelled_reason:  'upgraded_to_lifetime',
-          lifetime_session:  lifetimeSessionId,
-        },
-      });
-      console.log(`[webhook] ✅ sub ${sub.id} set to cancel_at_period_end=true`);
-    }
-  } catch (err) {
-    console.error('[webhook] cancelActiveMonthlySubscription error:', err.message);
   }
 }
 
@@ -178,62 +149,40 @@ export default async function handler(req, res) {
     const plan       = session.metadata?.plan   || 'monthly';
     const customerId = session.customer;
 
-    console.log(`[webhook] checkout.session.completed session=${session.id} userId=${userId} plan=${plan} customerId=${customerId} mode=${session.mode}`);
+    console.log(`[webhook] checkout.session.completed session=${session.id} userId=${userId} plan=${plan} customerId=${customerId}`);
 
     if (!userId) {
       console.error('[webhook] ABORT: no userId in session.metadata or client_reference_id');
-      // Still return 200 so Stripe does not retry — we cannot fix a missing userId
       return res.status(200).json({ received: true });
     }
 
-    // Verify the profile exists before writing to it
     const existingProfile = await getProfile(supabase, userId);
     console.log(`[webhook] profile lookup: ${existingProfile ? `found plan=${existingProfile.plan}` : 'NOT FOUND — will upsert'}`);
 
     await grantPro(supabase, userId, plan, customerId);
     await recordPayment(supabase, userId, customerId, session.id, plan);
-
-    // Cancel the old monthly subscription when upgrading to lifetime.
-    // NOTE: this triggers customer.subscription.updated with status='active'.
-    // The subscription.updated handler below is lifetime-aware and will NOT
-    // overwrite plan='lifetime' with 'monthly'.
-    if (plan === 'lifetime' && customerId) {
-      const stripe = new Stripe(STRIPE_KEY, { apiVersion: '2024-04-10' });
-      await cancelActiveMonthlySubscription(stripe, customerId, session.id);
-    }
   }
 
   // ── customer.subscription.updated ─────────────────────────────────────────
-  // IMPORTANT: this event fires when we set cancel_at_period_end=true above.
-  // The subscription status is still 'active' at that point.
-  // We must NOT overwrite plan='lifetime' with 'monthly' here.
   if (event.type === 'customer.subscription.updated') {
     const sub        = event.data.object;
     const customerId = sub.customer;
     const status     = sub.status;
-    const cancelAtPeriodEnd = sub.cancel_at_period_end;
 
-    console.log(`[webhook] subscription.updated subId=${sub.id} status=${status} cancel_at_period_end=${cancelAtPeriodEnd} customerId=${customerId}`);
+    console.log(`[webhook] subscription.updated subId=${sub.id} status=${status} customerId=${customerId}`);
 
     const profile = await getProfileByCustomer(supabase, customerId);
     if (!profile) {
       console.warn(`[webhook] subscription.updated: no profile found for customerId=${customerId}`);
+    } else if (['active', 'trialing'].includes(status)) {
+      // Determine plan from price interval if available
+      const interval = sub.items?.data?.[0]?.price?.recurring?.interval;
+      const plan = interval === 'year' ? 'yearly' : 'monthly';
+      await grantPro(supabase, profile.id, plan, customerId);
+    } else if (['canceled', 'unpaid', 'incomplete_expired'].includes(status)) {
+      await revokePro(supabase, customerId);
     } else {
-      console.log(`[webhook] subscription.updated: profile found userId=${profile.id} current_plan=${profile.plan}`);
-
-      // CRITICAL: never overwrite a lifetime plan via subscription events
-      if (profile.plan === 'lifetime') {
-        console.log(`[webhook] subscription.updated SKIPPED — profile is already lifetime`);
-      } else if (['active', 'trialing'].includes(status)) {
-        // Normal active subscription — grant Pro as monthly
-        // (This also fires on cancel_at_period_end=true while still active — safe to grant)
-        await grantPro(supabase, profile.id, 'monthly', customerId);
-      } else if (['canceled', 'unpaid', 'incomplete_expired'].includes(status)) {
-        await revokePro(supabase, customerId);
-      } else {
-        // past_due etc — leave Pro active during retry window
-        console.log(`[webhook] subscription.updated status=${status} — no action`);
-      }
+      console.log(`[webhook] subscription.updated status=${status} — no action`);
     }
   }
 
