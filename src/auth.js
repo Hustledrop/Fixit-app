@@ -22,17 +22,22 @@ if (SUPABASE_URL) {
   console.warn('[FixIt auth] VITE_SUPABASE_URL not set — running in guest mode');
 }
 
-let _sb = null;
+// Promise-based singleton — guarantees createClient() is called exactly once
+// even when multiple async callers (React StrictMode double-effect) race on startup.
+let _sbPromise = null;
 async function sb() {
   if (!AUTH_AVAILABLE) return null;
-  if (_sb) return _sb;
-  try {
-    const { createClient } = await import('@supabase/supabase-js');
-    _sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true },
-    });
-    return _sb;
-  } catch (_) { return null; }
+  if (!_sbPromise) {
+    _sbPromise = (async () => {
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        return createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: { persistSession: true, autoRefreshToken: true },
+        });
+      } catch (_) { return null; }
+    })();
+  }
+  return _sbPromise;
 }
 
 // ── Auth actions ──────────────────────────────────────────────────────────────
