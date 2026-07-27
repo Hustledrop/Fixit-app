@@ -1,54 +1,62 @@
 // src/components/LegalPages.jsx
-// Self-contained Privacy Policy and Terms of Service for FixIt
-// Last updated: July 2026 · Version 1.0
+// Self-contained Privacy Policy, Terms of Service, and Impressum for FixIt
+// All contact / legal info read from src/config/legal.js — one place to update.
+// Last updated: July 2026 · Version 1.1
 // Bilingual: lang='de' → German, otherwise English
 
-const h1 = { fontSize:'1.45rem', fontWeight:900, color:'rgba(255,255,255,0.92)', marginBottom:6, marginTop:0, letterSpacing:'-0.02em' };
-const h2 = { fontSize:'1.05rem', fontWeight:800, color:'rgba(255,255,255,0.85)', marginTop:32, marginBottom:8, paddingBottom:4, borderBottom:'1px solid rgba(255,255,255,0.08)' };
-const h3 = { fontSize:'0.9rem', fontWeight:700, color:'rgba(255,255,255,0.78)', marginTop:18, marginBottom:4 };
-const p  = { marginBottom:12, color:'rgba(255,255,255,0.65)' };
-const ul = { paddingLeft:20, marginBottom:12, color:'rgba(255,255,255,0.65)' };
-const li = { marginBottom:4 };
+import { LEGAL } from '../config/legal.js';
+
+const { legalName, postalAddress, supportEmail, privacyEmail, vatId, appUrl } = LEGAL;
+const DOC_VERSION = '1.1';
+const DOC_DATE    = 'July 2026';
+
+// ── Shared styles ──────────────────────────────────────────────────────────────
+const h1   = { fontSize:'1.45rem', fontWeight:900, color:'rgba(255,255,255,0.92)', marginBottom:6, marginTop:0, letterSpacing:'-0.02em' };
+const h2   = { fontSize:'1.05rem', fontWeight:800, color:'rgba(255,255,255,0.85)', marginTop:32, marginBottom:8, paddingBottom:4, borderBottom:'1px solid rgba(255,255,255,0.08)' };
+const h3   = { fontSize:'0.9rem',  fontWeight:700, color:'rgba(255,255,255,0.78)', marginTop:18, marginBottom:4 };
+const p    = { marginBottom:12, color:'rgba(255,255,255,0.65)' };
+const ul   = { paddingLeft:20, marginBottom:12, color:'rgba(255,255,255,0.65)' };
+const li   = { marginBottom:4 };
 const warn = { background:'rgba(232,82,26,0.09)', border:'1px solid rgba(232,82,26,0.3)', borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:'0.82rem', color:'rgba(232,82,26,0.85)', lineHeight:1.6 };
 const box  = { background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:'0.82rem' };
 const meta = { fontSize:'0.7rem', color:'rgba(255,255,255,0.3)', marginBottom:24 };
 
-// ── PLACEHOLDERS (owner must fill in before launch) ────────────────────────
-const OWNER_NAME    = '[LEGAL NAME REQUIRED]';
-const OWNER_ADDR    = '[POSTAL ADDRESS REQUIRED]';
-const OWNER_EMAIL   = '[SUPPORT EMAIL REQUIRED]';
-const PRIVACY_EMAIL = '[PRIVACY EMAIL REQUIRED]';
-const VAT_ID        = '[VAT ID IF AVAILABLE]';
-const APP_URL       = 'https://www.fixit-app.com';
-const DOC_VERSION   = '1.0';
-const DOC_DATE      = 'July 2026';
+// ── Helper: only render VAT when configured ───────────────────────────────────
+const VatLine = ({ de }) => vatId && vatId.trim()
+  ? <>{de ? 'USt-IdNr.: ' : 'VAT ID: '}{vatId}<br/></>
+  : null;
 
-// ── Privacy Policy ─────────────────────────────────────────────────────────
+// ── Shared owner block used in all three pages ────────────────────────────────
+const OwnerBlock = ({ de }) => (
+  <div style={box}>
+    {legalName   ? <><strong>{legalName}</strong><br/></> : null}
+    {postalAddress ? <>{postalAddress}<br/></> : null}
+    <VatLine de={de}/>
+    {de ? 'E-Mail: ' : 'Email: '}{supportEmail}
+  </div>
+);
+
+// ── Privacy Policy ─────────────────────────────────────────────────────────────
 export function PrivacyPage({ lang }) {
   const de = lang === 'de';
   return (
     <div>
       <h1 style={h1}>{de ? 'Datenschutzerklärung' : 'Privacy Policy'}</h1>
-      <div style={meta}>Version {DOC_VERSION} · {DOC_DATE} · FixIt · {APP_URL}</div>
+      <div style={meta}>Version {DOC_VERSION} · {DOC_DATE} · FixIt · {appUrl}</div>
 
-      {/* AI Transparency Notice — prominently at top per EU AI Act Art. 50 */}
+      {/* AI Transparency — EU AI Act Art. 50, required in UI */}
       <div style={warn}>
         🤖 {de
-          ? 'FixIt verwendet KI (Anthropic Claude), um Diagnosen und Reparaturanleitungen zu erstellen. KI-generierte Inhalte können Fehler enthalten. Überprüfen Sie kritische Informationen stets mit Fachleuten.'
-          : 'FixIt uses AI (Anthropic Claude) to generate diagnoses and repair guidance. AI-generated content can contain errors. Always verify critical information with qualified professionals.'}
+          ? 'FixIt verwendet KI-Technologie, um Diagnosen und Reparaturanleitungen zu erstellen. KI-generierte Inhalte können Fehler enthalten. Überprüfen Sie kritische Informationen stets mit Fachleuten.'
+          : 'FixIt uses AI technology to generate diagnoses and repair guidance. AI-generated content can contain errors. Always verify critical information with qualified professionals.'}
       </div>
 
       {/* 1. Controller */}
       <h2 style={h2}>{de ? '1. Verantwortlicher' : '1. Data Controller'}</h2>
-      <div style={box}>
-        <strong>{OWNER_NAME}</strong><br/>
-        {OWNER_ADDR}<br/>
-        {VAT_ID}<br/>
-        {de ? 'Kontakt: ' : 'Contact: '}{OWNER_EMAIL}
-      </div>
+      <OwnerBlock de={de}/>
       <p style={p}>{de
-        ? 'Für Fragen zum Datenschutz wenden Sie sich bitte an die oben genannte E-Mail-Adresse.'
-        : 'For privacy questions, please contact us at the email address above.'}</p>
+        ? `Für Fragen zum Datenschutz wenden Sie sich bitte an: ${privacyEmail}`
+        : `For privacy questions, please contact: ${privacyEmail}`}</p>
 
       {/* 2. Data collected */}
       <h2 style={h2}>{de ? '2. Welche Daten wir verarbeiten' : '2. Data We Process'}</h2>
@@ -72,8 +80,8 @@ export function PrivacyPage({ lang }) {
       </ul>
       <div style={box}>
         ⚠️ {de
-          ? 'Fotos und Prompts werden an Anthropic (USA) zur KI-Verarbeitung übertragen. Anthropic verarbeitet diese Daten gemäß seinen API-Nutzungsbedingungen. Wir empfehlen, keine persönlichen Informationen (Namen, Adressen, Ausweisnummern) in Diagnose-Texte einzugeben.'
-          : 'Photos and prompts are transmitted to Anthropic (USA) for AI processing. Anthropic processes this data under its API terms. We recommend not entering personal information (names, addresses, ID numbers) in diagnosis texts.'}
+          ? 'Fotos und Texteingaben werden zur KI-Verarbeitung an Anthropic, Inc. (USA) übertragen. Anthropic verarbeitet diese Daten gemäß seinen eigenen API-Nutzungsbedingungen. Wir empfehlen, keine persönlichen Informationen (Namen, Adressen, Ausweisnummern) in Diagnose-Texte einzugeben.'
+          : 'Photos and text inputs are transmitted to Anthropic, Inc. (USA) for AI processing. Anthropic processes this data under its own API terms. We recommend not entering personal information (names, addresses, ID numbers) in diagnosis texts.'}
       </div>
 
       <h3 style={h3}>{de ? 'Reparaturverlauf' : 'Repair history'}</h3>
@@ -108,7 +116,6 @@ export function PrivacyPage({ lang }) {
 
       {/* 4. Third-party providers */}
       <h2 style={h2}>{de ? '4. Drittanbieter' : '4. Third-Party Providers'}</h2>
-
       {[
         {
           name: 'Anthropic, Inc.',
@@ -155,7 +162,7 @@ export function PrivacyPage({ lang }) {
           role: de ? 'Kartendaten für Nearby-Suche' : 'Map data for Nearby search',
           data: de ? 'GPS-Koordinaten' : 'GPS coordinates',
           country: de ? 'Deutschland / EU' : 'Germany / EU',
-          mechanism: 'N/A (keine personenbezogenen Daten übertragen)',
+          mechanism: de ? 'Kein Drittlandtransfer' : 'No third-country transfer',
           policy: 'https://wiki.openstreetmap.org/wiki/Privacy_Policy',
         },
       ].map(p2 => (
@@ -188,8 +195,8 @@ export function PrivacyPage({ lang }) {
         </span>
       </div>
       <p style={p}>{de
-        ? 'Gemäß §25 TDDDG ist die Nutzung dieser Speicher technisch notwendig und erfordert keine Einwilligung.'
-        : 'Under §25 TDDDG, this storage is strictly necessary and does not require consent.'}</p>
+        ? 'Gemäß § 25 TDDDG ist die Nutzung dieser Speicher technisch notwendig und erfordert keine Einwilligung.'
+        : 'Under § 25 TDDDG, this storage is strictly necessary and does not require consent.'}</p>
 
       {/* 6. Retention */}
       <h2 style={h2}>{de ? '6. Speicherdauer' : '6. Retention Periods'}</h2>
@@ -201,232 +208,163 @@ export function PrivacyPage({ lang }) {
         <li style={li}>{de ? 'Server-Logs (Vercel): maximal 30 Tage' : 'Server logs (Vercel): maximum 30 days'}</li>
       </ul>
 
-      {/* 7. Your rights */}
+      {/* 7. Rights */}
       <h2 style={h2}>{de ? '7. Ihre Rechte (DSGVO)' : '7. Your Rights (GDPR)'}</h2>
-      <p style={p}>{de ? 'Sie haben folgende Rechte:' : 'You have the following rights:'}</p>
       <ul style={ul}>
-        <li style={li}><strong>{de ? 'Auskunft (Art. 15):' : 'Access (Art. 15):'}</strong> {de ? 'Welche Daten wir über Sie haben' : 'What data we hold about you'}</li>
-        <li style={li}><strong>{de ? 'Berichtigung (Art. 16):' : 'Rectification (Art. 16):'}</strong> {de ? 'Unrichtige Daten korrigieren lassen' : 'Correct inaccurate data'}</li>
-        <li style={li}><strong>{de ? 'Löschung (Art. 17):' : 'Erasure (Art. 17):'}</strong> {de ? 'Löschung Ihrer Daten verlangen' : 'Request deletion of your data'}</li>
-        <li style={li}><strong>{de ? 'Einschränkung (Art. 18):' : 'Restriction (Art. 18):'}</strong> {de ? 'Verarbeitung einschränken lassen' : 'Restrict processing'}</li>
-        <li style={li}><strong>{de ? 'Datenübertragbarkeit (Art. 20):' : 'Portability (Art. 20):'}</strong> {de ? 'Ihre Daten in maschinenlesbarem Format erhalten' : 'Receive your data in a machine-readable format'}</li>
-        <li style={li}><strong>{de ? 'Widerspruch (Art. 21):' : 'Object (Art. 21):'}</strong> {de ? 'Der Verarbeitung widersprechen' : 'Object to processing'}</li>
-        <li style={li}><strong>{de ? 'Einwilligungswiderruf:' : 'Withdraw consent:'}</strong> {de ? 'Jederzeit widerrufbar, ohne Rückwirkung' : 'Withdraw at any time without retroactive effect'}</li>
-        <li style={li}><strong>{de ? 'Beschwerde:' : 'Complaint:'}</strong> {de ? 'Sie können sich bei der zuständigen Aufsichtsbehörde beschweren. In Deutschland: Landesbeauftragte für Datenschutz (je nach Bundesland).' : 'You may lodge a complaint with your national supervisory authority.'}</li>
+        <li style={li}><strong>{de ? 'Auskunft (Art. 15)' : 'Access (Art. 15)'}</strong></li>
+        <li style={li}><strong>{de ? 'Berichtigung (Art. 16)' : 'Rectification (Art. 16)'}</strong></li>
+        <li style={li}><strong>{de ? 'Löschung (Art. 17)' : 'Erasure (Art. 17)'}</strong></li>
+        <li style={li}><strong>{de ? 'Einschränkung (Art. 18)' : 'Restriction (Art. 18)'}</strong></li>
+        <li style={li}><strong>{de ? 'Datenübertragbarkeit (Art. 20)' : 'Portability (Art. 20)'}</strong></li>
+        <li style={li}><strong>{de ? 'Widerspruch (Art. 21)' : 'Object (Art. 21)'}</strong></li>
+        <li style={li}><strong>{de ? 'Einwilligungswiderruf' : 'Withdraw consent'}</strong></li>
+        <li style={li}><strong>{de ? 'Beschwerde bei einer Aufsichtsbehörde' : 'Complaint to a supervisory authority'}</strong></li>
       </ul>
       <p style={p}>{de
-        ? `Zur Ausübung Ihrer Rechte senden Sie eine E-Mail an: ${PRIVACY_EMAIL}`
-        : `To exercise your rights, email: ${PRIVACY_EMAIL}`}</p>
+        ? `Zur Ausübung Ihrer Rechte senden Sie eine E-Mail an: ${privacyEmail}`
+        : `To exercise your rights, email: ${privacyEmail}`}</p>
 
       {/* 8. Account deletion */}
       <h2 style={h2}>{de ? '8. Kontolöschung' : '8. Account Deletion'}</h2>
       <p style={p}>{de
-        ? 'Sie können Ihr Konto jederzeit löschen über Mein Konto → Konto löschen. Dabei werden gelöscht: Ihr Profil, Authentifizierungsdaten, lokal gespeicherter Verlauf. Zahlungsnachweise werden aus gesetzlichen Gründen 10 Jahre aufbewahrt. Aktive Abonnements sollten vor der Löschung über das Stripe-Kundenportal gekündigt werden.'
-        : 'You can delete your account at any time via My Account → Delete account. This deletes: your profile, authentication data, locally stored history. Payment records are retained for 10 years for legal reasons. Active subscriptions should be cancelled via the Stripe customer portal before deletion.'}</p>
+        ? 'Sie können Ihr Konto jederzeit löschen über Mein Konto → Konto löschen. Zahlungsnachweise werden aus gesetzlichen Gründen 10 Jahre aufbewahrt. Aktive Abonnements sollten vor der Löschung über das Stripe-Kundenportal gekündigt werden.'
+        : 'You can delete your account at any time via My Account → Delete account. Payment records are retained for 10 years for legal reasons. Active subscriptions should be cancelled via the Stripe customer portal before deletion.'}</p>
 
       {/* 9. Changes */}
-      <h2 style={h2}>{de ? '9. Änderungen dieser Erklärung' : '9. Changes to This Policy'}</h2>
+      <h2 style={h2}>{de ? '9. Änderungen' : '9. Changes'}</h2>
       <p style={p}>{de
-        ? 'Wesentliche Änderungen werden mit ausreichend Vorlauf angekündigt. Die jeweils gültige Version ist im App-Konto-Bereich und auf der Website abrufbar.'
-        : 'Material changes will be communicated with reasonable notice. The current version is always accessible in the app account section and on the website.'}</p>
+        ? 'Wesentliche Änderungen werden mit ausreichend Vorlauf angekündigt.'
+        : 'Material changes will be communicated with reasonable notice.'}</p>
 
-      {/* Contact */}
+      {/* 10. Contact */}
       <h2 style={h2}>{de ? '10. Kontakt' : '10. Contact'}</h2>
-      <div style={box}>
-        {OWNER_NAME}<br/>{OWNER_ADDR}<br/>
-        {de ? 'Datenschutz: ' : 'Privacy: '}{PRIVACY_EMAIL}<br/>
-        {de ? 'Support: ' : 'Support: '}{OWNER_EMAIL}
-      </div>
+      <OwnerBlock de={de}/>
+      <p style={p}>{de ? `Datenschutz: ${privacyEmail}` : `Privacy: ${privacyEmail}`}</p>
     </div>
   );
 }
 
-// ── Terms of Service ───────────────────────────────────────────────────────
+// ── Terms of Service ───────────────────────────────────────────────────────────
 export function TermsPage({ lang }) {
   const de = lang === 'de';
   return (
     <div>
       <h1 style={h1}>{de ? 'Nutzungsbedingungen' : 'Terms of Service'}</h1>
-      <div style={meta}>Version {DOC_VERSION} · {DOC_DATE} · FixIt · {APP_URL}</div>
+      <div style={meta}>Version {DOC_VERSION} · {DOC_DATE} · FixIt · {appUrl}</div>
 
-      {/* Safety warning — most prominent */}
       <div style={warn}>
         ⚠️ <strong>{de ? 'Wichtiger Sicherheitshinweis:' : 'Important safety notice:'}</strong> {de
           ? 'FixIt stellt KI-generierte Informationen bereit. Diese ersetzen NICHT die Beurteilung durch einen qualifizierten Fachmann. Bei Arbeiten an Gas-, Hochspannungs-, Tragwerk- oder Sicherheitssystemen wenden Sie sich IMMER an einen zugelassenen Fachbetrieb. Im Notfall rufen Sie den Notruf (112 / 110).'
           : 'FixIt provides AI-generated information. This does NOT replace the assessment of a qualified professional. For work on gas, high-voltage, structural, or safety systems, ALWAYS contact a licensed professional. In an emergency, call emergency services (112 / 110).'}
       </div>
 
-      {/* 1. What FixIt is */}
-      <h2 style={h2}>{de ? '1. Was FixIt ist — und was nicht' : '1. What FixIt Is — and Is Not'}</h2>
+      <h2 style={h2}>{de ? '1. Was FixIt ist' : '1. What FixIt Is'}</h2>
       <p style={p}>{de
-        ? 'FixIt ist ein KI-gestütztes Informationswerkzeug für Heimwerker und technisch versierte Nutzer. Die App analysiert beschriebene Probleme und erzeugt Reparaturvorschläge auf Basis von KI-Modellen.'
-        : 'FixIt is an AI-powered information tool for DIY users and technically inclined individuals. The app analyses described problems and generates repair suggestions based on AI models.'}</p>
-      <p style={p}>{de
-        ? 'FixIt ist kein Fachbetrieb, kein zertifizierter Handwerker, kein Ingenieur, kein Arzt und kein Notfalldienst. FixIt gibt keine Gewähr für die Richtigkeit, Vollständigkeit oder Aktualität der KI-generierten Inhalte.'
-        : 'FixIt is not a trade business, certified technician, engineer, doctor, or emergency service. FixIt does not warrant the accuracy, completeness, or currency of AI-generated content.'}</p>
+        ? 'FixIt ist ein KI-gestütztes Informationswerkzeug für Heimwerker und technisch versierte Nutzer. FixIt ist kein Fachbetrieb, kein zertifizierter Handwerker, kein Ingenieur und kein Notfalldienst.'
+        : 'FixIt is an AI-powered information tool for DIY users. FixIt is not a trade business, certified technician, engineer, or emergency service.'}</p>
 
-      {/* 2. AI transparency */}
-      <h2 style={h2}>{de ? '2. KI-Transparenz (EU KI-Verordnung)' : '2. AI Transparency (EU AI Act)'}</h2>
+      <h2 style={h2}>{de ? '2. KI-Transparenz (EU KI-Verordnung Art. 50)' : '2. AI Transparency (EU AI Act Art. 50)'}</h2>
       <p style={p}>{de
-        ? 'Gemäß Artikel 50 der EU KI-Verordnung informieren wir Sie: Jede Diagnose und jede Reparaturanleitung in FixIt wird von einem KI-System (Anthropic Claude) generiert. KI kann Fehler machen. Jeder generierte Inhalt ist mit einem Hinweis versehen.'
-        : 'Pursuant to Article 50 of the EU AI Act, we inform you: every diagnosis and repair guide in FixIt is generated by an AI system (Anthropic Claude). AI can make mistakes. Every generated piece of content carries a notice.'}</p>
-      <ul style={ul}>
-        <li style={li}>{de ? 'KI-generierte Inhalte sind als solche gekennzeichnet' : 'AI-generated content is labelled as such'}</li>
-        <li style={li}>{de ? 'Kritische Informationen sollten von einem Fachmann überprüft werden' : 'Critical information should be verified by a professional'}</li>
-        <li style={li}>{de ? 'FixIt-Ergebnisse stellen keine professionelle, zertifizierte oder garantierte Beratung dar' : 'FixIt results do not constitute professional, certified, or guaranteed advice'}</li>
-      </ul>
+        ? 'Jede Diagnose und jede Reparaturanleitung in FixIt wird von einem KI-System generiert. KI kann Fehler machen. KI-generierte Inhalte sind als solche gekennzeichnet und ersetzen keine professionelle Beratung.'
+        : 'Every diagnosis and repair guide in FixIt is generated by an AI system. AI can make mistakes. AI-generated content is labelled as such and does not replace professional advice.'}</p>
 
-      {/* 3. Safety rules */}
       <h2 style={h2}>{de ? '3. Sicherheitsregeln' : '3. Safety Rules'}</h2>
-      <p style={p}>{de ? 'Folgende Arbeiten dürfen NIEMALS ohne zugelassenen Fachbetrieb durchgeführt werden:' : 'The following work must NEVER be performed without a licensed professional:'}</p>
+      <p style={p}>{de ? 'Nie ohne zugelassenen Fachbetrieb:' : 'Never without a licensed professional:'}</p>
       <ul style={ul}>
-        {[
-          de ? 'Gas- und Erdgasinstallationen' : 'Gas and natural gas installations',
-          de ? 'Arbeiten unter Spannung (Hochvolt, Einspeisung)' : 'Live electrical work (high voltage, mains supply)',
-          de ? 'Tragende Bauteile und Statik' : 'Structural elements and load-bearing work',
-          de ? 'Fahrzeugsicherheitssysteme (Airbag, ABS, Bremsen)' : 'Vehicle safety systems (airbag, ABS, brakes)',
-          de ? 'Gefährliche Chemikalien und Dämpfe' : 'Hazardous chemicals and fumes',
-          de ? 'Brandschutzanlagen und Rauchmelder' : 'Fire suppression and smoke detection systems',
-          de ? 'Medizinische oder elektrische Implantate' : 'Medical or electrical implants',
+        {[de?'Gas- und Erdgasinstallationen':'Gas and natural gas installations',
+          de?'Arbeiten unter Spannung':'Live electrical work',
+          de?'Tragende Bauteile und Statik':'Structural elements',
+          de?'Fahrzeugsicherheitssysteme (Airbag, ABS, Bremsen)':'Vehicle safety systems (airbag, ABS, brakes)',
+          de?'Gefährliche Chemikalien':'Hazardous chemicals',
+          de?'Brandschutzanlagen':'Fire suppression systems',
         ].map(item => <li key={item} style={li}>{item}</li>)}
       </ul>
 
-      {/* 4. Subscription */}
       <h2 style={h2}>{de ? '4. Abonnements und Zahlung' : '4. Subscriptions and Payment'}</h2>
-      <p style={p}>{de ? 'FixIt bietet folgende Pläne an:' : 'FixIt offers the following plans:'}</p>
       <div style={box}>
-        <strong>Free</strong> — {de ? '1 kostenlose KI-Diagnose. Kein Ablaufdatum.' : '1 free AI diagnosis. No expiry.'}<br/><br/>
-        <strong>{de ? 'Monthly (€4.99/Monat)' : 'Monthly (€4.99/month)'}</strong> — {de ? 'Automatisch verlängertes Abonnement. Erste Abbuchung bei Kaufbestätigung.' : 'Automatically renewing subscription. First charge on purchase confirmation.'}<br/><br/>
-        <strong>{de ? 'Yearly (€39.99/Jahr)' : 'Yearly (€39.99/year)'}</strong> — {de ? 'Automatisch verlängertes Jahres-Abonnement. Erste Abbuchung bei Kaufbestätigung.' : 'Automatically renewing annual subscription. First charge on purchase confirmation.'}
+        <strong>Free</strong> — {de ? '1 kostenlose KI-Diagnose.' : '1 free AI diagnosis.'}<br/><br/>
+        <strong>{de ? 'Monthly (€4.99/Monat)' : 'Monthly (€4.99/month)'}</strong> — {de ? 'Automatisch verlängertes Abonnement.' : 'Automatically renewing subscription.'}<br/><br/>
+        <strong>{de ? 'Yearly (€39.99/Jahr)' : 'Yearly (€39.99/year)'}</strong> — {de ? 'Automatisch verlängertes Jahres-Abonnement.' : 'Automatically renewing annual subscription.'}
       </div>
-      <p style={p}>{de
-        ? 'Mit dem Abschluss eines Abonnements stimmen Sie zu, dass wir die fälligen Beträge automatisch über Stripe abbuchen. Preise verstehen sich inklusive gesetzlicher MwSt., sofern zutreffend.'
-        : 'By subscribing you agree that we may charge the applicable amount automatically via Stripe. Prices include statutory VAT where applicable.'}</p>
 
-      {/* 5. Renewal and cancellation */}
       <h2 style={h2}>{de ? '5. Verlängerung und Kündigung' : '5. Renewal and Cancellation'}</h2>
       <p style={p}>{de
-        ? 'Abonnements verlängern sich automatisch, sofern sie nicht mindestens 24 Stunden vor Ablauf des jeweiligen Zeitraums gekündigt werden. Kündigung über: Mein Konto → Abonnement verwalten (Stripe-Kundenportal).'
-        : 'Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Cancel via: My Account → Manage Subscription (Stripe customer portal).'}</p>
-      <p style={p}>{de
-        ? 'Bereits bezahlte Zeiträume werden nicht erstattet. Nach Kündigung bleibt der Zugang bis zum Ende des bezahlten Zeitraums erhalten.'
-        : 'Paid periods are not refunded. After cancellation, access remains until the end of the paid period.'}</p>
+        ? 'Abonnements verlängern sich automatisch. Kündigung über: Mein Konto → Abonnement verwalten. Bereits bezahlte Zeiträume werden nicht erstattet. Zugang bleibt bis Ende des bezahlten Zeitraums erhalten.'
+        : 'Subscriptions renew automatically. Cancel via: My Account → Manage Subscription. Paid periods are not refunded. Access remains until the end of the paid period.'}</p>
 
-      {/* 6. Right of withdrawal (Widerrufsrecht) */}
       <h2 style={h2}>{de ? '6. Widerrufsrecht' : '6. Right of Withdrawal'}</h2>
       <p style={p}>{de
-        ? 'Verbrauchern steht grundsätzlich ein 14-tägiges Widerrufsrecht zu. Dieses Widerrufsrecht erlischt vorzeitig, wenn Sie ausdrücklich zustimmen, dass wir mit der Ausführung des digitalen Inhalts vor Ablauf der Widerrufsfrist beginnen, und Sie bestätigen, dass Sie damit Ihr Widerrufsrecht verlieren.'
-        : 'Consumers generally have a 14-day right of withdrawal. This right expires early if you expressly consent to performance beginning before the withdrawal period expires and acknowledge that you thereby lose your right of withdrawal.'}</p>
-      <p style={p}>{de
-        ? 'Wenn Sie die App sofort nutzen möchten, werden Sie beim Kauf zur Zustimmung zum sofortigen Leistungsbeginn aufgefordert.'
-        : 'If you wish to use the app immediately, you will be asked to consent to immediate performance at the time of purchase.'}</p>
+        ? 'Verbrauchern steht ein 14-tägiges Widerrufsrecht zu. Dieses erlischt vorzeitig, wenn Sie dem sofortigen Leistungsbeginn zustimmen und bestätigen, dass Sie damit Ihr Widerrufsrecht verlieren.'
+        : 'Consumers have a 14-day right of withdrawal. This right expires early if you consent to performance beginning before the withdrawal period expires and acknowledge that you thereby lose your right of withdrawal.'}</p>
 
-      {/* 7. Intellectual property */}
       <h2 style={h2}>{de ? '7. Geistiges Eigentum' : '7. Intellectual Property'}</h2>
       <p style={p}>{de
-        ? 'FixIt und seine Inhalte sind Eigentum von ' + OWNER_NAME + '. Sie erhalten eine beschränkte, nicht übertragbare Lizenz zur persönlichen, nicht-kommerziellen Nutzung.'
-        : 'FixIt and its content are owned by ' + OWNER_NAME + '. You receive a limited, non-transferable licence for personal, non-commercial use.'}</p>
-      <p style={p}>{de
-        ? 'Wenn Sie Fotos oder Texte hochladen, erteilen Sie uns eine Lizenz zur Verarbeitung dieser Inhalte ausschließlich zur Erbringung des Dienstes (KI-Diagnose). Wir beanspruchen kein Eigentum an Ihren Inhalten.'
-        : 'When you upload photos or text, you grant us a licence to process that content solely to provide the service (AI diagnosis). We do not claim ownership of your content.'}</p>
+        ? 'FixIt und seine Inhalte sind Eigentum des Betreibers. Sie erhalten eine beschränkte, nicht übertragbare Lizenz zur persönlichen, nicht-kommerziellen Nutzung. Hochgeladene Fotos/Texte: Sie erteilen uns eine Lizenz zur Verarbeitung ausschließlich zur Erbringung des Dienstes.'
+        : 'FixIt and its content are owned by the operator. You receive a limited, non-transferable licence for personal, non-commercial use. Uploaded photos/text: you grant a licence to process solely to provide the service.'}</p>
 
-      {/* 8. Prohibited use */}
-      <h2 style={h2}>{de ? '8. Verbotene Nutzung' : '8. Prohibited Use'}</h2>
-      <ul style={ul}>
-        {[
-          de ? 'Gewerbliche Nutzung ohne schriftliche Genehmigung' : 'Commercial use without written permission',
-          de ? 'Automatisiertes Scraping oder Massenanfragen' : 'Automated scraping or bulk requests',
-          de ? 'Hochladen illegaler, beleidigender oder urheberrechtlich geschützter Inhalte' : 'Uploading illegal, offensive, or copyrighted content',
-          de ? 'Umgehung von Nutzungsbeschränkungen oder Zugangssperren' : 'Circumventing usage limits or access controls',
-          de ? 'Nutzung der App zur Erstellung gefährlicher Anleitungen' : 'Using the app to generate dangerous instructions',
-        ].map(item => <li key={item} style={li}>{item}</li>)}
-      </ul>
-
-      {/* 9. Affiliate disclosure */}
-      <h2 style={h2}>{de ? '9. Affiliate-Hinweis' : '9. Affiliate Disclosure'}</h2>
+      <h2 style={h2}>{de ? '8. Affiliate-Hinweis' : '8. Affiliate Disclosure'}</h2>
       <p style={p}>{de
-        ? 'FixIt kann Links zu Produkten bei Amazon oder anderen Händlern enthalten. Als Amazon-Partner verdienen wir an qualifizierten Käufen. Dies hat keinen Einfluss auf die generierten Empfehlungen.'
-        : 'FixIt may contain links to products on Amazon or other retailers. As an Amazon Associate we earn from qualifying purchases. This does not influence generated recommendations.'}</p>
+        ? 'FixIt kann Links zu Produkten bei Amazon oder anderen Händlern enthalten. Als Amazon-Partner verdienen wir an qualifizierten Käufen. Dies beeinflusst keine Empfehlungen.'
+        : 'FixIt may contain Amazon affiliate links. As an Amazon Associate we earn from qualifying purchases. This does not influence recommendations.'}</p>
 
-      {/* 10. Liability */}
-      <h2 style={h2}>{de ? '10. Haftungsbeschränkung' : '10. Limitation of Liability'}</h2>
+      <h2 style={h2}>{de ? '9. Haftungsbeschränkung' : '9. Limitation of Liability'}</h2>
       <p style={p}>{de
-        ? 'Im Rahmen des gesetzlich Zulässigen haften wir nicht für Schäden, die durch die Verwendung KI-generierter Inhalte entstehen, insbesondere nicht für Sachschäden, Folgeschäden oder entgangenen Gewinn.'
-        : 'To the extent permitted by law, we are not liable for damages arising from use of AI-generated content, including property damage, consequential losses, or loss of profit.'}</p>
+        ? 'Im Rahmen des gesetzlich Zulässigen haften wir nicht für Schäden durch Verwendung KI-generierter Inhalte.'
+        : 'To the extent permitted by law, we are not liable for damages arising from use of AI-generated content.'}</p>
       <div style={box}>
         ℹ️ {de
-          ? 'Hinweis: Diese Haftungsbeschränkung gilt nicht für Schäden aus Vorsatz oder grober Fahrlässigkeit, für Schäden aus der Verletzung des Lebens, des Körpers oder der Gesundheit, sowie für Ansprüche nach dem Produkthaftungsgesetz. Die gesetzlichen Verbraucherrechte bleiben unberührt.'
-          : 'Note: This limitation does not apply to damages from intent or gross negligence, to damages from injury to life, body or health, or to claims under product liability law. Statutory consumer rights are unaffected.'}
+          ? 'Diese Beschränkung gilt nicht für Vorsatz, grobe Fahrlässigkeit, Schäden aus der Verletzung von Leben, Körper oder Gesundheit, sowie Ansprüche nach dem Produkthaftungsgesetz. Gesetzliche Verbraucherrechte bleiben unberührt.'
+          : 'This limitation does not apply to intent, gross negligence, injury to life, body or health, or product liability claims. Statutory consumer rights are unaffected.'}
       </div>
 
-      {/* 11. Consumer rights */}
-      <h2 style={h2}>{de ? '11. Verbraucherrechte' : '11. Consumer Rights'}</h2>
+      <h2 style={h2}>{de ? '10. Anwendbares Recht' : '10. Governing Law'}</h2>
       <p style={p}>{de
-        ? 'Als Verbraucher mit Wohnsitz in der EU haben Sie Rechte gemäß der EU-Verbraucherrechterichtlinie und dem deutschen Verbraucherrecht, die durch diese Nutzungsbedingungen nicht eingeschränkt werden.'
-        : 'As a consumer resident in the EU you have rights under the EU Consumer Rights Directive and applicable national consumer law that these terms do not restrict.'}</p>
+        ? 'Es gilt deutsches Recht. EU-Plattform zur Streitbeilegung: https://ec.europa.eu/consumers/odr — Wir nehmen an Schlichtungsverfahren nicht teil.'
+        : 'German law applies. EU dispute resolution platform: https://ec.europa.eu/consumers/odr — We do not participate in dispute resolution proceedings.'}</p>
 
-      {/* 12. Governing law */}
-      <h2 style={h2}>{de ? '12. Anwendbares Recht und Streitbeilegung' : '12. Governing Law and Dispute Resolution'}</h2>
-      <p style={p}>{de
-        ? 'Es gilt deutsches Recht. Für Verbraucher bleibt das zwingende Verbraucherrecht des Wohnsitzlandes unberührt.'
-        : 'German law applies. For consumers, mandatory consumer protection law of your country of residence remains unaffected.'}</p>
-      <p style={p}>{de
-        ? 'Die EU-Kommission stellt eine Online-Plattform zur Streitbeilegung bereit: https://ec.europa.eu/consumers/odr. Wir sind nicht zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle verpflichtet und nehmen hieran nicht teil.'
-        : 'The European Commission provides an online dispute resolution platform: https://ec.europa.eu/consumers/odr. We are not required to participate in consumer dispute resolution proceedings and do not do so.'}</p>
-
-      {/* 13. Contact */}
-      <h2 style={h2}>{de ? '13. Kontakt' : '13. Contact'}</h2>
-      <div style={box}>
-        {OWNER_NAME}<br/>{OWNER_ADDR}<br/>
-        {OWNER_EMAIL}
-      </div>
+      <h2 style={h2}>{de ? '11. Kontakt' : '11. Contact'}</h2>
+      <OwnerBlock de={de}/>
     </div>
   );
 }
 
-// ── Impressum ─────────────────────────────────────────────────────────────────
+// ── Impressum ──────────────────────────────────────────────────────────────────
 export function ImpressumPage({ lang }) {
   const de = lang === 'de';
   return (
     <div>
       <h1 style={h1}>Impressum</h1>
-      <div style={meta}>FixIt · {APP_URL}</div>
+      <div style={meta}>FixIt · {appUrl}</div>
 
       <h2 style={h2}>{de ? 'Angaben gemäß § 5 TMG' : 'Information pursuant to § 5 TMG'}</h2>
-      <div style={box}>
-        <strong>{OWNER_NAME}</strong><br/>
-        {OWNER_ADDR}<br/>
-        {VAT_ID && <>{VAT_ID}<br/></>}
-        {de ? 'E-Mail: ' : 'Email: '}{OWNER_EMAIL}
-      </div>
+      <OwnerBlock de={de}/>
 
       <h2 style={h2}>{de ? 'Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV' : 'Responsible for content pursuant to § 18 para. 2 MStV'}</h2>
       <div style={box}>
-        {OWNER_NAME}<br/>
-        {OWNER_ADDR}
+        {legalName    ? <>{legalName}<br/></> : null}
+        {postalAddress ? <>{postalAddress}<br/></> : null}
       </div>
 
       <h2 style={h2}>{de ? 'Haftungsausschluss' : 'Disclaimer'}</h2>
       <h3 style={h3}>{de ? 'Haftung für Inhalte' : 'Liability for content'}</h3>
       <p style={p}>{de
-        ? 'Die Inhalte dieser App wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Die KI-generierten Reparaturanleitungen ersetzen nicht die Beurteilung durch einen qualifizierten Fachmann.'
-        : 'The content of this app has been compiled with the greatest care. However, we cannot guarantee the accuracy, completeness, or currency of the content. AI-generated repair guidance does not replace the assessment of a qualified professional.'}</p>
+        ? 'KI-generierte Reparaturanleitungen ersetzen nicht die Beurteilung durch einen qualifizierten Fachmann.'
+        : 'AI-generated repair guidance does not replace the assessment of a qualified professional.'}</p>
 
       <h3 style={h3}>{de ? 'Haftung für Links' : 'Liability for links'}</h3>
       <p style={p}>{de
-        ? 'Unser Angebot enthält Links zu externen Webseiten Dritter, auf deren Inhalte wir keinen Einfluss haben. Deshalb können wir für diese fremden Inhalte auch keine Gewähr übernehmen. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter oder Betreiber der Seiten verantwortlich.'
-        : 'Our app contains links to external third-party websites whose content we have no control over. We therefore cannot accept any liability for this external content. The respective provider or operator of the linked sites is always responsible for their content.'}</p>
+        ? 'Für die Inhalte verlinkter Seiten ist der jeweilige Anbieter verantwortlich.'
+        : 'The respective provider is responsible for the content of linked sites.'}</p>
 
       <h3 style={h3}>{de ? 'Urheberrecht' : 'Copyright'}</h3>
       <p style={p}>{de
-        ? 'Die durch den Seitenbetreiber erstellten Inhalte und Werke in dieser App unterliegen dem deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung des jeweiligen Autors bzw. Erstellers.'
-        : 'The content and works created by the site operator in this app are subject to German copyright law. Reproduction, editing, distribution, and any kind of use outside the limits of copyright law require the written consent of the respective author or creator.'}</p>
+        ? 'Die durch den Seitenbetreiber erstellten Inhalte unterliegen dem deutschen Urheberrecht.'
+        : 'Content created by the operator is subject to German copyright law.'}</p>
 
       <h2 style={h2}>{de ? 'Streitschlichtung' : 'Dispute Resolution'}</h2>
       <p style={p}>{de
-        ? 'Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: https://ec.europa.eu/consumers/odr. Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.'
-        : 'The European Commission provides a platform for online dispute resolution (ODR): https://ec.europa.eu/consumers/odr. We are not willing or obliged to participate in dispute resolution proceedings before a consumer arbitration board.'}</p>
+        ? 'EU-Plattform zur Online-Streitbeilegung: https://ec.europa.eu/consumers/odr — Wir sind nicht bereit, an Streitbeilegungsverfahren teilzunehmen.'
+        : 'EU online dispute resolution platform: https://ec.europa.eu/consumers/odr — We are not willing to participate in dispute resolution proceedings.'}</p>
     </div>
   );
 }
-

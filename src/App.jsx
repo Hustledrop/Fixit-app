@@ -7,6 +7,7 @@ import { useLocation } from './hooks/useLocation.js';
 import { useAI } from './hooks/useAI.js';
 import { useNearby, MAP_CATS } from './hooks/useNearby.js';
 import { PrivacyPage, TermsPage, ImpressumPage } from './components/LegalPages.jsx';
+import LEGAL from './config/legal.js'; // triggers build-time warning if required fields are empty
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
 import { useAuth } from './useAuth.js';
 import { AUTH_AVAILABLE, checkUsage, incrementUsage, restoreProStatus } from './auth.js';
@@ -947,7 +948,7 @@ export default function App() {
       } else {
         showToast(data.message || (lang==='de'?'Zahlung noch nicht konfiguriert':'Payment not configured yet'));
       }
-    } catch (_) { showToast(lang==='de'?'Verbindungsfehler':'Connection error'); }
+    } catch (_) { showToast(t('connectionError')); }
     finally { setCheckoutBusy(false); }
   }
 
@@ -955,6 +956,9 @@ export default function App() {
   async function openPortal() {
     if (!user) return;
     setPortalBusy(true);
+    // Open blank window synchronously (before await) to preserve the user-gesture
+    // context — async/await breaks it, causing popup blockers to block window.open.
+    const win = window.open('', '_blank');
     try {
       const res  = await fetch('/api/portal', {
         method: 'POST',
@@ -963,12 +967,22 @@ export default function App() {
       });
       const data = await res.json();
       if (data.url) {
-        window.open(data.url, '_blank', 'noopener,noreferrer');
+        if (win && !win.closed) {
+          win.location.href = data.url;
+        } else {
+          // Popup was blocked — navigate same tab (Stripe return_url brings user back)
+          window.location.href = data.url;
+        }
       } else {
-        showToast(data.message || (lang==='de'?'Portal nicht verfügbar':'Portal unavailable'));
+        if (win) win.close();
+        showToast(data.message || (t('portalUnavailable')));
       }
-    } catch (_) { showToast(lang==='de'?'Verbindungsfehler':'Connection error'); }
-    finally { setPortalBusy(false); }
+    } catch (_) {
+      if (win) win.close();
+      showToast(t('connectionError'));
+    } finally {
+      setPortalBusy(false);
+    }
   }
 
   // ── Delete account ────────────────────────────────────────────────────────
@@ -980,16 +994,16 @@ export default function App() {
       await logout();
       setAuthScreen(null);
       setDeleteConfirm(false);
-      showToast(lang==='de'?'Konto gelöscht':'Account deleted');
+      showToast(t('accountDeleted'));
     } catch (_) {
-      showToast(lang==='de'?'Fehler beim Löschen':'Error deleting account');
+      showToast(t('deleteError'));
     } finally { setDeleteBusy(false); }
   }
 
   // ── Auth actions ──────────────────────────────────────────────────────────
   async function handleAuthSubmit() {
     if (!authEmail.trim() || !authPwd.trim()) {
-      setAuthErr(lang==='de'?'Bitte E-Mail und Passwort eingeben':'Please enter email and password');
+      setAuthErr(t('emailRequired'));
       return;
     }
     setAuthBusy(true); setAuthErr('');
@@ -1004,8 +1018,8 @@ export default function App() {
     } catch (err) {
       const msg = err.message || '';
       setAuthErr(
-        msg.includes('Invalid login') ? (lang==='de'?'Ungültige E-Mail oder Passwort':'Invalid email or password') :
-        msg.includes('already registered') ? (lang==='de'?'E-Mail bereits registriert':'Email already registered') :
+        msg.includes('Invalid login') ? (t('invalidCredentials')) :
+        msg.includes('already registered') ? (t('emailTaken')) :
         msg.includes('auth_unavailable') ? (lang==='de'?'Supabase nicht konfiguriert — App läuft im Gastmodus.':'Supabase not configured — app runs in guest mode.') :
         msg
       );
@@ -1023,14 +1037,15 @@ export default function App() {
     }
     if (checkout === 'success') {
       window.history.replaceState({}, '', '/');
-      // Restore purchases: re-read profile from Supabase to reflect webhook update
-      if (user) {
-        restoreProStatus(user.id).then(() => refreshProfile());
-      } else {
-        refreshProfile();
-      }
-      showToast(lang==='de'?'✅ Pro freigeschaltet! Vielen Dank.':'✅ Pro unlocked! Thank you.');
+      showToast(t('proUnlocked'));
       setFreeLimitHit(false);
+      // Refresh immediately, then retry after 2 s and 5 s to catch the webhook DB write.
+      // The Stripe webhook fires asynchronously and may take a moment to update the profile.
+      if (user) {
+        refreshProfile();
+        setTimeout(() => refreshProfile(), 2000);
+        setTimeout(() => refreshProfile(), 5000);
+      }
     } else if (checkout === 'cancelled') {
       window.history.replaceState({}, '', '/');
     }
@@ -1055,15 +1070,15 @@ export default function App() {
     <>
       {/* ── Paywall overlay ── */}
       {freeLimitHit && (
-        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>          <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8'}}>{lang==='de'?'Kostenlose Analyse genutzt':lang==='mk'?'Бесплатната анализа е искористена':'Free diagnosis used'}</div>          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.45)',textAlign:'center',lineHeight:1.65,marginBottom:24,maxWidth:300}}>{lang==='de'?'Du hast deine kostenlose KI-Analyse genutzt. Nearby, Ersatzteile und Notfall bleiben verfügbar.':lang==='mk'?'Ја искористивте вашата бесплатна AI анализа. Сервиси во близина, делови и итни случаи остануваат достапни.':'You have used your free AI diagnosis. Nearby, parts and emergency remain available.'}</div>          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:24}}>            {[['✅','Nearby'],['✅',lang==='de'?'Teile':'Parts'],['✅',lang==='de'?'Notfall':'Emergency'],['🔒',lang==='de'?'Unbegrenzte KI':'Unlimited AI']].map(([ic,lb])=>(              <div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>            ))}          </div>          {!user ? (            <button onClick={()=>{setFreeLimitHit(false);setAuthScreen('signup');}} style={{width:'100%',maxWidth:340,background:'rgba(232,82,26,0.9)',border:'none',borderRadius:14,padding:'14px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',cursor:'pointer',marginBottom:10}}>              🔑 {lang==='de'?'Konto erstellen & upgraden':lang==='mk'?'Создај сметка и надгради':'Create account & upgrade'}              <div style={{fontSize:'0.72rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren':'Free to sign up'}</div>            </button>          ) : (            <div style={{width:'100%',maxWidth:340,display:'flex',flexDirection:'column',gap:8}}>              {/* Yearly — highlighted as best value */}              <button onClick={()=>startCheckout('yearly')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>                  <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase'}}>{lang==='de'?'JÄHRLICH · BESTES ANGEBOT':'YEARLY · BEST VALUE'}</div>                  <div style={{fontSize:'0.58rem',background:'rgba(232,82,26,0.25)',border:'1px solid rgba(232,82,26,0.4)',borderRadius:4,padding:'1px 5px',color:'rgba(232,82,26,0.9)',fontWeight:700,whiteSpace:'nowrap'}}>{lang==='de'?'33% SPAREN':'SAVE 33%'}</div>                </div>                <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€39.99 / {lang==='de'?'Jahr':'year'}</div>                <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{lang==='de'?'Entspricht €3.33/Monat':'Equivalent to €3.33/month'}</div>              </button>              {/* Monthly */}              <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.5)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{lang==='de'?'MONATLICH':'MONTHLY'}</div>                <div style={{fontSize:'0.95rem',fontWeight:700}}>€4.99 / {lang==='de'?'Monat':'month'}</div>              </button>            </div>          )}          <button onClick={()=>setFreeLimitHit(false)} style={{marginTop:14,width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'12px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Zurück zur App':lang==='mk'?'Назад кон апликацијата':'Back to app'}</button>          <div style={{marginTop:10,fontSize:'0.65rem',color:'rgba(255,255,255,0.2)',textAlign:'center'}}>{lang==='de'?'Automatische Verlängerung. Jederzeit kündbar.':'Renews automatically. Cancel anytime.'}</div>        </div>      )}
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>          <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8'}}>{t('freeDiagnosisUsed')}</div>          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.45)',textAlign:'center',lineHeight:1.65,marginBottom:24,maxWidth:300}}>{t('freeDiagnosisDesc')}</div>          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:24}}>            {[['✅','Nearby'],['✅',lang==='de'?'Teile':'Parts'],['✅',lang==='de'?'Notfall':'Emergency'],['🔒',lang==='de'?'Unbegrenzte KI':'Unlimited AI']].map(([ic,lb])=>(              <div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>            ))}          </div>          {!user ? (            <button onClick={()=>{setFreeLimitHit(false);setAuthScreen('signup');}} style={{width:'100%',maxWidth:340,background:'rgba(232,82,26,0.9)',border:'none',borderRadius:14,padding:'14px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',cursor:'pointer',marginBottom:10}}>              🔑 {t('createAccountUpgrade')}              <div style={{fontSize:'0.72rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren':'Free to sign up'}</div>            </button>          ) : (            <div style={{width:'100%',maxWidth:340,display:'flex',flexDirection:'column',gap:8}}>              {/* Yearly — highlighted as best value */}              <button onClick={()=>startCheckout('yearly')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>                  <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase'}}>{t('yearlyBestValue')}</div>                  <div style={{fontSize:'0.58rem',background:'rgba(232,82,26,0.25)',border:'1px solid rgba(232,82,26,0.4)',borderRadius:4,padding:'1px 5px',color:'rgba(232,82,26,0.9)',fontWeight:700,whiteSpace:'nowrap'}}>{t('save33')}</div>                </div>                <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€39.99 / {t('perYear')}</div>                <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{t('yearlyEquivalent')}</div>              </button>              {/* Monthly */}              <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.5)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{t('monthlyPlanLabel')}</div>                <div style={{fontSize:'0.95rem',fontWeight:700}}>€4.99 / {t('perMonth')}</div>              </button>            </div>          )}          <button onClick={()=>setFreeLimitHit(false)} style={{marginTop:14,width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'12px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{t('backToApp')}</button>          <div style={{marginTop:10,fontSize:'0.65rem',color:'rgba(255,255,255,0.2)',textAlign:'center'}}>{t('renewsAutomatically')}</div>        </div>      )}
       {/* ── Login / Signup modal ── */}
       {(authScreen === 'login' || authScreen === 'signup') && (
         <div onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
           <div onClick={e=>e.stopPropagation()} style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
               <div>
-                <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}</div>
-                <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.4)',marginTop:2}}>{authScreen==='signup'?(lang==='de'?'Kostenlos — keine Kreditkarte nötig':'Free — no credit card needed'):(lang==='de'?'Willkommen zurück':'Welcome back')}</div>
+                <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{authScreen==='signup'?(t('createAccount')):(t('signIn'))}</div>
+                <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.4)',marginTop:2}}>{authScreen==='signup'?(t('freeSignUp')):(t('welcomeBack'))}</div>
               </div>
               <button onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
             </div>
@@ -1073,11 +1088,11 @@ export default function App() {
               </div>
             )}
             <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email"
-              placeholder={lang==='de'?'E-Mail-Adresse':'Email address'}
+              placeholder={t('emailPlaceholder')}
               style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:10,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none'}}
               autoComplete="email" disabled={!AUTH_AVAILABLE||authBusy} readOnly={!AUTH_AVAILABLE}/>
             <input value={authPwd} onChange={e=>setAuthPwd(e.target.value)} type="password"
-              placeholder={lang==='de'?'Passwort (min. 6 Zeichen)':'Password (min. 6 chars)'}
+              placeholder={t('passwordPlaceholder')}
               style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:authErr?8:16,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none'}}
               autoComplete={authScreen==='signup'?'new-password':'current-password'}
               disabled={!AUTH_AVAILABLE||authBusy} readOnly={!AUTH_AVAILABLE}
@@ -1085,11 +1100,11 @@ export default function App() {
             {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:12,lineHeight:1.45}}>{authErr}</div>}
             <button onClick={handleAuthSubmit} disabled={!AUTH_AVAILABLE||authBusy}
               style={{background:AUTH_AVAILABLE?'#E8521A':'rgba(255,255,255,0.06)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:AUTH_AVAILABLE?'#fff':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',cursor:AUTH_AVAILABLE&&!authBusy?'pointer':'not-allowed',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-              {authBusy?<Spinner/>:authScreen==='signup'?(lang==='de'?'Konto erstellen':'Create account'):(lang==='de'?'Anmelden':'Sign in')}
+              {authBusy?<Spinner/>:authScreen==='signup'?(t('createAccount')):(t('signIn'))}
             </button>
             <button onClick={()=>{setAuthScreen(authScreen==='login'?'signup':'login');setAuthErr('');}}
               style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:'0.75rem',cursor:'pointer',width:'100%',textAlign:'center',padding:'4px',fontFamily:'inherit'}}>
-              {authScreen==='login'?(lang==='de'?'Noch kein Konto? Registrieren →':'No account? Sign up →'):(lang==='de'?'Bereits registriert? Anmelden →':'Already have an account? Sign in →')}
+              {authScreen==='login'?(t('noAccount')):(t('alreadyAccount'))}
             </button>
           </div>
         </div>
@@ -1113,7 +1128,7 @@ export default function App() {
               <div style={{padding:'0 22px 28px'}}>
                 {/* Header */}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
-                  <div style={{fontSize:'1.05rem',fontWeight:800,color:C.t}}>{de?'Mein Konto':'My Account'}</div>
+                  <div style={{fontSize:'1.05rem',fontWeight:800,color:C.t}}>{t('myAccount')}</div>
                   <button onClick={()=>{setAuthScreen(null);setDeleteConfirm(false);}} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.45)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                 </div>
                 {user ? (<>
@@ -1124,22 +1139,32 @@ export default function App() {
                   </div>
                   {/* Plan */}
                   <div style={{...rowStyle,background:isPro?'rgba(232,82,26,0.07)':'rgba(255,255,255,0.04)',border:`1px solid ${isPro?'rgba(232,82,26,0.2)':'rgba(255,255,255,0.06)'}`,marginBottom:14}}>
-                    <div style={labelStyle}>{de?'ABO':'PLAN'}</div>
-                    {isYearly && <>
-                      <div style={{fontSize:'0.93rem',fontWeight:800,color:'#E8521A',marginBottom:2}}>✅ FixIt Pro {de?'Jährlich':'Yearly'}</div>
-                      <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.35)'}}>{de?'Aktives Jahres-Abonnement · €39.99/Jahr':'Active annual subscription · €39.99/year'}</div>
-                    </>}
-                    {isMonthly && <>
-                      <div style={{fontSize:'0.93rem',fontWeight:700,color:'#E8521A',marginBottom:2}}>✅ FixIt Pro {de?'Monatlich':'Monthly'}</div>
-                      <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.35)'}}>{de?'Aktives Abonnement · €4.99/Monat':'Active subscription · €4.99/month'}</div>
-                    </>}
-                    {!isPro && <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.45)'}}>{de?'Free · 1 kostenlose Diagnose':'Free · 1 free diagnosis'}</div>}
+                    <div style={labelStyle}>{t('planLabel')}</div>
+                    {isYearly
+                      ? <>
+                          <div style={{fontSize:'0.93rem',fontWeight:800,color:'#E8521A',marginBottom:2}}>✅ FixIt Pro {de?'Jährlich':'Yearly'}</div>
+                          <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.35)'}}>{t('activeSubYearly')}</div>
+                        </>
+                      : isMonthly
+                        ? <>
+                            <div style={{fontSize:'0.93rem',fontWeight:700,color:'#E8521A',marginBottom:2}}>✅ FixIt Pro {de?'Monatlich':'Monthly'}</div>
+                            <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.35)'}}>{t('activeSubMonthly')}</div>
+                          </>
+                        : isPro
+                          ? <>
+                              {/* Subscribed but plan value is unrecognised (e.g. legacy test data) —
+                                  show a safe generic Pro label so the row is never blank */}
+                              <div style={{fontSize:'0.93rem',fontWeight:700,color:'#E8521A',marginBottom:2}}>✅ FixIt Pro</div>
+                              <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.35)'}}>{t('activeSub')}</div>
+                            </>
+                          : <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.45)'}}>{t('freePlan')}</div>
+                    }
                   </div>
                   {/* Subscription management — shown for any active subscriber */}
                   {isPro && <>
                     <button onClick={openPortal} disabled={portalBusy}
                       style={{...actionBtn,borderColor:'rgba(232,82,26,0.25)',opacity:portalBusy?.6:1}}>
-                      <span>💳</span><span style={{flex:1}}>{de?'Abonnement verwalten':'Manage Subscription'}</span>{portalBusy&&<span style={{fontSize:'0.7rem',color:C.m}}>…</span>}
+                      <span>💳</span><span style={{flex:1}}>{t('manageSub')}</span>{portalBusy&&<span style={{fontSize:'0.7rem',color:C.m}}>…</span>}
                     </button>
                     <div style={dividerStyle}/>
                   </>}
@@ -1147,19 +1172,19 @@ export default function App() {
                   {!isPro && <>
                     <button onClick={()=>{setAuthScreen(null);setFreeLimitHit(true);}}
                       style={{...actionBtn,background:'rgba(232,82,26,0.12)',border:'1px solid rgba(232,82,26,0.35)',color:C.t}}>
-                      <span>🚀</span><span style={{flex:1}}>{de?'Auf Pro upgraden':'Upgrade to Pro'}</span>
+                      <span>🚀</span><span style={{flex:1}}>{t('upgradePro')}</span>
                     </button>
                     <div style={dividerStyle}/>
                   </>}
                   {/* Links */}
                   <button onClick={()=>window.open('mailto:support@fixit-app.com','_blank')} style={linkBtn}>
-                    <span>✉️</span>{de?'Support':'Support'}
+                    <span>✉️</span>{t('support')}
                   </button>
                   <button onClick={()=>setLegalPage('privacy')} style={linkBtn}>
-                    <span>🔒</span>{de?'Datenschutz':'Privacy Policy'}
+                    <span>🔒</span>{t('privacyPolicy')}
                   </button>
                   <button onClick={()=>setLegalPage('terms')} style={linkBtn}>
-                    <span>📄</span>{de?'Nutzungsbedingungen':'Terms of Service'}
+                    <span>📄</span>{t('termsOfService')}
                   </button>
                   <button onClick={()=>setLegalPage('impressum')} style={linkBtn}>
                     <span>ℹ️</span>Impressum
@@ -1168,25 +1193,25 @@ export default function App() {
                   {/* Sign out */}
                   <button onClick={async()=>{await logout();setAuthScreen(null);setDeleteConfirm(false);}}
                     style={{...linkBtn,color:'rgba(255,255,255,0.5)'}}>
-                    <span>↩</span>{de?'Abmelden':'Sign out'}
+                    <span>↩</span>{t('signOut')}
                   </button>
                   {/* Delete account — two-step confirm */}
                   {!deleteConfirm
                     ? <button onClick={()=>setDeleteConfirm(true)} style={{...linkBtn,color:'rgba(214,59,47,0.5)',marginTop:2}}>
-                        <span>🗑</span>{de?'Konto löschen':'Delete account'}
+                        <span>🗑</span>{t('deleteAccount')}
                       </button>
                     : <div style={{background:'rgba(214,59,47,0.08)',border:'1px solid rgba(214,59,47,0.25)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
-                        <div style={{fontSize:'0.78rem',color:'rgba(214,59,47,0.8)',marginBottom:10}}>{de?'Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.':'Really delete account? This cannot be undone.'}</div>
+                        <div style={{fontSize:'0.78rem',color:'rgba(214,59,47,0.8)',marginBottom:10}}>{t('deleteConfirmMsg')}</div>
                         <div style={{display:'flex',gap:8}}>
-                          <button onClick={()=>setDeleteConfirm(false)} style={{flex:1,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:9,padding:'9px',color:C.m,cursor:'pointer',fontFamily:'inherit',fontSize:'0.8rem'}}>{de?'Abbrechen':'Cancel'}</button>
+                          <button onClick={()=>setDeleteConfirm(false)} style={{flex:1,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:9,padding:'9px',color:C.m,cursor:'pointer',fontFamily:'inherit',fontSize:'0.8rem'}}>{t('cancel')}</button>
                           <button onClick={handleDeleteAccount} disabled={deleteBusy} style={{flex:1,background:'rgba(214,59,47,0.15)',border:'1px solid rgba(214,59,47,0.35)',borderRadius:9,padding:'9px',color:'rgba(214,59,47,0.9)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.8rem'}}>
-                            {deleteBusy?'…':(de?'Löschen':'Delete')}
+                            {deleteBusy?'…':(t('delete'))}
                           </button>
                         </div>
                       </div>}
                 </>) : (
                   <div style={{textAlign:'center',padding:'20px 0'}}>
-                    <div style={{color:'rgba(255,255,255,0.45)',fontSize:'0.85rem',marginBottom:16}}>{de?'Nicht angemeldet':'Not signed in'}</div>
+                    <div style={{color:'rgba(255,255,255,0.45)',fontSize:'0.85rem',marginBottom:16}}>{t('notSignedIn')}</div>
                     <button onClick={()=>setAuthScreen('login')} style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px',fontSize:'0.88rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',cursor:'pointer'}}>{de?'Anmelden':'Sign in'}</button>
                   </div>
                 )}
@@ -1200,7 +1225,7 @@ export default function App() {
         <div style={{position:'fixed',inset:0,background:'#0A0808',zIndex:600,display:'flex',flexDirection:'column',overflowY:'auto'}}>
           {/* Header */}
           <div style={{position:'sticky',top:0,background:'rgba(10,8,8,0.97)',borderBottom:'1px solid rgba(255,255,255,0.08)',padding:'14px 20px',display:'flex',alignItems:'center',gap:12,zIndex:1,backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}>
-            <button onClick={()=>setLegalPage(null)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:9,padding:'6px 12px',color:'rgba(255,255,255,0.55)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.8rem'}}>← {lang==='de'?'Zurück':'Back'}</button>
+            <button onClick={()=>setLegalPage(null)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:9,padding:'6px 12px',color:'rgba(255,255,255,0.55)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.8rem'}}>← {t('backBtn')}</button>
             <div style={{fontSize:'0.92rem',fontWeight:700,color:'rgba(255,255,255,0.8)'}}>
               {legalPage==='privacy'   ? (lang==='de'?'Datenschutzerklärung':'Privacy Policy')
                : legalPage==='terms'  ? (lang==='de'?'Nutzungsbedingungen':'Terms of Service')
@@ -1330,7 +1355,7 @@ export default function App() {
               {LANGS[lang]?.f}
             </button>
             {/* User icon */}
-            <button onClick={()=>{setAuthScreen(user?'account':'login');if(user)refreshProfile();}} title={user?user.email:(lang==='de'?'Anmelden':'Sign in')}
+            <button onClick={()=>{setAuthScreen(user?'account':'login');if(user)refreshProfile();}} title={user?user.email:(t('signIn'))}
               style={{background:user?'rgba(255,255,255,0.08)':'rgba(232,82,26,0.15)',border:`1px solid ${user?'rgba(255,255,255,0.12)':'rgba(232,82,26,0.35)'}`,borderRadius:10,width:34,height:34,cursor:'pointer',color:user?C.t:'#E8521A',fontFamily:'inherit',fontSize:user&&isPro?'0.55rem':'1rem',fontWeight:user&&isPro?800:400,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,position:'relative'}}>
               {user
                 ? isPro
