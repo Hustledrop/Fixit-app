@@ -20,11 +20,40 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SVC = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 async function getCustomerId(userId) {
-  if (!SUPABASE_URL || !SUPABASE_SVC) return null;
+  // ── Diagnostic: log every sub-condition so 404 cause is visible in Vercel logs
+  if (!SUPABASE_URL || !SUPABASE_SVC) {
+    console.error('[portal] getCustomerId: ABORT — SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set');
+    return null;
+  }
+
   const { createClient } = await import('@supabase/supabase-js');
   const sb = createClient(SUPABASE_URL, SUPABASE_SVC, { auth: { persistSession: false } });
-  const { data } = await sb.from('profiles').select('stripe_customer_id').eq('id', userId).single();
-  return data?.stripe_customer_id ?? null;
+
+  const { data, error } = await sb
+    .from('profiles')
+    .select('stripe_customer_id, is_pro, plan')   // select extra fields for diagnostics
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    console.error(`[portal] getCustomerId: Supabase error code=${error.code} msg="${error.message}" userId=${userId}`);
+    return null;
+  }
+
+  if (!data) {
+    console.error(`[portal] getCustomerId: no profile row found for userId=${userId}`);
+    return null;
+  }
+
+  // Log the full profile state so we know what Supabase actually contains
+  console.log(`[portal] profile found userId=${userId} is_pro=${data.is_pro} plan=${data.plan} stripe_customer_id=${data.stripe_customer_id ?? 'NULL'}`);
+
+  if (!data.stripe_customer_id) {
+    console.error(`[portal] getCustomerId: stripe_customer_id is NULL for userId=${userId} — webhook may not have run or failed to write customer ID`);
+    return null;
+  }
+
+  return data.stripe_customer_id;
 }
 
 async function readBody(req) {
@@ -41,14 +70,23 @@ export default async function handler(req, res) {
   if (req.method !== 'POST')   { res.status(405).json({ error: 'method_not_allowed' }); return; }
 
   if (!STRIPE_KEY) {
+    console.error('[portal] STRIPE_SECRET_KEY not set');
     return res.status(503).json({ error: 'stripe_not_configured' });
   }
 
   const { userId } = await readBody(req);
-  if (!userId) return res.status(400).json({ error: 'missing_userId' });
+  if (!userId) {
+    console.error('[portal] 400: no userId in request body');
+    return res.status(400).json({ error: 'missing_userId' });
+  }
+
+  console.log(`[portal] POST userId=${userId}`);
 
   const customerId = await getCustomerId(userId);
+
   if (!customerId) {
+    // getCustomerId already logged the specific reason above
+    console.error(`[portal] 404: returning no_stripe_customer for userId=${userId}`);
     return res.status(404).json({
       error: 'no_stripe_customer',
       message: 'No Stripe customer found for this account.',
@@ -61,10 +99,10 @@ export default async function handler(req, res) {
       customer:   customerId,
       return_url: `${APP_URL}/?portal=return`,
     });
-    console.log(`[portal] session created for userId=${userId}`);
+    console.log(`[portal] ✅ session created customerId=${customerId} userId=${userId}`);
     res.status(200).json({ url: session.url });
   } catch (err) {
-    console.error('[portal] Stripe error:', err.message);
+    console.error(`[portal] Stripe error for customerId=${customerId}: ${err.message}`);
     res.status(500).json({ error: 'stripe_error', message: err.message });
   }
 }
