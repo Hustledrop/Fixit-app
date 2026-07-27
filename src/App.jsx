@@ -10,6 +10,7 @@ import { PrivacyPage, TermsPage, ImpressumPage } from './components/LegalPages.j
 import LEGAL from './config/legal.js'; // triggers build-time warning if required fields are empty
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
 import { useAuth } from './useAuth.js';
+import { getAccessToken } from './auth.js';
 import { AUTH_AVAILABLE, checkUsage, incrementUsage, restoreProStatus } from './auth.js';
 
 // ── localStorage helpers (prefixed fixit_) ────────────────────────────────────
@@ -937,10 +938,22 @@ export default function App() {
     if (!user) { setAuthScreen('signup'); return; }
     setCheckoutBusy(true);
     try {
+      // Get the Supabase access token for this session.
+      // The server will verify it cryptographically and derive user.id from the JWT —
+      // we do NOT send userId in the body to avoid stale/wrong UUID bugs.
+      const token = await getAccessToken();
+      if (!token) {
+        showToast(t('connectionError'));
+        return;
+      }
       const res = await fetch('/api/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, userId: user.id, userEmail: user.email }),
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        // plan is still in the body; only userId is removed
+        body: JSON.stringify({ plan }),
       });
       const data = await res.json();
       if (data.url) {

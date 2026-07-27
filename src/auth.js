@@ -9,6 +9,19 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const AUTH_AVAILABLE = !!(SUPABASE_URL && SUPABASE_KEY);
 
+// Log the baked-in Supabase project URL at startup so every deployment
+// prints which project the frontend is connected to.
+// Check the browser console → "[FixIt auth] Supabase project: ..."
+// and confirm it matches VITE_SUPABASE_URL in your Vercel dashboard.
+if (SUPABASE_URL) {
+  // Show only the project ref (first subdomain) — not the full URL in case it
+  // contains any sensitive information in non-standard deployments.
+  const projectRef = SUPABASE_URL.replace('https://', '').split('.')[0];
+  console.log(`[FixIt auth] Supabase project: ${projectRef} (${SUPABASE_URL})`);
+} else {
+  console.warn('[FixIt auth] VITE_SUPABASE_URL not set — running in guest mode');
+}
+
 let _sb = null;
 async function sb() {
   if (!AUTH_AVAILABLE) return null;
@@ -28,6 +41,15 @@ export async function getSession() {
   const c = await sb(); if (!c) return null;
   const { data } = await c.auth.getSession();
   return data?.session ?? null;
+}
+
+// Returns the current access token (JWT) for the authenticated user.
+// Used by checkout.js server-side verification — the server calls
+// supabase.auth.getUser(token) to derive user.id from the signed JWT,
+// rather than trusting user.id from the request body.
+export async function getAccessToken() {
+  const session = await getSession();
+  return session?.access_token ?? null;
 }
 
 export async function signUp(email, password) {
