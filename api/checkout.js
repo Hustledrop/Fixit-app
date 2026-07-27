@@ -2,10 +2,11 @@
 // POST /api/checkout  body: { plan, userId, userEmail }
 // Returns { url } — frontend opens Stripe Checkout in new tab
 //
-// Required Vercel env vars:
-//   STRIPE_SECRET_KEY              sk_live_... or sk_test_...
-//   VITE_STRIPE_MONTHLY_PRICE_ID   price_xxx  (€4.99/month recurring)
-//   VITE_STRIPE_YEARLY_PRICE_ID    price_yyy  (€39.99/year recurring)
+// Required Vercel environment variables (set in Vercel Dashboard → Settings → Environment Variables):
+//   STRIPE_SECRET_KEY              sk_live_...   (FixIt Stripe account — add in Vercel, never commit)
+//   STRIPE_WEBHOOK_SECRET          whsec_...     (from Stripe Dashboard → Webhooks → FixIt endpoint)
+//   VITE_STRIPE_MONTHLY_PRICE_ID   price_1TxtkM7EAy1MbtmfXtVvpb49   (€4.99/month)
+//   VITE_STRIPE_YEARLY_PRICE_ID    price_1Txtl47EAy1MbtmfJPBeEIWE    (€39.99/year)
 //   VITE_APP_URL                   https://www.fixit-app.com
 
 import Stripe from 'stripe';

@@ -1,17 +1,23 @@
 // api/webhook.js — Stripe webhook → syncs subscription state to Supabase
 //
-// Vercel: add endpoint https://www.fixit-app.com/api/webhook
-// Events to subscribe:
-//   checkout.session.completed
-//   customer.subscription.updated
-//   customer.subscription.deleted
-//   invoice.payment_failed
+// ── Stripe Dashboard setup (one-time, per account) ───────────────────────────
+// Stripe Dashboard → Developers → Webhooks → Add endpoint
+//   Endpoint URL:  https://www.fixit-app.com/api/webhook
+//   Listen to:     Events on your account
+//   Select events:
+//     checkout.session.completed
+//     customer.subscription.updated
+//     customer.subscription.deleted
+//     invoice.payment_failed
 //
-// Required Vercel env vars:
-//   STRIPE_SECRET_KEY
-//   STRIPE_WEBHOOK_SECRET
-//   VITE_SUPABASE_URL
-//   SUPABASE_SERVICE_ROLE_KEY
+// After adding the endpoint, copy the "Signing secret" (whsec_...) and add it to:
+//   Vercel Dashboard → Settings → Environment Variables → STRIPE_WEBHOOK_SECRET
+//
+// ── Required Vercel environment variables ────────────────────────────────────
+//   STRIPE_SECRET_KEY          sk_live_...   (FixIt Stripe account secret key)
+//   STRIPE_WEBHOOK_SECRET      whsec_...     (from Stripe Webhooks endpoint above)
+//   VITE_SUPABASE_URL          https://xxx.supabase.co
+//   SUPABASE_SERVICE_ROLE_KEY  eyJ...        (Supabase → Settings → API → service_role)
 
 import Stripe from 'stripe';
 

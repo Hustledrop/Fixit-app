@@ -12,21 +12,21 @@
 // EMAILS (already configured to fixit-app.com defaults):
 //   supportEmail — user-facing support contact
 //   privacyEmail — GDPR / data-rights contact
+
 export const LEGAL = {
   // ── REQUIRED — fill in before release ─────────────────────────────────────
-  legalName: "Hristijan Velichkovski",
-
-  postalAddress: "Güstrower Str. 5, 56564 Neuwied, Germany",
+  legalName:    '',        // e.g. 'Max Mustermann' or 'FixIt UG (haftungsbeschränkt)'
+  postalAddress:'',        // e.g. 'Musterstraße 1, 12345 Musterstadt, Deutschland'
 
   // ── OPTIONAL ──────────────────────────────────────────────────────────────
-  vatId: "",
+  vatId:        '',        // USt-IdNr. e.g. 'DE123456789' — leave empty to hide entirely
 
   // ── CONTACT ───────────────────────────────────────────────────────────────
-  supportEmail: "support@fixit-app.com",
-  privacyEmail: "support@fixit-app.com",
+  supportEmail: 'support@fixit-app.com',
+  privacyEmail: 'support@fixit-app.com',
 
-  // ── APP URL ───────────────────────────────────────────────────────────────
-  appUrl: "https://www.fixit-app.com",
+  // ── APP URL ────────────────────────────────────────────────────────────────
+  appUrl:       'https://www.fixit-app.com',
 };
 
 // ── Build-time validation ──────────────────────────────────────────────────────
