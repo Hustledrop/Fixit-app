@@ -956,14 +956,17 @@ export default function App() {
   async function startCheckout(plan) {
     if (!user) { setAuthScreen('signup'); return; }
     setCheckoutBusy(true);
-    // Open a blank window SYNCHRONOUSLY before the await so browsers do not
-    // classify it as an unsolicited popup. We redirect it when the URL arrives.
-    // Falls back to same-tab navigation if the blank window was still blocked.
-    const win = window.open('', '_blank');
+    // Navigate the current tab to Stripe Checkout.
+    // We do NOT use window.open() because browsers block async popup redirections:
+    // window.open('','_blank') creates a blank popup synchronously, but then
+    // win.location.href after an await is silently blocked by Safari iOS and others.
+    // The popup stays blank and nothing happens — the confirmed root cause of the
+    // yearly checkout "does nothing" bug.
+    // Same-tab navigation (window.location.href) always works.
+    // Stripe redirects back to success_url / cancel_url after the user acts.
     try {
       const token = await getAccessToken();
       if (!token) {
-        if (win) win.close();
         showToast(t('connectionError'));
         return;
       }
@@ -977,19 +980,13 @@ export default function App() {
       });
       const data = await res.json();
       if (data.url) {
-        if (win && !win.closed) {
-          win.location.href = data.url;
-        } else {
-          // Popup was blocked — navigate same tab (return_url brings user back)
-          window.location.href = data.url;
-        }
+        // Navigate the current tab — works on every browser, no popup required
+        window.location.href = data.url;
       } else {
-        if (win) win.close();
         console.error('[checkout] no url returned:', data);
         showToast(data.message || (lang==='de'?'Zahlung nicht verfügbar':'Payment unavailable'));
       }
     } catch (err) {
-      if (win) win.close();
       console.error('[checkout] error:', err);
       showToast(t('connectionError'));
     }
