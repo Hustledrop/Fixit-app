@@ -313,15 +313,18 @@ export default function App() {
     return () => clearInterval(aiMsgTimer.current);
   }, [aiLoading, lang]);
 
-  // Nearby fetch: triggered by nearbyBump (incremented by goto+category change+refresh),
-  // also by GPS arrival. nearbyBump guarantees re-fetch even if screen hasn't changed.
+  // Nearby fetch: triggered by nearbyBump (incremented by goto+category change+refresh).
+  // Safety guard: never fetch unless the user is authenticated AND Pro.
+  // goto() already prevents non-Pro users from reaching screen='nearby',
+  // but this defence-in-depth check ensures no API call fires even if state
+  // becomes inconsistent (e.g. Pro subscription lapsed between renders).
   useEffect(() => {
-    if (screen === 'nearby' && lat && lng) {
+    if (screen === 'nearby' && lat && lng && user && isPro) {
       fetchBiz(mapCat, lat, lng, nearbyForce, city, country);
       if (nearbyForce) setNearbyForce(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nearbyBump, mapCat]); // lat/lng excluded — GPS updates must NOT auto-refetchmapCat in deps ensures chip + reset both trigger
+  }, [nearbyBump, mapCat]);
 
   // Persist key UI state so returning from external store tab restores correctly
   useEffect(() => {
@@ -373,16 +376,28 @@ export default function App() {
   }, [aiResult]); // eslint-disable-line
 
   function goto(s) {
-    // Push current screen onto navStack before navigating (skip transient screens)
-    // navStack is ONLY for back-navigation; never persisted, never mixed with diagHistory
+    // ── Auth / entitlement gate — runs BEFORE setScreen ──────────────────────
+    // Nearby and Parts require an authenticated Pro user.
+    // Check auth first so the screen never changes and no API is ever called.
+    if (s === 'nearby' || s === 'parts') {
+      if (!user) {
+        // Guest: show sign-in / create-account modal
+        setAuthScreen('login');
+        return;
+      }
+      if (!isPro) {
+        // Authenticated free user: show upgrade paywall
+        setFreeLimitHit(true);
+        return;
+      }
+    }
+    // ── Navigation ───────────────────────────────────────────────────────────
     const skip = ['splash','splash-r','onboarding','loc-ask'];
     if (!skip.includes(screen) && screen !== s) {
-      setNavStack(h => [...h.slice(-19), screen]); // keep last 20 screens
+      setNavStack(h => [...h.slice(-19), screen]);
     }
     setScreen(s);
     if (s === 'nearby') {
-      // Nearby requires Pro — gate here so location is never requested for free users
-      if (!isPro) { setFreeLimitHit(true); return; }
       setMapCat('garage');
       setNearbyBump(b => b + 1);
     }
@@ -479,14 +494,16 @@ export default function App() {
     const EMERGENCY_BYPASS = /gas\s*(leak|geruch)|gasleitung|live\s*(wire|cable)|240v|230v|stromschlag|sicherungskasten|tragende\s+wand|asbestos|asbest|notfall|emergency/i;
     const isEmergency = EMERGENCY_BYPASS.test(prob);
 
-    if (!isPro && !isEmergency) {
-      if (user && AUTH_AVAILABLE) {
-        // Logged-in user: check Supabase usage
+    if (!isEmergency) {
+      if (!user) {
+        // Guest: require authentication — never show usage/paywall messaging to guests
+        setAuthScreen('login');
+        return;
+      }
+      if (!isPro && AUTH_AVAILABLE) {
+        // Authenticated free user: check Supabase usage (server is authoritative)
         const usage = await checkUsage(user.id);
         if (usage && !usage.allowed) { setFreeLimitHit(true); return; }
-      } else {
-        // Guest: check localStorage
-        if (LS.get('free_diagnosis_used')) { setFreeLimitHit(true); return; }
       }
     }
     // For preset taps OR text-only runs: clear any stale photo state
@@ -1225,8 +1242,20 @@ export default function App() {
                   </button>
                   <div style={dividerStyle}/>
                   {/* Sign out */}
-                  <button onClick={async()=>{await logout();setAuthScreen(null);setDeleteConfirm(false);}}
-                    style={{...linkBtn,color:'rgba(255,255,255,0.5)'}}>
+                  <button onClick={async()=>{
+                    await logout();
+                    // Clear all user-specific UI state immediately on sign-out.
+                    // This ensures a guest or new user cannot inherit subscription,
+                    // usage, history, or navigation state from the previous account.
+                    setAuthScreen(null);
+                    setDeleteConfirm(false);
+                    setFreeLimitHit(false);
+                    setScreen('home');
+                    setNavStack([]);
+                    // Clear the per-device free-diagnosis key so a new account
+                    // on the same device gets a fresh free diagnosis.
+                    LS.set('free_diagnosis_used', false);
+                  }} style={{...linkBtn,color:'rgba(255,255,255,0.5)'}}>
                     <span>↩</span>{t('signOut')}
                   </button>
                   {/* Delete account — two-step confirm */}
@@ -1819,7 +1848,7 @@ export default function App() {
                        const cq2 = cleanProductSearchQuery(p,'',cat2,'','');
                        setPInput(cq2); setVInput(''); setHsnModel(''); setVType(cat2);
                        setPResults({ q: cq2, vehicle: '', hsnModel: '', searchQ: cq2, isHSN: false, category: cat2, fromDiagnosis: true });
-                      if (isPro) goto('parts'); else setFreeLimitHit(true);
+                      if (!user) { setAuthScreen('login'); } else if (isPro) { goto('parts'); } else { setFreeLimitHit(true); }
                     }} style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(232,82,26,0.12)',color:C.o,border:'1px solid rgba(232,82,26,0.2)',cursor:'pointer',margin:3}}>{p} →</span>)}</div>
               <div style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.25)',marginTop:8,lineHeight:1.5}}>
                 {r._vehicleCtx ? (
@@ -1883,7 +1912,7 @@ export default function App() {
                   // Pre-populate pResults so parts are immediately visible
                   const fullSearchQ = diagQuery; // vehicle already in diagQuery via ensureVehicle
                   setPResults({ q: diagQuery, vehicle: vehicleLabel, hsnModel: '', searchQ: fullSearchQ, isHSN: false, category: cat, fromDiagnosis: true, vehicleCtx: detectedVehicle });
-                  if (isPro) goto('parts'); else setFreeLimitHit(true);
+                  if (!user) { setAuthScreen('login'); } else if (isPro) { goto('parts'); } else { setFreeLimitHit(true); }
                 }} style={s.btn}>{ct.partsBtn}</button>
                 <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
@@ -2068,6 +2097,18 @@ export default function App() {
 
   // ── NEARBY ───────────────────────────────────────────────────────────────────
   if (screen === 'nearby') {
+    // Hard render guard — defence in depth after goto() gate and useEffect gate.
+    // If a user is not authenticated or not Pro, redirect to home immediately.
+    if (!user) {
+      setAuthScreen('login');
+      setScreen('home');
+      return null;
+    }
+    if (!isPro) {
+      setFreeLimitHit(true);
+      setScreen('home');
+      return null;
+    }
     const catLabels={garage:t('catGarage'),parts:t('catParts'),tyres:t('catTyres'),petrol:t('catPetrol'),hardware:t('catHardware'),vet:t('catVet'),it:t('catIT'),moto:t('motorcycle')};
     // Category-specific Google Maps search terms (correct service type, not product)
     // catMapsQ: short, intent-friendly local service search terms per language
@@ -2215,6 +2256,17 @@ export default function App() {
 
   // ── PARTS ────────────────────────────────────────────────────────────────────
   if (screen === 'parts') {
+    // Hard render guard — same defence-in-depth as nearby.
+    if (!user) {
+      setAuthScreen('login');
+      setScreen('home');
+      return null;
+    }
+    if (!isPro) {
+      setFreeLimitHit(true);
+      setScreen('home');
+      return null;
+    }
     const localStores      = getStores(vType, cc);          // category-specific ONLINE stores
     const onlineStores     = getOnlineStores(cc);            // generic Amazon/eBay/Idealo
     const localSearchTerm  = getLocalStoreSearch(vType, lang); // local Google Maps term
