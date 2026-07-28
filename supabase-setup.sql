@@ -311,3 +311,57 @@ grant  execute on function public.consume_free_diagnosis(uuid) to authenticated;
 --   from public.profiles p
 --   join public.usage u on u.user_id = p.id
 --  where p.email = 'you@example.com';
+
+
+-- ── admin_consume_diagnosis — service-role variant ──────────────────────────
+-- Called by api/diagnose.js (server-side, service-role key) AFTER a successful
+-- AI response to atomically increment the free usage counter.
+-- No auth.uid() check — authentication was already done via JWT verification
+-- in the API handler before this function is called.
+-- Uses FOR UPDATE to prevent concurrent double-spend.
+CREATE OR REPLACE FUNCTION public.admin_consume_diagnosis(p_user_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_is_pro boolean;
+  v_count  int;
+  v_limit  int;
+BEGIN
+  -- Check Pro status — if Pro, nothing to consume
+  SELECT is_pro INTO v_is_pro FROM public.profiles WHERE id = p_user_id;
+  IF v_is_pro THEN
+    RETURN jsonb_build_object('consumed', false, 'is_pro', true);
+  END IF;
+
+  -- Atomic read-with-lock + increment
+  SELECT diagnosis_count, free_limit
+    INTO v_count, v_limit
+    FROM public.usage
+   WHERE user_id = p_user_id
+     FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Usage row not found for user %', p_user_id;
+  END IF;
+
+  -- Already at limit — guard against race between check and commit
+  IF v_count >= v_limit THEN
+    RETURN jsonb_build_object('consumed', false, 'is_pro', false,
+                              'already_at_limit', true, 'count', v_count);
+  END IF;
+
+  UPDATE public.usage
+     SET diagnosis_count = v_count + 1,
+         updated_at      = now()
+   WHERE user_id = p_user_id;
+
+  RETURN jsonb_build_object('consumed', true, 'is_pro', false, 'new_count', v_count + 1);
+END;
+$$;
+
+-- Restrict execution to service_role only (anon/authenticated may not call this)
+REVOKE EXECUTE ON FUNCTION public.admin_consume_diagnosis(uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.admin_consume_diagnosis(uuid) TO service_role;

@@ -1,12 +1,19 @@
 import { useState, useCallback, useRef } from 'react';
 import { LANGS } from '../data/lang.js';
+import { getAccessToken } from '../auth.js';
 
 const API_URL = '/api/diagnose';
 
 async function callAPI(payload) {
+  // Attach the Supabase access token so the server can verify identity
+  // and enforce entitlement without trusting anything from the body.
+  const token = await getAccessToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const res = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   });
 
@@ -19,7 +26,10 @@ async function callAPI(payload) {
 
   if (!res.ok) {
     // 429 rate limit gets a specific code so the UI can show a clear message
-    const errCode = res.status === 429 ? 'rate_limited' : (data.error || 'server_error');
+    const errCode = res.status === 429 ? 'rate_limited'
+                : res.status === 401 ? 'unauthorized'
+                : res.status === 403 ? 'free_limit_reached'
+                : (data.error || 'server_error');
     throw { code: errCode, status: res.status,
       debug: data.debug || data.message || `HTTP ${res.status}` };
   }
