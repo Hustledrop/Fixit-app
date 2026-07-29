@@ -49,6 +49,7 @@ create table if not exists public.profiles (
   is_pro             boolean     not null default false,
   plan               text,                          -- 'monthly' | 'yearly' | null
   stripe_customer_id text,                          -- written by webhook only
+  cancel_at          timestamptz,                   -- set when cancel_at_period_end=true; null when active
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
 );

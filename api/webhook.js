@@ -70,19 +70,20 @@ async function getProfileByCustomer(supabase, customerId) {
   return data ?? null;
 }
 
-async function grantPro(supabase, userId, plan, stripeCustomerId) {
-  console.log(`[webhook] grantPro userId=${userId} plan=${plan} customerId=${stripeCustomerId}`);
+async function grantPro(supabase, userId, plan, stripeCustomerId, cancelAt = null) {
+  console.log(`[webhook] grantPro userId=${userId} plan=${plan} customerId=${stripeCustomerId} cancelAt=${cancelAt}`);
   const { error } = await supabase.from('profiles').upsert({
     id:                 userId,
     is_pro:             true,
     plan,
     stripe_customer_id: stripeCustomerId,
+    cancel_at:          cancelAt,   // ISO string when scheduled to cancel, null when active
     updated_at:         new Date().toISOString(),
   }, { onConflict: 'id' });
   if (error) {
     console.error('[webhook] grantPro FAILED:', error.message, error.code);
   } else {
-    console.log(`[webhook] ✅ grantPro SUCCESS is_pro=true plan=${plan} userId=${userId}`);
+    console.log(`[webhook] ✅ grantPro SUCCESS is_pro=true plan=${plan} cancelAt=${cancelAt} userId=${userId}`);
   }
 }
 
@@ -95,7 +96,7 @@ async function revokePro(supabase, stripeCustomerId) {
   }
 
   const { error } = await supabase.from('profiles')
-    .update({ is_pro: false, plan: null, updated_at: new Date().toISOString() })
+    .update({ is_pro: false, plan: null, cancel_at: null, updated_at: new Date().toISOString() })
     .eq('stripe_customer_id', stripeCustomerId);
   if (error) {
     console.error('[webhook] revokePro FAILED:', error.message);
@@ -175,16 +176,21 @@ export default async function handler(req, res) {
     const customerId = sub.customer;
     const status     = sub.status;
 
-    console.log(`[webhook] subscription.updated subId=${sub.id} status=${status} customerId=${customerId}`);
+    console.log(`[webhook] subscription.updated subId=${sub.id} status=${status} customerId=${customerId} cancel_at_period_end=${sub.cancel_at_period_end}`);
 
     const profile = await getProfileByCustomer(supabase, customerId);
     if (!profile) {
       console.warn(`[webhook] subscription.updated: no profile found for customerId=${customerId}`);
     } else if (['active', 'trialing'].includes(status)) {
-      // Determine plan from price interval if available
       const interval = sub.items?.data?.[0]?.price?.recurring?.interval;
-      const plan = interval === 'year' ? 'yearly' : 'monthly';
-      await grantPro(supabase, profile.id, plan, customerId);
+      const plan     = interval === 'year' ? 'yearly' : 'monthly';
+      // cancel_at_period_end: user cancelled but access continues until period end.
+      // Store the cancellation timestamp so the UI can show "Cancels on [date]".
+      // When false (or after Stripe fires subscription.deleted), cancel_at is null.
+      const cancelAt = sub.cancel_at_period_end && sub.cancel_at
+        ? new Date(sub.cancel_at * 1000).toISOString()
+        : null;
+      await grantPro(supabase, profile.id, plan, customerId, cancelAt);
     } else if (['canceled', 'unpaid', 'incomplete_expired'].includes(status)) {
       await revokePro(supabase, customerId);
     } else {

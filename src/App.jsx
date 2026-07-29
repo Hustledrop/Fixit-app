@@ -182,6 +182,7 @@ export default function App() {
   const [portalBusy,    setPortalBusy]    = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [legalPage,     setLegalPage]     = useState(null); // 'privacy' | 'terms' | null
+  const [paywallSource, setPaywallSource] = useState('diagnosis'); // 'diagnosis' | 'nearby' | 'parts'
   const [deleteBusy,    setDeleteBusy]    = useState(false);
   const [emrgKey, setEmrgKey]     = useState(null);
   const [aiMsgIdx, setAiMsgIdx]   = useState(0);
@@ -387,6 +388,7 @@ export default function App() {
       }
       if (!isPro) {
         // Authenticated free user: show upgrade paywall
+        setPaywallSource(s === 'nearby' ? 'nearby' : 'parts');
         setFreeLimitHit(true);
         return;
       }
@@ -503,7 +505,7 @@ export default function App() {
       if (!isPro && AUTH_AVAILABLE) {
         // Authenticated free user: check Supabase usage (server is authoritative)
         const usage = await checkUsage(user.id);
-        if (usage && !usage.allowed) { setFreeLimitHit(true); return; }
+        if (usage && !usage.allowed) { setPaywallSource('diagnosis'); setFreeLimitHit(true); return; }
       }
     }
     // For preset taps OR text-only runs: clear any stale photo state
@@ -1118,7 +1120,7 @@ export default function App() {
     <>
       {/* ── Paywall overlay ── */}
       {freeLimitHit && (
-        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>          <div style={{fontSize:'2.8rem',marginBottom:16}}>🔓</div>          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8'}}>{t('freeDiagnosisUsed')}</div>          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.45)',textAlign:'center',lineHeight:1.65,marginBottom:24,maxWidth:300}}>{t('freeDiagnosisDesc')}</div>          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:24}}>            {[['🔒','Nearby'],['🔒',lang==='de'?'Teile':'Parts'],['✅',lang==='de'?'Notfall':'Emergency'],['🔒',lang==='de'?'Unbegrenzte KI':'Unlimited AI']].map(([ic,lb])=>(              <div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>            ))}          </div>          {!user ? (            <button onClick={()=>{setFreeLimitHit(false);setAuthScreen('signup');}} style={{width:'100%',maxWidth:340,background:'rgba(232,82,26,0.9)',border:'none',borderRadius:14,padding:'14px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',cursor:'pointer',marginBottom:10}}>              🔑 {t('createAccountUpgrade')}              <div style={{fontSize:'0.72rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren':'Free to sign up'}</div>            </button>          ) : (            <div style={{width:'100%',maxWidth:340,display:'flex',flexDirection:'column',gap:8}}>              {/* Yearly — highlighted as best value */}              <button onClick={()=>startCheckout('yearly')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>                  <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase'}}>{t('yearlyBestValue')}</div>                  <div style={{fontSize:'0.58rem',background:'rgba(232,82,26,0.25)',border:'1px solid rgba(232,82,26,0.4)',borderRadius:4,padding:'1px 5px',color:'rgba(232,82,26,0.9)',fontWeight:700,whiteSpace:'nowrap'}}>{t('save33')}</div>                </div>                <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€39.99 / {t('perYear')}</div>                <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{t('yearlyEquivalent')}</div>              </button>              {/* Monthly */}              <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.5)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{t('monthlyPlanLabel')}</div>                <div style={{fontSize:'0.95rem',fontWeight:700}}>€4.99 / {t('perMonth')}</div>              </button>            </div>          )}          <button onClick={()=>setFreeLimitHit(false)} style={{marginTop:14,width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'12px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{t('backToApp')}</button>          <div style={{marginTop:10,fontSize:'0.65rem',color:'rgba(255,255,255,0.2)',textAlign:'center'}}>{t('renewsAutomatically')}</div>        </div>      )}
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>          <div style={{fontSize:'2.8rem',marginBottom:16}}>{paywallSource==='nearby'?'📍':paywallSource==='parts'?'🔩':'🔓'}</div>          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8'}}>{paywallSource==='nearby'?(lang==='de'?'Nearby ist eine Pro-Funktion':'Nearby Services is a Pro feature'):paywallSource==='parts'?(lang==='de'?'Teile-Suche ist eine Pro-Funktion':'Parts Lookup is a Pro feature'):t('freeDiagnosisUsed')}</div>          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.45)',textAlign:'center',lineHeight:1.65,marginBottom:24,maxWidth:300}}>{paywallSource==='nearby'?(lang==='de'?'Finde Werkstätten und Teilehandel in deiner Nähe — mit einem Pro-Abonnement.':'Find workshops and parts shops near you — with a Pro subscription.'):paywallSource==='parts'?(lang==='de'?'Suche nach Ersatzteilen bei lokalen Händlern oder online — mit einem Pro-Abonnement.':'Search for spare parts at local dealers or online — with a Pro subscription.'):t('freeDiagnosisDesc')}</div>          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:24}}>            {[['🔒','Nearby'],['🔒',lang==='de'?'Teile':'Parts'],['✅',lang==='de'?'Notfall':'Emergency'],['🔒',lang==='de'?'Unbegrenzte KI':'Unlimited AI']].map(([ic,lb])=>(              <div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>            ))}          </div>          {!user ? (            <button onClick={()=>{setFreeLimitHit(false);setAuthScreen('signup');}} style={{width:'100%',maxWidth:340,background:'rgba(232,82,26,0.9)',border:'none',borderRadius:14,padding:'14px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',cursor:'pointer',marginBottom:10}}>              🔑 {t('createAccountUpgrade')}              <div style={{fontSize:'0.72rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren':'Free to sign up'}</div>            </button>          ) : (            <div style={{width:'100%',maxWidth:340,display:'flex',flexDirection:'column',gap:8}}>              {/* Yearly — highlighted as best value */}              <button onClick={()=>startCheckout('yearly')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>                  <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase'}}>{t('yearlyBestValue')}</div>                  <div style={{fontSize:'0.58rem',background:'rgba(232,82,26,0.25)',border:'1px solid rgba(232,82,26,0.4)',borderRadius:4,padding:'1px 5px',color:'rgba(232,82,26,0.9)',fontWeight:700,whiteSpace:'nowrap'}}>{t('save33')}</div>                </div>                <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€39.99 / {t('perYear')}</div>                <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{t('yearlyEquivalent')}</div>              </button>              {/* Monthly */}              <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.5)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{t('monthlyPlanLabel')}</div>                <div style={{fontSize:'0.95rem',fontWeight:700}}>€4.99 / {t('perMonth')}</div>              </button>            </div>          )}          <button onClick={()=>setFreeLimitHit(false)} style={{marginTop:14,width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'12px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{t('backToApp')}</button>          <div style={{marginTop:10,fontSize:'0.65rem',color:'rgba(255,255,255,0.2)',textAlign:'center'}}>{t('renewsAutomatically')}</div>        </div>      )}
       {/* ── Login / Signup modal ── */}
       {(authScreen === 'login' || authScreen === 'signup') && (
         <div onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
@@ -1188,25 +1190,12 @@ export default function App() {
                   {/* Plan */}
                   <div style={{...rowStyle,background:isPro?'rgba(232,82,26,0.07)':'rgba(255,255,255,0.04)',border:`1px solid ${isPro?'rgba(232,82,26,0.2)':'rgba(255,255,255,0.06)'}`,marginBottom:14}}>
                     <div style={labelStyle}>{t('planLabel')}</div>
-                    {isYearly
-                      ? <>
-                          <div style={{fontSize:'0.93rem',fontWeight:800,color:'#E8521A',marginBottom:2}}>✅ FixIt Pro {de?'Jährlich':'Yearly'}</div>
-                          <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.35)'}}>{t('activeSubYearly')}</div>
-                        </>
-                      : isMonthly
-                        ? <>
-                            <div style={{fontSize:'0.93rem',fontWeight:700,color:'#E8521A',marginBottom:2}}>✅ FixIt Pro {de?'Monatlich':'Monthly'}</div>
-                            <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.35)'}}>{t('activeSubMonthly')}</div>
-                          </>
-                        : isPro
-                          ? <>
-                              {/* Subscribed but plan value is unrecognised (e.g. legacy test data) —
-                                  show a safe generic Pro label so the row is never blank */}
-                              <div style={{fontSize:'0.93rem',fontWeight:700,color:'#E8521A',marginBottom:2}}>✅ FixIt Pro</div>
-                              <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.35)'}}>{t('activeSub')}</div>
-                            </>
-                          : <div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.45)'}}>{t('freePlan')}</div>
-                    }
+                    {(()=>{
+                      const cancelAt=authProfile?.cancel_at?new Date(authProfile.cancel_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB',{day:'numeric',month:'long',year:'numeric'}):null;
+                      const planLabel=isYearly?(de?'Pro Jährlich':'Pro Yearly'):isMonthly?(de?'Pro Monatlich':'Pro Monthly'):'Pro';
+                      if(isPro) return(<><div style={{fontSize:'0.93rem',fontWeight:800,color:'#E8521A',marginBottom:2}}>{cancelAt?'⏳':'✅'} FixIt {planLabel}</div><div style={{fontSize:'0.72rem',color:cancelAt?'rgba(232,178,26,0.75)':'rgba(255,255,255,0.35)'}}>{cancelAt?(de?`Wird gekündigt am ${cancelAt}`:`Cancels on ${cancelAt}`):(isYearly?t('activeSubYearly'):isMonthly?t('activeSubMonthly'):(de?'Aktives Abonnement':'Active subscription'))}</div></>);
+                      return<div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.45)'}}>{t('freePlan')}</div>;
+                    })()}
                   </div>
                   {/* Subscription management — shown for any active subscriber */}
                   {isPro && <>
@@ -1218,7 +1207,7 @@ export default function App() {
                   </>}
                   {/* Free user — upgrade CTA */}
                   {!isPro && <>
-                    <button onClick={()=>{setAuthScreen(null);setFreeLimitHit(true);}}
+                    <button onClick={()=>{setAuthScreen(null);setPaywallSource('diagnosis');setFreeLimitHit(true);}}
                       style={{...actionBtn,background:'rgba(232,82,26,0.12)',border:'1px solid rgba(232,82,26,0.35)',color:C.t}}>
                       <span>🚀</span><span style={{flex:1}}>{t('upgradePro')}</span>
                     </button>
@@ -1845,7 +1834,7 @@ export default function App() {
                        const cq2 = cleanProductSearchQuery(p,'',cat2,'','');
                        setPInput(cq2); setVInput(''); setHsnModel(''); setVType(cat2);
                        setPResults({ q: cq2, vehicle: '', hsnModel: '', searchQ: cq2, isHSN: false, category: cat2, fromDiagnosis: true });
-                      if (!user) { setAuthScreen('login'); } else if (isPro) { goto('parts'); } else { setFreeLimitHit(true); }
+                      if (!user) { setAuthScreen('login'); } else if (isPro) { goto('parts'); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
                     }} style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(232,82,26,0.12)',color:C.o,border:'1px solid rgba(232,82,26,0.2)',cursor:'pointer',margin:3}}>{p} →</span>)}</div>
               <div style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.25)',marginTop:8,lineHeight:1.5}}>
                 {r._vehicleCtx ? (
@@ -1909,7 +1898,7 @@ export default function App() {
                   // Pre-populate pResults so parts are immediately visible
                   const fullSearchQ = diagQuery; // vehicle already in diagQuery via ensureVehicle
                   setPResults({ q: diagQuery, vehicle: vehicleLabel, hsnModel: '', searchQ: fullSearchQ, isHSN: false, category: cat, fromDiagnosis: true, vehicleCtx: detectedVehicle });
-                  if (!user) { setAuthScreen('login'); } else if (isPro) { goto('parts'); } else { setFreeLimitHit(true); }
+                  if (!user) { setAuthScreen('login'); } else if (isPro) { goto('parts'); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
                 }} style={s.btn}>{ct.partsBtn}</button>
                 <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
@@ -2102,6 +2091,7 @@ export default function App() {
       return null;
     }
     if (!isPro) {
+      setPaywallSource('nearby');
       setFreeLimitHit(true);
       setScreen('home');
       return null;
@@ -2260,6 +2250,7 @@ export default function App() {
       return null;
     }
     if (!isPro) {
+      setPaywallSource('parts');
       setFreeLimitHit(true);
       setScreen('home');
       return null;
