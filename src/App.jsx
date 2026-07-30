@@ -1036,12 +1036,43 @@ export default function App() {
     if (!user) return;
     setDeleteBusy(true);
     try {
-      // Sign out first so session is invalid before we delete
+      // Get the access token BEFORE logout so the server can verify identity.
+      const token = await getAccessToken();
+      if (!token) { showToast(t('deleteError')); return; }
+
+      // Call the server-side endpoint which:
+      //   1. Verifies the JWT
+      //   2. Cancels any active Stripe subscription
+      //   3. Calls supabase.auth.admin.deleteUser() — requires service-role key
+      //   Supabase then cascades:
+      //     → profiles ON DELETE CASCADE (row deleted)
+      //     → usage    ON DELETE CASCADE (row deleted)
+      //     → payments ON DELETE SET NULL (anonymised; retained for legal compliance)
+      const res = await fetch('/api/delete-account', {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('[delete-account] server error:', res.status, data);
+        showToast(data.message || t('deleteError'));
+        return;
+      }
+
+      // Deletion succeeded — clear all local state and sign out cleanly.
+      // (The server already removed the auth.users row, so signOut is just cleanup.)
       await logout();
       setAuthScreen(null);
       setDeleteConfirm(false);
+      setFreeLimitHit(false);
+      setScreen('home');
+      setNavStack([]);
+      LS.set('free_diagnosis_used', false);
       showToast(t('accountDeleted'));
-    } catch (_) {
+
+    } catch (err) {
+      console.error('[delete-account] unexpected error:', err);
       showToast(t('deleteError'));
     } finally { setDeleteBusy(false); }
   }
