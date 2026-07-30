@@ -90,8 +90,10 @@ export async function signOut() {
 
 export async function onAuthStateChange(callback) {
   const c = await sb(); if (!c) return () => {};
-  const { data } = c.auth.onAuthStateChange((_event, session) => {
-    callback(session?.user ?? null);
+  const { data } = c.auth.onAuthStateChange((event, session) => {
+    // Pass both the user object AND the event name so callers can detect
+    // PASSWORD_RECOVERY, SIGNED_OUT, TOKEN_REFRESHED, etc.
+    callback(session?.user ?? null, event);
   });
   return () => data.subscription.unsubscribe();
 }
@@ -124,6 +126,27 @@ export async function incrementUsage(userId) {
     return { allowed: false };
   }
   return data; // { allowed, is_pro, diagnosis_count }
+}
+
+// ── Password reset ────────────────────────────────────────────────────────────
+
+// Sends a password reset email. Always resolves (never rejects on user-not-found)
+// so callers can show a generic "if that email exists, we sent a link" message.
+// redirectTo must match a URL in your Supabase Dashboard → Auth → URL Configuration.
+export async function resetPasswordForEmail(email) {
+  const c = await sb(); if (!c) throw new Error('auth_unavailable');
+  const redirectTo = `${window.location.origin}/?type=recovery`;
+  const { error } = await c.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+  // Surface config errors but suppress "user not found" to prevent enumeration
+  if (error && !error.message?.toLowerCase().includes('not found')) throw error;
+}
+
+// Updates the authenticated user's password during a recovery session.
+// Must be called while Supabase holds a PASSWORD_RECOVERY session.
+export async function updatePassword(newPassword) {
+  const c = await sb(); if (!c) throw new Error('auth_unavailable');
+  const { error } = await c.auth.updateUser({ password: newPassword });
+  if (error) throw error;
 }
 
 // ── Restore purchases ─────────────────────────────────────────────────────────

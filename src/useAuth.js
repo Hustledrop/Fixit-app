@@ -6,9 +6,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { AUTH_AVAILABLE, getSession, signIn, signUp, signOut, onAuthStateChange, getProfile } from './auth.js';
 
 export function useAuth() {
-  const [user, setUser]         = useState(null);
-  const [profile, setProfile]   = useState(null);
-  const [authLoading, setLoading] = useState(AUTH_AVAILABLE); // false immediately if no Supabase
+  const [user, setUser]               = useState(null);
+  const [profile, setProfile]         = useState(null);
+  const [authLoading, setLoading]     = useState(AUTH_AVAILABLE);
+  const [authEvent, setAuthEvent]     = useState(null); // latest Supabase auth event name
 
   useEffect(() => {
     if (!AUTH_AVAILABLE) { setLoading(false); return; }
@@ -19,7 +20,9 @@ export function useAuth() {
       if (u) getProfile(u.id).then(setProfile);
       setLoading(false);
     });
-    onAuthStateChange(u => {
+    // onAuthStateChange in auth.js now passes (user, event) to the callback
+    onAuthStateChange((u, event) => {
+      setAuthEvent(event);  // expose event to consumers (e.g. PASSWORD_RECOVERY)
       setUser(u);
       if (u) getProfile(u.id).then(setProfile);
       else   setProfile(null);
@@ -49,5 +52,5 @@ export function useAuth() {
     if (user) { const p = await getProfile(user.id); setProfile(p); }
   }, [user]);
 
-  return { user, profile, isPro, authLoading, login, signup, logout, refreshProfile };
+  return { user, profile, isPro, authLoading, authEvent, login, signup, logout, refreshProfile };
 }

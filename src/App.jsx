@@ -10,7 +10,7 @@ import { PrivacyPage, TermsPage, ImpressumPage } from './components/LegalPages.j
 import LEGAL from './config/legal.js'; // triggers build-time warning if required fields are empty
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
 import { useAuth } from './useAuth.js';
-import { getAccessToken } from './auth.js';
+import { getAccessToken, resetPasswordForEmail, updatePassword } from './auth.js';
 import { AUTH_AVAILABLE, checkUsage, incrementUsage, restoreProStatus } from './auth.js';
 
 // ── localStorage helpers (prefixed fixit_) ────────────────────────────────────
@@ -178,6 +178,9 @@ export default function App() {
   const [authPwd,       setAuthPwd]       = useState('');
   const [authErr,       setAuthErr]       = useState('');
   const [authBusy,      setAuthBusy]      = useState(false);
+  const [resetPwd,      setResetPwd]      = useState('');
+  const [resetConfirm,  setResetConfirm]  = useState('');
+  const [resetSent,     setResetSent]     = useState(false);
   const [checkoutBusy,  setCheckoutBusy]  = useState(false);
   const [portalBusy,    setPortalBusy]    = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -225,7 +228,7 @@ export default function App() {
   const { lat, lng, city, country, geocodeErr, locStatus, requestLocation, resolveCountryIfNeeded, getCC } = useLocation();
   const { result: aiResult, loading: aiLoading, error: aiError, diagnose, reset: aiReset } = useAI();
   const { bizs, loading: bizLoading, error: bizError, stale: bizStale, fallback: bizFallback, fetchBiz } = useNearby();
-  const { user, profile: authProfile, isPro, authLoading, login, signup, logout, refreshProfile } = useAuth();
+  const { user, profile: authProfile, isPro, authLoading, authEvent, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
   // cc: used for Nearby, Parts, Maps URLs — language-informed country
@@ -1076,6 +1079,54 @@ export default function App() {
     } finally { setAuthBusy(false); }
   }
 
+  async function handleForgotSubmit() {
+    if (!authEmail.trim()) { setAuthErr(lang==='de'?'Bitte E-Mail eingeben':'Please enter your email'); return; }
+    setAuthBusy(true); setAuthErr('');
+    try {
+      await resetPasswordForEmail(authEmail.trim());
+      // Always show success regardless of whether email exists — prevents enumeration
+      setResetSent(true);
+    } catch (err) {
+      const msg = err.message || '';
+      setAuthErr(
+        msg.includes('auth_unavailable') ? (lang==='de'?'Auth nicht verfügbar':'Auth unavailable') :
+        msg.includes('Invalid email') ? (lang==='de'?'Ungültige E-Mail-Adresse':'Invalid email address') :
+        lang==='de'?'Fehler beim Senden. Bitte erneut versuchen.':'Error sending link. Please try again.'
+      );
+    } finally { setAuthBusy(false); }
+  }
+
+  async function handleResetSubmit() {
+    if (!resetPwd || !resetConfirm) { setAuthErr(lang==='de'?'Bitte beide Felder ausfüllen':'Please fill in both fields'); return; }
+    if (resetPwd.length < 6) { setAuthErr(lang==='de'?'Passwort muss mindestens 6 Zeichen haben':'Password must be at least 6 characters'); return; }
+    if (resetPwd !== resetConfirm) { setAuthErr(t('passwordsNoMatch')); return; }
+    setAuthBusy(true); setAuthErr('');
+    try {
+      await updatePassword(resetPwd);
+      // Password updated successfully — clear the recovery session state,
+      // clear the inputs, and redirect to sign-in with a success toast.
+      setResetPwd(''); setResetConfirm('');
+      showToast(t('passwordUpdated'));
+      setAuthScreen('login');
+    } catch (err) {
+      const msg = err.message || '';
+      setAuthErr(
+        msg.includes('auth_unavailable')  ? (lang==='de'?'Auth nicht verfügbar':'Auth unavailable') :
+        msg.includes('Password should be') ? (lang==='de'?'Passwort muss mindestens 6 Zeichen haben':'Password must be at least 6 characters') :
+        lang==='de'?'Passwort konnte nicht aktualisiert werden. Bitte neu anfordern.':'Could not update password. Please request a new link.'
+      );
+    } finally { setAuthBusy(false); }
+  }
+
+  // ── React to Supabase auth events ─────────────────────────────────────────
+  // Detects PASSWORD_RECOVERY (fired when user arrives via reset email link)
+  // and switches to the reset-password screen immediately.
+  useEffect(() => {
+    if (authEvent === 'PASSWORD_RECOVERY') {
+      setAuthScreen('reset-password');
+    }
+  }, [authEvent]);
+
   // ── Check Stripe redirect on app load ────────────────────────────────────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1083,7 +1134,12 @@ export default function App() {
     const portal = params.get('portal');
     if (portal === 'return') {
       window.history.replaceState({}, '', '/');
+      // Refresh immediately, then retry at 2 s and 5 s.
+      // The Stripe webhook (which writes cancel_at) fires asynchronously after
+      // the portal redirect and may not have reached Supabase on the first read.
       refreshProfile();
+      setTimeout(() => refreshProfile(), 2000);
+      setTimeout(() => refreshProfile(), 5000);
     }
     if (checkout === 'success') {
       window.history.replaceState({}, '', '/');
@@ -1147,6 +1203,12 @@ export default function App() {
               autoComplete={authScreen==='signup'?'new-password':'current-password'}
               disabled={!AUTH_AVAILABLE||authBusy} readOnly={!AUTH_AVAILABLE}
               onKeyDown={e=>e.key==='Enter'&&AUTH_AVAILABLE&&handleAuthSubmit()}/>
+            {authScreen === 'login' && (
+              <button onClick={()=>{setAuthScreen('forgot');setAuthErr('');setResetSent(false);}}
+                style={{background:'none',border:'none',color:'rgba(255,255,255,0.35)',fontSize:'0.72rem',cursor:'pointer',textAlign:'right',width:'100%',padding:'0 0 8px',fontFamily:'inherit',display:'block'}}>
+                {t('forgotPassword')}
+              </button>
+            )}
             {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:12,lineHeight:1.45}}>{authErr}</div>}
             <button onClick={handleAuthSubmit} disabled={!AUTH_AVAILABLE||authBusy}
               style={{background:AUTH_AVAILABLE?'#E8521A':'rgba(255,255,255,0.06)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:AUTH_AVAILABLE?'#fff':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',cursor:AUTH_AVAILABLE&&!authBusy?'pointer':'not-allowed',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
@@ -1293,6 +1355,71 @@ export default function App() {
           <button onClick={()=>{setAuthScreen(null);setAuthEmail('');}}
             style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,padding:'11px 24px',color:'rgba(255,255,255,0.4)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.82rem'}}>
             {lang==='de'?'Zurück':'Back'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Forgot Password screen ─────────────────────────────────────── */}
+      {authScreen === 'forgot' && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:500,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px'}}>
+          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}>
+            <span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span>
+          </div>
+          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:32}}/>
+          {resetSent ? (<>
+            <div style={{fontSize:'3rem',marginBottom:16}}>📬</div>
+            <div style={{fontSize:'1.25rem',fontWeight:800,color:'#F0EDE8',textAlign:'center',marginBottom:10}}>{t('resetEmailSent')}</div>
+            <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.5)',textAlign:'center',lineHeight:1.75,maxWidth:310,marginBottom:28}}>{t('resetEmailDesc')}</div>
+            <button onClick={()=>{setAuthScreen('login');setResetSent(false);setAuthEmail('');}}
+              style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px 28px',fontSize:'0.88rem',fontWeight:700,color:'#fff',fontFamily:'inherit',cursor:'pointer'}}>
+              {t('backToSignIn')}
+            </button>
+          </>) : (<>
+            <div style={{fontSize:'3rem',marginBottom:16}}>🔑</div>
+            <div style={{fontSize:'1.25rem',fontWeight:800,color:'#F0EDE8',textAlign:'center',marginBottom:8}}>{t('resetPassword')}</div>
+            <div style={{fontSize:'0.8rem',color:'rgba(255,255,255,0.4)',textAlign:'center',marginBottom:24,maxWidth:290}}>
+              {lang==='de'?'Gib deine E-Mail ein. Wir senden dir einen Link zum Zurücksetzen.':'Enter your email. We\'ll send you a reset link.'}
+            </div>
+            <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email"
+              placeholder={t('emailPlaceholder')} autoComplete="email"
+              style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',maxWidth:340,boxSizing:'border-box',marginBottom:10,outline:'none'}}
+              onKeyDown={e=>{if(e.key==='Enter')handleForgotSubmit();}}/>
+            {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:10,maxWidth:340,textAlign:'center'}}>{authErr}</div>}
+            <button onClick={handleForgotSubmit} disabled={authBusy}
+              style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',maxWidth:340,cursor:authBusy?'wait':'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              {authBusy?<Spinner/>:t('sendResetLink')}
+            </button>
+            <button onClick={()=>{setAuthScreen('login');setAuthErr('');}}
+              style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:'0.75rem',cursor:'pointer',fontFamily:'inherit',padding:'4px'}}>
+              {t('backToSignIn')}
+            </button>
+          </>)}
+        </div>
+      )}
+
+      {/* ── Reset Password screen (reached via email link — PASSWORD_RECOVERY) ── */}
+      {authScreen === 'reset-password' && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:500,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px'}}>
+          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}>
+            <span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span>
+          </div>
+          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:32}}/>
+          <div style={{fontSize:'3rem',marginBottom:16}}>🔒</div>
+          <div style={{fontSize:'1.25rem',fontWeight:800,color:'#F0EDE8',textAlign:'center',marginBottom:8}}>{t('createNewPassword')}</div>
+          <div style={{fontSize:'0.8rem',color:'rgba(255,255,255,0.4)',textAlign:'center',marginBottom:24,maxWidth:290}}>
+            {lang==='de'?'Wähle ein neues Passwort für dein Konto.':'Choose a new password for your account.'}
+          </div>
+          <input value={resetPwd} onChange={e=>setResetPwd(e.target.value)} type="password"
+            placeholder={t('newPasswordPlaceholder')} autoComplete="new-password"
+            style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',maxWidth:340,boxSizing:'border-box',marginBottom:10,outline:'none'}}/>
+          <input value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)} type="password"
+            placeholder={t('confirmPasswordPlaceholder')} autoComplete="new-password"
+            style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',maxWidth:340,boxSizing:'border-box',marginBottom:10,outline:'none'}}
+            onKeyDown={e=>{if(e.key==='Enter')handleResetSubmit();}}/>
+          {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:10,maxWidth:340,textAlign:'center'}}>{authErr}</div>}
+          <button onClick={handleResetSubmit} disabled={authBusy}
+            style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',maxWidth:340,cursor:authBusy?'wait':'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+            {authBusy?<Spinner/>:t('updatePassword')}
           </button>
         </div>
       )}

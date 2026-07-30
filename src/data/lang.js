@@ -61,6 +61,8 @@ const KEYS = [
   'renewsAutomatically','proUnlocked','privacyPolicy','termsOfService','support',
   'yearlyBestValue','save33','perYear','perMonth','monthlyPlanLabel','yearlyEquivalent',
   'backBtn','activeSubYearly','activeSubMonthly','activeSub','freePlan','aiDiagnosisLabel',
+  // Forgot / reset password flow
+  'forgotPassword','resetPassword','resetEmailSent','resetEmailDesc','sendResetLink','backToSignIn','createNewPassword','newPasswordPlaceholder','confirmPasswordPlaceholder','passwordsNoMatch','passwordUpdated','updatePassword',
 ];
 
 // ─── TRANSLATIONS ─────────────────────────────────────────────────────────────
@@ -227,6 +229,19 @@ T.en = {
   activeSub:'Active subscription',
   freePlan:'Free · 1 free diagnosis',
   aiDiagnosisLabel:'AI-generated guidance',
+  // Forgot / reset password
+  forgotPassword:'Forgot password?',
+  resetPassword:'Reset Password',
+  resetEmailSent:'Check your email',
+  resetEmailDesc:'If an account exists for that email, we sent a reset link. Check your inbox and spam folder.',
+  sendResetLink:'Send reset link',
+  backToSignIn:'Back to Sign In',
+  createNewPassword:'Create new password',
+  newPasswordPlaceholder:'New password (min. 6 chars)',
+  confirmPasswordPlaceholder:'Confirm new password',
+  passwordsNoMatch:'Passwords do not match',
+  passwordUpdated:'Password updated — please sign in',
+  updatePassword:'Update password',
 };
 
 T.de = {
@@ -393,6 +408,19 @@ T.de = {
   activeSub:'Aktives Abonnement',
   freePlan:'Free · 1 kostenlose Diagnose',
   aiDiagnosisLabel:'KI-generierte Anleitung',
+  // Forgot / reset password
+  forgotPassword:'Passwort vergessen?',
+  resetPassword:'Passwort zurücksetzen',
+  resetEmailSent:'Überprüfe deine E-Mail',
+  resetEmailDesc:'Falls ein Konto mit dieser E-Mail existiert, haben wir einen Link gesendet. Prüfe Posteingang und Spam.',
+  sendResetLink:'Link senden',
+  backToSignIn:'Zurück zur Anmeldung',
+  createNewPassword:'Neues Passwort erstellen',
+  newPasswordPlaceholder:'Neues Passwort (min. 6 Zeichen)',
+  confirmPasswordPlaceholder:'Neues Passwort bestätigen',
+  passwordsNoMatch:'Passwörter stimmen nicht überein',
+  passwordUpdated:'Passwort aktualisiert — bitte anmelden',
+  updatePassword:'Passwort aktualisieren',
 };
 
 T.fr = {
@@ -557,6 +585,19 @@ T.fr = {
   activeSub:'Abonnement actif',
   freePlan:'Gratuit · 1 diagnostic gratuit',
   aiDiagnosisLabel:'Conseils générés par IA',
+  // Forgot / reset password
+  forgotPassword:'Mot de passe oublié ?',
+  resetPassword:'Réinitialiser le mot de passe',
+  resetEmailSent:'Vérifiez votre e-mail',
+  resetEmailDesc:'Si un compte existe pour cet e-mail, nous avons envoyé un lien. Vérifiez votre boîte de réception et les spams.',
+  sendResetLink:'Envoyer le lien',
+  backToSignIn:'Retour à la connexion',
+  createNewPassword:'Créer un nouveau mot de passe',
+  newPasswordPlaceholder:'Nouveau mot de passe (6 car. min.)',
+  confirmPasswordPlaceholder:'Confirmer le nouveau mot de passe',
+  passwordsNoMatch:'Les mots de passe ne correspondent pas',
+  passwordUpdated:'Mot de passe mis à jour — veuillez vous connecter',
+  updatePassword:'Mettre à jour le mot de passe',
 };
 
 T.es = {
@@ -720,6 +761,19 @@ T.es = {
   activeSub:'Suscripción activa',
   freePlan:'Gratis · 1 diagnóstico gratis',
   aiDiagnosisLabel:'Guía generada por IA',
+  // Forgot / reset password
+  forgotPassword:'¿Olvidaste tu contraseña?',
+  resetPassword:'Restablecer contraseña',
+  resetEmailSent:'Revisa tu correo',
+  resetEmailDesc:'Si existe una cuenta para ese correo, enviamos un enlace. Revisa tu bandeja de entrada y spam.',
+  sendResetLink:'Enviar enlace',
+  backToSignIn:'Volver al inicio de sesión',
+  createNewPassword:'Crear nueva contraseña',
+  newPasswordPlaceholder:'Nueva contraseña (mín. 6 car.)',
+  confirmPasswordPlaceholder:'Confirmar nueva contraseña',
+  passwordsNoMatch:'Las contraseñas no coinciden',
+  passwordUpdated:'Contraseña actualizada — inicia sesión',
+  updatePassword:'Actualizar contraseña',
 };
 
 T.it = {
@@ -883,6 +937,19 @@ T.it = {
   activeSub:'Abbonamento attivo',
   freePlan:'Gratuito · 1 diagnosi gratuita',
   aiDiagnosisLabel:'Guida generata da IA',
+  // Forgot / reset password
+  forgotPassword:'Password dimenticata?',
+  resetPassword:'Reimposta password',
+  resetEmailSent:'Controlla la tua email',
+  resetEmailDesc:"Se esiste un account per quell'email, abbiamo inviato un link. Controlla la posta in arrivo e lo spam.",
+  sendResetLink:'Invia link',
+  backToSignIn:"Torna all'accesso",
+  createNewPassword:'Crea nuova password',
+  newPasswordPlaceholder:'Nuova password (min. 6 car.)',
+  confirmPasswordPlaceholder:'Conferma nuova password',
+  passwordsNoMatch:'Le password non corrispondono',
+  passwordUpdated:'Password aggiornata — accedi',
+  updatePassword:'Aggiorna password',
 };
 
 T.pl = {
@@ -1046,6 +1113,19 @@ T.pl = {
   activeSub:'Aktywna subskrypcja',
   freePlan:'Bezpłatny · 1 darmowa diagnoza',
   aiDiagnosisLabel:'Wskazówki generowane przez AI',
+  // Forgot / reset password
+  forgotPassword:'Nie pamiętasz hasła?',
+  resetPassword:'Zresetuj hasło',
+  resetEmailSent:'Sprawdź swoją skrzynkę',
+  resetEmailDesc:'Jeśli konto istnieje dla tego e-maila, wysłaliśmy link. Sprawdź skrzynkę i folder spam.',
+  sendResetLink:'Wyślij link',
+  backToSignIn:'Wróć do logowania',
+  createNewPassword:'Utwórz nowe hasło',
+  newPasswordPlaceholder:'Nowe hasło (min. 6 znaków)',
+  confirmPasswordPlaceholder:'Potwierdź nowe hasło',
+  passwordsNoMatch:'Hasła nie pasują do siebie',
+  passwordUpdated:'Hasło zaktualizowane — zaloguj się',
+  updatePassword:'Zaktualizuj hasło',
 };
 
 T.sr = {
@@ -1209,6 +1289,19 @@ T.sr = {
   activeSub:'Aktivna pretplata',
   freePlan:'Besplatno · 1 besplatna dijagnoza',
   aiDiagnosisLabel:'Uputstvo generisano od AI',
+  // Forgot / reset password
+  forgotPassword:'Zaboravili ste lozinku?',
+  resetPassword:'Resetuj lozinku',
+  resetEmailSent:'Proveri svoju e-poštu',
+  resetEmailDesc:'Ako postoji nalog za tu e-poštu, poslali smo link. Proveri pristiglu poštu i spam.',
+  sendResetLink:'Pošalji link',
+  backToSignIn:'Nazad na prijavu',
+  createNewPassword:'Napravi novu lozinku',
+  newPasswordPlaceholder:'Nova lozinka (min. 6 znakova)',
+  confirmPasswordPlaceholder:'Potvrdi novu lozinku',
+  passwordsNoMatch:'Lozinke se ne podudaraju',
+  passwordUpdated:'Lozinka ažurirana — prijavite se',
+  updatePassword:'Ažuriraj lozinku',
 };
 
 T.hr = {
@@ -1372,6 +1465,19 @@ T.hr = {
   activeSub:'Aktivna pretplata',
   freePlan:'Besplatno · 1 besplatna dijagnoza',
   aiDiagnosisLabel:'Uputa generirana od AI',
+  // Forgot / reset password
+  forgotPassword:'Zaboravili ste lozinku?',
+  resetPassword:'Resetiraj lozinku',
+  resetEmailSent:'Provjeri svoju e-poštu',
+  resetEmailDesc:'Ako postoji račun za tu e-poštu, poslali smo link. Provjeri pristiglu poštu i neželjenu poštu.',
+  sendResetLink:'Pošalji link',
+  backToSignIn:'Natrag na prijavu',
+  createNewPassword:'Stvori novu lozinku',
+  newPasswordPlaceholder:'Nova lozinka (min. 6 znakova)',
+  confirmPasswordPlaceholder:'Potvrdi novu lozinku',
+  passwordsNoMatch:'Lozinke se ne podudaraju',
+  passwordUpdated:'Lozinka ažurirana — prijavite se',
+  updatePassword:'Ažuriraj lozinku',
 };
 
 T.mk = {
@@ -1535,6 +1641,19 @@ T.mk = {
   activeSub:'Активна претплата',
   freePlan:'Бесплатно · 1 бесплатна дијагноза',
   aiDiagnosisLabel:'Упатство генерирано од AI',
+  // Forgot / reset password
+  forgotPassword:'Ја заборавивте лозинката?',
+  resetPassword:'Ресетирај ја лозинката',
+  resetEmailSent:'Провери ја е-поштата',
+  resetEmailDesc:'Ако постои сметка за таа е-пошта, испративме линк. Провери ја пристигнатата пошта и спам.',
+  sendResetLink:'Испрати линк',
+  backToSignIn:'Назад кон најава',
+  createNewPassword:'Создај нова лозинка',
+  newPasswordPlaceholder:'Нова лозинка (мин. 6 знаци)',
+  confirmPasswordPlaceholder:'Потврди нова лозинка',
+  passwordsNoMatch:'Лозинките не се совпаѓаат',
+  passwordUpdated:'Лозинката е ажурирана — најавете се',
+  updatePassword:'Ажурирај лозинка',
 };
 
 T.tr = {
@@ -1698,6 +1817,19 @@ T.tr = {
   activeSub:'Aktif abonelik',
   freePlan:'Ücretsiz · 1 ücretsiz tanı',
   aiDiagnosisLabel:'Yapay zeka tarafından oluşturulan rehber',
+  // Forgot / reset password
+  forgotPassword:'Şifrenizi mi unuttunuz?',
+  resetPassword:'Şifreyi sıfırla',
+  resetEmailSent:'E-postanı kontrol et',
+  resetEmailDesc:'Bu e-posta için bir hesap varsa, sıfırlama bağlantısı gönderdik. Gelen kutusu ve spam klasörünü kontrol et.',
+  sendResetLink:'Bağlantı gönder',
+  backToSignIn:'Girişe dön',
+  createNewPassword:'Yeni şifre oluştur',
+  newPasswordPlaceholder:'Yeni şifre (en az 6 karakter)',
+  confirmPasswordPlaceholder:'Yeni şifreyi onayla',
+  passwordsNoMatch:'Şifreler eşleşmiyor',
+  passwordUpdated:'Şifre güncellendi — giriş yapın',
+  updatePassword:'Şifreyi güncelle',
 };
 
 // ─── VERIFY ALL LANGUAGES HAVE ALL KEYS ──────────────────────────────────────
