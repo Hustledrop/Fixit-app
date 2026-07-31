@@ -49,9 +49,10 @@ create table if not exists public.profiles (
   is_pro             boolean     not null default false,
   plan               text,                          -- 'monthly' | 'yearly' | null
   stripe_customer_id text,                          -- written by webhook only
-  cancel_at          timestamptz,                   -- set when cancel_at_period_end=true; null when active
-  created_at         timestamptz not null default now(),
-  updated_at         timestamptz not null default now()
+  cancel_at              timestamptz,   -- set when cancel_at_period_end=true; null when active
+  free_trial_completed_at timestamptz,  -- null = trial not yet used; populated = trial done (account-scoped)
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now()
 );
 
 -- Index used by webhook: .update(...).eq('stripe_customer_id', customerId)
@@ -359,7 +360,15 @@ BEGIN
          updated_at      = now()
    WHERE user_id = p_user_id;
 
-  RETURN jsonb_build_object('consumed', true, 'is_pro', false, 'new_count', v_count + 1);
+  -- Stamp the free trial completion time on the profile (account-scoped, survives device changes).
+  -- This is what the frontend derives freeRepairActive from — never localStorage.
+  UPDATE public.profiles
+     SET free_trial_completed_at = COALESCE(free_trial_completed_at, now()),
+         updated_at              = now()
+   WHERE id = p_user_id;
+
+  RETURN jsonb_build_object('consumed', true, 'is_pro', false, 'new_count', v_count + 1,
+                            'free_trial_completed_at', now());
 END;
 $$;
 

@@ -172,7 +172,10 @@ export default function App() {
   const [hsnModel, setHsnModel]     = useState(''); // extra model field when HSN/TSN entered
   const [mapCat, setMapCat]       = useState('garage');
   // ── Auth / paywall state ──────────────────────────────────────────────────
-  const [freeLimitHit,  setFreeLimitHit]  = useState(false); // paywall overlay
+  const [freeLimitHit,      setFreeLimitHit]      = useState(false); // paywall overlay
+  const [freeRepairActive,  setFreeRepairActive]  = useState(false); // unlocks parts+nearby during free session
+  const [freeRepairDone,    setFreeRepairDone]    = useState(false); // celebration screen after free trial ends
+  const [showInstallModal,  setShowInstallModal]  = useState(false); // iOS install instructions
   const [authScreen,    setAuthScreen]    = useState(null);  // null|'login'|'signup'|'account'
   const [authEmail,     setAuthEmail]     = useState('');
   const [authPwd,       setAuthPwd]       = useState('');
@@ -323,7 +326,7 @@ export default function App() {
   // but this defence-in-depth check ensures no API call fires even if state
   // becomes inconsistent (e.g. Pro subscription lapsed between renders).
   useEffect(() => {
-    if (screen === 'nearby' && lat && lng && user && isPro) {
+    if (screen === 'nearby' && lat && lng && user && (isPro || freeRepairActive)) {
       fetchBiz(mapCat, lat, lng, nearbyForce, city, country);
       if (nearbyForce) setNearbyForce(false);
     }
@@ -389,10 +392,10 @@ export default function App() {
         setAuthScreen('login');
         return;
       }
-      if (!isPro) {
-        // Authenticated free user: show upgrade paywall
-        setPaywallSource(s === 'nearby' ? 'nearby' : 'parts');
-        setFreeLimitHit(true);
+      if (!isPro && !freeRepairActive) {
+        const alreadyUsed = authProfile?.free_trial_completed_at;
+        if (alreadyUsed) { setFreeRepairDone(true); }
+        else { setPaywallSource(s === 'nearby' ? 'nearby' : 'parts'); setFreeLimitHit(true); }
         return;
       }
     }
@@ -508,7 +511,7 @@ export default function App() {
       if (!isPro && AUTH_AVAILABLE) {
         // Authenticated free user: check Supabase usage (server is authoritative)
         const usage = await checkUsage(user.id);
-        if (usage && !usage.allowed) { setPaywallSource('diagnosis'); setFreeLimitHit(true); return; }
+        if (usage && !usage.allowed) { setFreeRepairActive(false); setFreeRepairDone(true); return; }
       }
     }
     // For preset taps OR text-only runs: clear any stale photo state
@@ -586,9 +589,13 @@ export default function App() {
 
     // ── Mark free diagnosis as used ──────────────────────────────────────
     if (!result.callPro && !result._fallback) {
-      LS.set('free_diagnosis_used', true);
+      LS.set('free_diagnosis_used', true); // cosmetic cache only — server record is authoritative
       if (user && AUTH_AVAILABLE && !isPro) {
         incrementUsage(user.id).catch(() => {});
+        setFreeRepairActive(true); // immediate UI unlock for this session
+        // Refresh profile so authProfile.free_trial_completed_at is populated.
+        // The useEffect watching authProfile will confirm freeRepairActive on next render.
+        refreshProfile && refreshProfile();
       }
     }
 
@@ -1158,6 +1165,22 @@ export default function App() {
     }
   }, [authEvent]);
 
+  // ── Derive free trial state from Supabase profile (account-scoped) ──────────
+  // Runs whenever the profile is loaded or refreshed.
+  // This is the ONLY authoritative source — localStorage is never consulted for this decision.
+  useEffect(() => {
+    if (authProfile && !isPro) {
+      if (authProfile.free_trial_completed_at) {
+        // Trial has been used on this account (on any device) — activate the session flag
+        setFreeRepairActive(true);
+      }
+    } else if (!authProfile) {
+      // Signed out — clear trial state
+      setFreeRepairActive(false);
+      setFreeRepairDone(false);
+    }
+  }, [authProfile, isPro]);
+
   // ── Check Stripe redirect on app load ────────────────────────────────────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1328,7 +1351,7 @@ export default function App() {
                     // usage, history, or navigation state from the previous account.
                     setAuthScreen(null);
                     setDeleteConfirm(false);
-                    setFreeLimitHit(false);
+                    setFreeLimitHit(false); setFreeRepairActive(false); setFreeRepairDone(false);
                     setScreen('home');
                     setNavStack([]);
                     // Clear the per-device free-diagnosis key so a new account
@@ -1387,6 +1410,80 @@ export default function App() {
             style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,padding:'11px 24px',color:'rgba(255,255,255,0.4)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.82rem'}}>
             {lang==='de'?'Zurück':'Back'}
           </button>
+        </div>
+      )}
+
+      {/* ── Free repair completed ─────────────────────────────────── */}
+      {freeRepairDone && !isPro && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:490,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-start',overflowY:'auto',padding:'40px 24px 32px'}}>
+          <div style={{width:'100%',maxWidth:400}}>
+            <div style={{textAlign:'center',marginBottom:24}}>
+              <div style={{fontSize:'2.8rem',marginBottom:10}}>🎉</div>
+              <div style={{fontSize:'1.4rem',fontWeight:900,color:'#F0EDE8',letterSpacing:'-0.02em',marginBottom:8,lineHeight:1.2}}>
+                {lang==='de'?'Kostenlose Reparatur abgeschlossen!':'Free repair complete!'}
+              </div>
+              <div style={{fontSize:'0.83rem',color:'rgba(255,255,255,0.48)',lineHeight:1.6,maxWidth:290,margin:'0 auto'}}>
+                {lang==='de'?'Du hast alles erlebt, was FixIt zu bieten hat. Hole dir Pro fuer unbegrenzte Reparaturen.':'You have experienced everything FixIt can do. Upgrade to Pro for unlimited repairs.'}
+              </div>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+              <div style={{fontSize:'0.65rem',fontWeight:700,color:'rgba(255,255,255,0.28)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{lang==='de'?'Abgeschlossen':'Completed'}</div>
+              {['AI diagnosis','Repair guide','Repair steps','Required parts','Nearby stores'].map((v,i)=>(
+                <div key={i} style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.62)',padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>{'✅ '}{v}</div>
+              ))}
+            </div>
+            <div style={{background:'rgba(232,82,26,0.07)',border:'1px solid rgba(232,82,26,0.22)',borderRadius:12,padding:'14px 16px',marginBottom:18}}>
+              <div style={{fontSize:'0.65rem',fontWeight:700,color:'rgba(232,82,26,0.55)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{lang==='de'?'Mit Pro freischalten':'Unlock with Pro'}</div>
+              {[lang==='de'?'Unbegrenzte KI-Diagnosen':'Unlimited AI diagnoses',lang==='de'?'Unbegrenzte Reparaturanleitungen':'Unlimited repair guides',lang==='de'?'Unbegrenzte Teile-Suche':'Unlimited parts lookup',lang==='de'?'Unbegrenzte Werkstaetten-Suche':'Unlimited nearby stores',lang==='de'?'Zukuenftige Premium-KI-Funktionen':'Future premium AI features'].map((v,i)=>(
+                <div key={i} style={{fontSize:'0.82rem',color:'rgba(232,82,26,0.78)',padding:'3px 0',borderBottom:'1px solid rgba(232,82,26,0.07)'}}>{'🔓 '}{v}</div>
+              ))}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:10}}>
+              <button onClick={()=>startCheckout('yearly')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.2),rgba(232,82,26,0.09))',border:'2px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left'}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{fontSize:'0.63rem',fontWeight:700,color:'rgba(232,82,26,0.78)',textTransform:'uppercase',letterSpacing:'0.08em'}}>{t('yearlyBestValue')}</span><span style={{fontSize:'0.6rem',background:'rgba(232,82,26,0.18)',border:'1px solid rgba(232,82,26,0.32)',borderRadius:20,padding:'2px 6px',color:'rgba(232,82,26,0.82)',fontWeight:700}}>{t('save33')}</span></div>
+                <div><span style={{fontSize:'1.4rem',fontWeight:900}}>€39.99</span><span style={{fontSize:'0.73rem',opacity:0.5}}>/{t('perYear')}</span></div>
+                <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.38)',marginTop:2}}>{t('yearlyEquivalent')}</div>
+              </button>
+              <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left'}}>
+                <div style={{fontSize:'0.63rem',fontWeight:700,color:'rgba(255,255,255,0.32)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{t('monthlyPlanLabel')}</div>
+                <div><span style={{fontSize:'1.32rem',fontWeight:800}}>€4.99</span><span style={{fontSize:'0.73rem',opacity:0.5}}>/{t('perMonth')}</span></div>
+              </button>
+            </div>
+            <div style={{fontSize:'0.67rem',color:'rgba(255,255,255,0.28)',textAlign:'center',marginBottom:14}}>{t('renewsAutomatically')}</div>
+            <button onClick={()=>setFreeRepairDone(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.28)',fontSize:'0.74rem',cursor:'pointer',fontFamily:'inherit',width:'100%',textAlign:'center',padding:'6px'}}>
+              {lang==='de'?'Zur letzten Reparatur zurueck':'Back to last repair'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── iOS install instructions modal ───────────────────────────── */}
+      {showInstallModal && (
+        <div onClick={()=>setShowInstallModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:600,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 0 32px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#1C1A1F',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'16px 16px 16px 16px',padding:'24px 24px 28px',width:'100%',maxWidth:380,margin:'0 16px'}}>
+            <div style={{fontSize:'1.05rem',fontWeight:800,color:'#F0EDE8',marginBottom:6,textAlign:'center'}}>
+              {lang==='de'?'FixIt installieren':'Install FixIt'}
+            </div>
+            <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.4)',textAlign:'center',marginBottom:20}}>
+              {lang==='de'?'Safari on iPhone / iPad':'Safari on iPhone / iPad'}
+            </div>
+            {[
+              {icon:'1️⃣', label: lang==='de'?'Tippe auf das Teilen-Symbol unten in Safari':'Tap the Share button at the bottom of Safari'},
+              {icon:'2️⃣', label: lang==='de'?'Waehle "Zum Home-Bildschirm hinzufuegen"':'Choose "Add to Home Screen"'},
+              {icon:'3️⃣', label: lang==='de'?'Tippe oben rechts auf "Hinzufuegen"':'Tap "Add" in the top right'},
+            ].map((step,i)=>(
+              <div key={i} style={{display:'flex',gap:12,alignItems:'flex-start',marginBottom:14}}>
+                <span style={{fontSize:'1.4rem',flexShrink:0}}>{step.icon}</span>
+                <div style={{fontSize:'0.83rem',color:'rgba(255,255,255,0.7)',lineHeight:1.5,paddingTop:2}}>{step.label}</div>
+              </div>
+            ))}
+            <div style={{background:'rgba(232,82,26,0.08)',borderRadius:8,padding:'10px 12px',marginBottom:18,fontSize:'0.75rem',color:'rgba(232,82,26,0.7)',textAlign:'center'}}>
+              {lang==='de'?'Das App-Symbol erscheint auf deinem Home-Bildschirm':'The app icon will appear on your Home Screen'}
+            </div>
+            <button onClick={()=>setShowInstallModal(false)} style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,padding:'11px',color:'rgba(255,255,255,0.6)',fontFamily:'inherit',fontSize:'0.85rem',cursor:'pointer'}}>
+              {lang==='de'?'Schliessen':'Close'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1560,7 +1657,11 @@ export default function App() {
       {/* PWA install banner */}
       {showPWA && <div style={{background:'rgba(232,82,26,0.1)',borderBottom:`1px solid ${C.b}`,padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
         <div style={{flex:1,fontSize:'0.78rem'}}>📲 {lang==='de'?'FixIt installieren für schnelleren Zugriff':lang==='tr'?'Daha hızlı erişim için FixIt yükle':lang==='pl'?'Zainstaluj FixIt dla szybszego dostępu':'Install FixIt for faster access'}</div>
-        <button onClick={()=>{if(pwaPrompt.current){pwaPrompt.current.prompt();pwaPrompt.current=null;}LS.set('pwa_dismissed',true);setShowPWA(false);}} style={{background:C.o,border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:'0.72rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Install</button>
+        <button onClick={()=>{
+                const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+                if(isIOS){setShowInstallModal(true);}
+                else if(pwaPrompt.current){pwaPrompt.current.prompt();pwaPrompt.current=null;LS.set('pwa_dismissed',true);setShowPWA(false);}
+              }} style={{background:C.o,border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:'0.72rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{/iPad|iPhone|iPod/.test(navigator.userAgent)?'How?':'Install'}</button>
         <button onClick={()=>{LS.set('pwa_dismissed',true);setShowPWA(false);}} style={{background:'none',border:'none',color:C.m,fontSize:'0.78rem',cursor:'pointer',fontFamily:'inherit'}}>✕</button>
       </div>}
       <div style={{background:'linear-gradient(160deg,#1f0c00,#0A0908 65%)',padding:'52px 20px 20px',flexShrink:0}}>
@@ -1992,7 +2093,7 @@ export default function App() {
                        const cq2 = cleanProductSearchQuery(p,'',cat2,'','');
                        setPInput(cq2); setVInput(''); setHsnModel(''); setVType(cat2);
                        setPResults({ q: cq2, vehicle: '', hsnModel: '', searchQ: cq2, isHSN: false, category: cat2, fromDiagnosis: true });
-                      if (!user) { setAuthScreen('login'); } else if (isPro) { goto('parts'); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
+                      if (!user) { setAuthScreen('login'); } else if (isPro || freeRepairActive) { goto('parts'); } else if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
                     }} style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(232,82,26,0.12)',color:C.o,border:'1px solid rgba(232,82,26,0.2)',cursor:'pointer',margin:3}}>{p} →</span>)}</div>
               <div style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.25)',marginTop:8,lineHeight:1.5}}>
                 {r._vehicleCtx ? (
@@ -2056,7 +2157,7 @@ export default function App() {
                   // Pre-populate pResults so parts are immediately visible
                   const fullSearchQ = diagQuery; // vehicle already in diagQuery via ensureVehicle
                   setPResults({ q: diagQuery, vehicle: vehicleLabel, hsnModel: '', searchQ: fullSearchQ, isHSN: false, category: cat, fromDiagnosis: true, vehicleCtx: detectedVehicle });
-                  if (!user) { setAuthScreen('login'); } else if (isPro) { goto('parts'); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
+                  if (!user) { setAuthScreen('login'); } else if (isPro || freeRepairActive) { goto('parts'); } else if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
                 }} style={s.btn}>{ct.partsBtn}</button>
                 <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
@@ -2248,11 +2349,9 @@ export default function App() {
       setScreen('home');
       return null;
     }
-    if (!isPro) {
-      setPaywallSource('nearby');
-      setFreeLimitHit(true);
-      setScreen('home');
-      return null;
+    if (!isPro && !freeRepairActive) {
+      if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('nearby'); setFreeLimitHit(true); }
+      setScreen('home'); return null;
     }
     const catLabels={garage:t('catGarage'),parts:t('catParts'),tyres:t('catTyres'),petrol:t('catPetrol'),hardware:t('catHardware'),vet:t('catVet'),it:t('catIT'),moto:t('motorcycle')};
     // Category-specific Google Maps search terms (correct service type, not product)
@@ -2407,11 +2506,9 @@ export default function App() {
       setScreen('home');
       return null;
     }
-    if (!isPro) {
-      setPaywallSource('parts');
-      setFreeLimitHit(true);
-      setScreen('home');
-      return null;
+    if (!isPro && !freeRepairActive) {
+      if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
+      setScreen('home'); return null;
     }
     const localStores      = getStores(vType, cc);          // category-specific ONLINE stores
     const onlineStores     = getOnlineStores(cc);            // generic Amazon/eBay/Idealo

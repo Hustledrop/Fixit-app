@@ -118,22 +118,48 @@ async function verifyAndCheckEntitlement(authHeader) {
 //   1. verifyAndCheckEntitlement — read-only check (no DB write)
 //   2. AI call runs
 //   3. consumeFreeSlot — atomic increment only on success
+// consumeFreeSlot — atomically increments the usage counter.
+// Returns one of three outcomes so the caller can act correctly:
+//   'consumed'      — slot taken, response should be delivered
+//   'already_taken' — concurrent request already consumed the slot (race); block this response
+//   'error'         — DB error; caller decides (currently: allow, log)
 async function consumeFreeSlot(userId) {
-  if (!SUPABASE_URL || !SUPABASE_SVC) return;
+  if (!SUPABASE_URL || !SUPABASE_SVC) {
+    console.error('[diagnose] consumeFreeSlot: missing env — cannot verify slot');
+    return 'error';
+  }
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const adminSb = createClient(SUPABASE_URL, SUPABASE_SVC, { auth: { persistSession: false } });
 
-    const { error } = await adminSb.rpc('admin_consume_diagnosis', { p_user_id: userId });
+    const { data, error } = await adminSb.rpc('admin_consume_diagnosis', { p_user_id: userId });
     if (error) {
-      // Non-fatal: log but don't block the response
-      console.error('[diagnose] consumeFreeSlot RPC error:', error.message,
-        '— user may get an extra diagnosis, will be corrected next check');
-    } else {
-      console.log(`[diagnose] free slot consumed for userId=${userId}`);
+      console.error('[diagnose] consumeFreeSlot RPC error:', error.message);
+      return 'error';
     }
+
+    // data is the jsonb returned by the function:
+    //   { consumed: true,  new_count: 1 }                    → slot taken by this request
+    //   { consumed: false, already_at_limit: true, count: 1 } → another concurrent request won
+    //   { consumed: false, is_pro: true }                     → user upgraded between check and commit
+    if (data?.consumed === true) {
+      console.log(`[diagnose] ✅ free slot consumed userId=${userId} new_count=${data.new_count}`);
+      return 'consumed';
+    }
+    if (data?.already_at_limit) {
+      console.warn(`[diagnose] RACE DETECTED: slot already taken for userId=${userId} count=${data.count} — blocking duplicate response`);
+      return 'already_taken';
+    }
+    if (data?.is_pro) {
+      // User upgraded between the entitlement check and the commit — treat as Pro, allow
+      console.log(`[diagnose] user upgraded mid-request userId=${userId} — slot not consumed (Pro)`);
+      return 'consumed'; // allow the response; they are now Pro
+    }
+    console.warn('[diagnose] consumeFreeSlot unexpected RPC result:', JSON.stringify(data));
+    return 'error';
   } catch (err) {
     console.error('[diagnose] consumeFreeSlot threw:', err.message);
+    return 'error';
   }
 }
 
@@ -559,8 +585,25 @@ module.exports = async function handler(req, res) {
   // This is the only place consumeFreeSlot is called.
   // Pro users: isPro=true → skip (no-op check inside consumeFreeSlot would be wasteful,
   //            so we check here before calling).
+  let freeTrialJustCompleted = false;
   if (!isPro) {
-    await consumeFreeSlot(userId);
+    const slotResult = await consumeFreeSlot(userId);
+    if (slotResult === 'already_taken') {
+      // A concurrent request from the same user (double-tap, two tabs, two devices)
+      // already consumed the free slot. The FOR UPDATE lock in admin_consume_diagnosis
+      // serialised the two SQL transactions and the second one lost.
+      // We must NOT deliver this AI response — doing so would give two free repairs.
+      console.warn(`[diagnose] BLOCKING duplicate response for userId=${userId} — free slot was already consumed by a concurrent request`);
+      return res.status(403).json({
+        error:   'free_limit_reached',
+        message: 'Free diagnosis limit reached. Upgrade to Pro for unlimited diagnoses.',
+        version: DEPLOY_VERSION,
+      });
+    }
+    // 'consumed' → slot taken normally; 'error' → allow (conservative: don't punish DB errors)
+    if (slotResult === 'consumed') {
+      freeTrialJustCompleted = true;
+    }
   }
 
   // ── Post-process + return ─────────────────────────────────────────────────
@@ -590,6 +633,9 @@ module.exports = async function handler(req, res) {
 
   parsed._version = DEPLOY_VERSION;
   parsed.globalDisclaimer = getGlobalDisclaimer(lang2);
+  // Client uses this to set freeRepairActive for the current session.
+  // The durable record is in profiles.free_trial_completed_at (server writes it above).
+  if (freeTrialJustCompleted) parsed._freeTrialJustCompleted = true;
   if (vehicleCtx) parsed._vehicleCtx = vehicleCtx;
 
   console.log('[FixIt] RETURNING_RESPONSE dur=%dms conf=%s vehicle=%s userId=%s isPro=%s',

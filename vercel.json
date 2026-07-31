@@ -24,11 +24,37 @@
   },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/(?!favicon\\.ico|favicon-16x16\\.png|favicon-32x32\\.png|apple-touch-icon\\.png|icon-192\\.png|icon-512\\.png|manifest\\.json|sw\\.js|assets/).*",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/favicon.ico",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        },
+        {
+          "key": "Content-Type",
+          "value": "image/x-icon"
+        }
+      ]
+    },
+    {
+      "source": "/(favicon\\.ico|favicon-16x16\\.png|favicon-32x32\\.png|apple-touch-icon\\.png|icon-192\\.png|icon-512\\.png)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        },
+        {
+          "key": "Content-Type",
+          "value": "image/png"
+        }
+      ]
+    },
     {
       "source": "/sw.js",
       "headers": [
