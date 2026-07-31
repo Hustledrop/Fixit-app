@@ -61,6 +61,8 @@ const KEYS = [
   'renewsAutomatically','proUnlocked','privacyPolicy','termsOfService','support',
   'yearlyBestValue','save33','perYear','perMonth','monthlyPlanLabel','yearlyEquivalent',
   'backBtn','activeSubYearly','activeSubMonthly','activeSub','freePlan','aiDiagnosisLabel',
+  // Celebration / free trial completion screen
+  'trialCompleteTitle','trialCompleteDesc','trialCompleted','trialDiagnosis','trialGuide','trialSteps','trialParts','trialNearby','trialUnlockWith','trialUnlimitedAI','trialUnlimitedGuides','trialUnlimitedParts','trialUnlimitedNearby','trialFutureAI','trialBackToRepair',
   // Forgot / reset password flow
   'forgotPassword','resetPassword','resetEmailSent','resetEmailDesc','sendResetLink','backToSignIn','createNewPassword','newPasswordPlaceholder','confirmPasswordPlaceholder','passwordsNoMatch','passwordUpdated','updatePassword',
 ];
@@ -242,6 +244,22 @@ T.en = {
   passwordsNoMatch:'Passwords do not match',
   passwordUpdated:'Password updated — please sign in',
   updatePassword:'Update password',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Free repair complete!',
+  trialCompleteDesc:'You have experienced everything FixIt can do. Upgrade to Pro for unlimited repairs.',
+  trialCompleted:'Completed',
+  trialDiagnosis:'AI diagnosis',
+  trialGuide:'Repair guide',
+  trialSteps:'Repair steps',
+  trialParts:'Required parts',
+  trialNearby:'Nearby stores',
+  trialUnlockWith:'Unlock with Pro',
+  trialUnlimitedAI:'Unlimited AI diagnoses',
+  trialUnlimitedGuides:'Unlimited repair guides',
+  trialUnlimitedParts:'Unlimited parts lookup',
+  trialUnlimitedNearby:'Unlimited nearby stores',
+  trialFutureAI:'Future premium AI features',
+  trialBackToRepair:'Back to last repair',
 };
 
 T.de = {
@@ -421,6 +439,22 @@ T.de = {
   passwordsNoMatch:'Passwörter stimmen nicht überein',
   passwordUpdated:'Passwort aktualisiert — bitte anmelden',
   updatePassword:'Passwort aktualisieren',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Kostenlose Reparatur abgeschlossen!',
+  trialCompleteDesc:'Du hast alles erlebt, was FixIt zu bieten hat. Hole dir Pro für unbegrenzte Reparaturen.',
+  trialCompleted:'Abgeschlossen',
+  trialDiagnosis:'KI-Diagnose',
+  trialGuide:'Reparaturanleitung',
+  trialSteps:'Reparaturschritte',
+  trialParts:'Benötigte Ersatzteile',
+  trialNearby:'Werkstätten in der Nähe',
+  trialUnlockWith:'Mit Pro freischalten',
+  trialUnlimitedAI:'Unbegrenzte KI-Diagnosen',
+  trialUnlimitedGuides:'Unbegrenzte Reparaturanleitungen',
+  trialUnlimitedParts:'Unbegrenzte Teile-Suche',
+  trialUnlimitedNearby:'Unbegrenzte Werkstätten-Suche',
+  trialFutureAI:'Zukünftige Premium-KI-Funktionen',
+  trialBackToRepair:'Zur letzten Reparatur zurück',
 };
 
 T.fr = {
@@ -598,6 +632,22 @@ T.fr = {
   passwordsNoMatch:'Les mots de passe ne correspondent pas',
   passwordUpdated:'Mot de passe mis à jour — veuillez vous connecter',
   updatePassword:'Mettre à jour le mot de passe',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Réparation gratuite terminée !',
+  trialCompleteDesc:'Vous avez découvert tout ce que FixIt peut faire. Passez à Pro pour des réparations illimitées.',
+  trialCompleted:'Terminé',
+  trialDiagnosis:'Diagnostic IA',
+  trialGuide:'Guide de réparation',
+  trialSteps:'Étapes de réparation',
+  trialParts:'Pièces nécessaires',
+  trialNearby:'Magasins à proximité',
+  trialUnlockWith:'Débloquer avec Pro',
+  trialUnlimitedAI:'Diagnostics IA illimités',
+  trialUnlimitedGuides:'Guides de réparation illimités',
+  trialUnlimitedParts:'Recherche de pièces illimitée',
+  trialUnlimitedNearby:'Magasins à proximité illimités',
+  trialFutureAI:'Futures fonctionnalités IA premium',
+  trialBackToRepair:'Retour à la dernière réparation',
 };
 
 T.es = {
@@ -774,6 +824,22 @@ T.es = {
   passwordsNoMatch:'Las contraseñas no coinciden',
   passwordUpdated:'Contraseña actualizada — inicia sesión',
   updatePassword:'Actualizar contraseña',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Reparación gratuita completada.',
+  trialCompleteDesc:'Has experimentado todo lo que FixIt puede hacer. Actualiza a Pro para reparaciones ilimitadas.',
+  trialCompleted:'Completado',
+  trialDiagnosis:'Diagnóstico IA',
+  trialGuide:'Guía de reparación',
+  trialSteps:'Pasos de reparación',
+  trialParts:'Repuestos necesarios',
+  trialNearby:'Tiendas cercanas',
+  trialUnlockWith:'Desbloquear con Pro',
+  trialUnlimitedAI:'Diagnósticos IA ilimitados',
+  trialUnlimitedGuides:'Guías de reparación ilimitadas',
+  trialUnlimitedParts:'Búsqueda de repuestos ilimitada',
+  trialUnlimitedNearby:'Tiendas cercanas ilimitadas',
+  trialFutureAI:'Futuras funciones IA premium',
+  trialBackToRepair:'Volver a la última reparación',
 };
 
 T.it = {
@@ -950,6 +1016,22 @@ T.it = {
   passwordsNoMatch:'Le password non corrispondono',
   passwordUpdated:'Password aggiornata — accedi',
   updatePassword:'Aggiorna password',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Riparazione gratuita completata.',
+  trialCompleteDesc:'Hai sperimentato tutto ciò che FixIt può fare. Passa a Pro per riparazioni illimitate.',
+  trialCompleted:'Completato',
+  trialDiagnosis:'Diagnosi IA',
+  trialGuide:'Guida alla riparazione',
+  trialSteps:'Passaggi di riparazione',
+  trialParts:'Ricambi necessari',
+  trialNearby:'Negozi vicini',
+  trialUnlockWith:'Sblocca con Pro',
+  trialUnlimitedAI:'Diagnosi IA illimitate',
+  trialUnlimitedGuides:'Guide di riparazione illimitate',
+  trialUnlimitedParts:'Ricerca ricambi illimitata',
+  trialUnlimitedNearby:'Negozi vicini illimitati',
+  trialFutureAI:'Future funzionalità IA premium',
+  trialBackToRepair:"Torna all'ultima riparazione",
 };
 
 T.pl = {
@@ -1126,6 +1208,22 @@ T.pl = {
   passwordsNoMatch:'Hasła nie pasują do siebie',
   passwordUpdated:'Hasło zaktualizowane — zaloguj się',
   updatePassword:'Zaktualizuj hasło',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Bezpłatna naprawa zakończona.',
+  trialCompleteDesc:'Doświadczyłeś wszystkiego, co FixIt może zaoferować. Przejdź na Pro dla nieograniczonych napraw.',
+  trialCompleted:'Ukończono',
+  trialDiagnosis:'Diagnoza AI',
+  trialGuide:'Poradnik naprawczy',
+  trialSteps:'Kroki naprawcze',
+  trialParts:'Wymagane części',
+  trialNearby:'Sklepy w pobliżu',
+  trialUnlockWith:'Odblokuj z Pro',
+  trialUnlimitedAI:'Nieograniczone diagnozy AI',
+  trialUnlimitedGuides:'Nieograniczone poradniki naprawcze',
+  trialUnlimitedParts:'Nieograniczone wyszukiwanie części',
+  trialUnlimitedNearby:'Nieograniczone sklepy w pobliżu',
+  trialFutureAI:'Przyszłe funkcje AI premium',
+  trialBackToRepair:'Wróć do ostatniej naprawy',
 };
 
 T.sr = {
@@ -1302,6 +1400,22 @@ T.sr = {
   passwordsNoMatch:'Lozinke se ne podudaraju',
   passwordUpdated:'Lozinka ažurirana — prijavite se',
   updatePassword:'Ažuriraj lozinku',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Besplatna popravka završena.',
+  trialCompleteDesc:'Iskusio si sve što FixIt može da uradi. Nadogradi na Pro za neograničene popravke.',
+  trialCompleted:'Završeno',
+  trialDiagnosis:'AI dijagnoza',
+  trialGuide:'Vodič za popravku',
+  trialSteps:'Koraci popravke',
+  trialParts:'Potrebni delovi',
+  trialNearby:'Obližnje prodavnice',
+  trialUnlockWith:'Otključaj sa Pro',
+  trialUnlimitedAI:'Neograničene AI dijagnoze',
+  trialUnlimitedGuides:'Neograničeni vodiči za popravku',
+  trialUnlimitedParts:'Neograničeno traženje delova',
+  trialUnlimitedNearby:'Neograničena pretraga obližnjih prodavnica',
+  trialFutureAI:'Buduće premium AI funkcije',
+  trialBackToRepair:'Nazad na poslednju popravku',
 };
 
 T.hr = {
@@ -1478,6 +1592,22 @@ T.hr = {
   passwordsNoMatch:'Lozinke se ne podudaraju',
   passwordUpdated:'Lozinka ažurirana — prijavite se',
   updatePassword:'Ažuriraj lozinku',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Besplatna popravka dovršena.',
+  trialCompleteDesc:'Iskusio si sve što FixIt može učiniti. Nadogradi na Pro za neograničene popravke.',
+  trialCompleted:'Dovršeno',
+  trialDiagnosis:'AI dijagnoza',
+  trialGuide:'Vodič za popravak',
+  trialSteps:'Koraci popravka',
+  trialParts:'Potrebni dijelovi',
+  trialNearby:'Obližnje trgovine',
+  trialUnlockWith:'Otključaj s Pro',
+  trialUnlimitedAI:'Neograničene AI dijagnoze',
+  trialUnlimitedGuides:'Neograničeni vodiči za popravak',
+  trialUnlimitedParts:'Neograničeno traženje dijelova',
+  trialUnlimitedNearby:'Neograničena pretraga obližnjih trgovina',
+  trialFutureAI:'Buduće premium AI funkcije',
+  trialBackToRepair:'Natrag na zadnju popravku',
 };
 
 T.mk = {
@@ -1654,6 +1784,22 @@ T.mk = {
   passwordsNoMatch:'Лозинките не се совпаѓаат',
   passwordUpdated:'Лозинката е ажурирана — најавете се',
   updatePassword:'Ажурирај лозинка',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Бесплатната поправка е завршена.',
+  trialCompleteDesc:'Го искусивте сето она што FixIt може да го направи. Надградете на Про за неограничени поправки.',
+  trialCompleted:'Завршено',
+  trialDiagnosis:'AI дијагноза',
+  trialGuide:'Водич за поправка',
+  trialSteps:'Чекори за поправка',
+  trialParts:'Потребни делови',
+  trialNearby:'Продавници во близина',
+  trialUnlockWith:'Отклучи со Про',
+  trialUnlimitedAI:'Неограничени AI дијагнози',
+  trialUnlimitedGuides:'Неограничени водичи за поправка',
+  trialUnlimitedParts:'Неограничено пребарување делови',
+  trialUnlimitedNearby:'Неограничено пребарување продавници',
+  trialFutureAI:'Идни премиум AI функции',
+  trialBackToRepair:'Назад кон последната поправка',
 };
 
 T.tr = {
@@ -1830,6 +1976,22 @@ T.tr = {
   passwordsNoMatch:'Şifreler eşleşmiyor',
   passwordUpdated:'Şifre güncellendi — giriş yapın',
   updatePassword:'Şifreyi güncelle',
+  // Celebration / free trial completion screen
+  trialCompleteTitle:'Ücretsiz onarım tamamlandı.',
+  trialCompleteDesc:"FixIt hakkında her şeyi deneyimlediniz. Sınırsız onarım için Pro'ya geçin.",
+  trialCompleted:'Tamamlandı',
+  trialDiagnosis:'Yapay zeka tanısı',
+  trialGuide:'Onarım rehberi',
+  trialSteps:'Onarım adımları',
+  trialParts:'Gerekli parçalar',
+  trialNearby:'Yakın mağazalar',
+  trialUnlockWith:'Pro ile aç',
+  trialUnlimitedAI:'Sınırsız yapay zeka tanısı',
+  trialUnlimitedGuides:'Sınırsız onarım rehberi',
+  trialUnlimitedParts:'Sınırsız parça arama',
+  trialUnlimitedNearby:'Sınırsız yakın mağaza',
+  trialFutureAI:'Gelecekteki premium AI özellikleri',
+  trialBackToRepair:'Son onarıma dön',
 };
 
 // ─── VERIFY ALL LANGUAGES HAVE ALL KEYS ──────────────────────────────────────

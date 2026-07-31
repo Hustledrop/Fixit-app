@@ -406,7 +406,20 @@ export default function App() {
     }
     setScreen(s);
     if (s === 'nearby') {
-      setMapCat('garage');
+      // Set the default nearby category based on the current repair category.
+      // This ensures motorcycle repairs show moto shops, home repairs show
+      // hardware stores, etc. — not always 'garage' (car repair).
+      const nearbyDefault = (
+        curFix === 'car'                              ? 'garage'   :
+        curFix === 'motorcycle' || curFix === 'bike'  ? 'moto'     :
+        curFix === 'home'                             ? 'hardware' :
+        curFix === 'appliances'                       ? 'hardware' :
+        curFix === 'garden'                           ? 'hardware' :
+        curFix === 'tech'                             ? 'it'       :
+        curFix === 'pets'                             ? 'vet'      :
+                                                        'garage'
+      );
+      setMapCat(nearbyDefault);
       setNearbyBump(b => b + 1);
     }
     if (s !== 'result') setFeedback(null);
@@ -1420,22 +1433,22 @@ export default function App() {
             <div style={{textAlign:'center',marginBottom:24}}>
               <div style={{fontSize:'2.8rem',marginBottom:10}}>🎉</div>
               <div style={{fontSize:'1.4rem',fontWeight:900,color:'#F0EDE8',letterSpacing:'-0.02em',marginBottom:8,lineHeight:1.2}}>
-                {lang==='de'?'Kostenlose Reparatur abgeschlossen!':'Free repair complete!'}
+                {t('trialCompleteTitle')}
               </div>
               <div style={{fontSize:'0.83rem',color:'rgba(255,255,255,0.48)',lineHeight:1.6,maxWidth:290,margin:'0 auto'}}>
-                {lang==='de'?'Du hast alles erlebt, was FixIt zu bieten hat. Hole dir Pro fuer unbegrenzte Reparaturen.':'You have experienced everything FixIt can do. Upgrade to Pro for unlimited repairs.'}
+                {t('trialCompleteDesc')}
               </div>
             </div>
             <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'14px 16px',marginBottom:14}}>
-              <div style={{fontSize:'0.65rem',fontWeight:700,color:'rgba(255,255,255,0.28)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{lang==='de'?'Abgeschlossen':'Completed'}</div>
-              {['AI diagnosis','Repair guide','Repair steps','Required parts','Nearby stores'].map((v,i)=>(
-                <div key={i} style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.62)',padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>{'✅ '}{v}</div>
+              <div style={{fontSize:'0.65rem',fontWeight:700,color:'rgba(255,255,255,0.28)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{t('trialCompleted')}</div>
+              {['trialDiagnosis','trialGuide','trialSteps','trialParts','trialNearby'].map((k,i)=>(
+                <div key={i} style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.62)',padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>{'✅ '}{t(k)}</div>
               ))}
             </div>
             <div style={{background:'rgba(232,82,26,0.07)',border:'1px solid rgba(232,82,26,0.22)',borderRadius:12,padding:'14px 16px',marginBottom:18}}>
-              <div style={{fontSize:'0.65rem',fontWeight:700,color:'rgba(232,82,26,0.55)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{lang==='de'?'Mit Pro freischalten':'Unlock with Pro'}</div>
-              {[lang==='de'?'Unbegrenzte KI-Diagnosen':'Unlimited AI diagnoses',lang==='de'?'Unbegrenzte Reparaturanleitungen':'Unlimited repair guides',lang==='de'?'Unbegrenzte Teile-Suche':'Unlimited parts lookup',lang==='de'?'Unbegrenzte Werkstaetten-Suche':'Unlimited nearby stores',lang==='de'?'Zukuenftige Premium-KI-Funktionen':'Future premium AI features'].map((v,i)=>(
-                <div key={i} style={{fontSize:'0.82rem',color:'rgba(232,82,26,0.78)',padding:'3px 0',borderBottom:'1px solid rgba(232,82,26,0.07)'}}>{'🔓 '}{v}</div>
+              <div style={{fontSize:'0.65rem',fontWeight:700,color:'rgba(232,82,26,0.55)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{t('trialUnlockWith')}</div>
+              {['trialUnlimitedAI','trialUnlimitedGuides','trialUnlimitedParts','trialUnlimitedNearby','trialFutureAI'].map((k,i)=>(
+                <div key={i} style={{fontSize:'0.82rem',color:'rgba(232,82,26,0.78)',padding:'3px 0',borderBottom:'1px solid rgba(232,82,26,0.07)'}}>{'🔓 '}{t(k)}</div>
               ))}
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:10}}>
@@ -1451,7 +1464,7 @@ export default function App() {
             </div>
             <div style={{fontSize:'0.67rem',color:'rgba(255,255,255,0.28)',textAlign:'center',marginBottom:14}}>{t('renewsAutomatically')}</div>
             <button onClick={()=>setFreeRepairDone(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.28)',fontSize:'0.74rem',cursor:'pointer',fontFamily:'inherit',width:'100%',textAlign:'center',padding:'6px'}}>
-              {lang==='de'?'Zur letzten Reparatur zurueck':'Back to last repair'}
+              {t('trialBackToRepair')}
             </button>
           </div>
         </div>
