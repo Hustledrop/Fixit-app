@@ -2728,7 +2728,7 @@ export default function App() {
                 <div style={{fontSize:'1.4rem'}}>🗺️</div>
                 <div style={{flex:1}}>
                   <div style={{fontSize:'0.86rem',fontWeight:700,color:C.g}}>
-                    {localSearchTerm} {t('findWord')}
+                    {t(vType==='car'?'localStoreCar':vType==='moto'?'localStoreMoto':vType==='bike'?'localStoreBike':vType==='appliances'?'localStoreAppl':vType==='tech'?'localStoreTech':vType==='garden'?'localStoreGarden':vType==='pets'?'localStorePets':'localStoreHome')}
                   </div>
                   <div style={{fontSize:'0.65rem',color:C.m}}>
                     {lat ? t('gpsActiveNear') : t('openGoogleMapsSearch')}
@@ -2736,16 +2736,7 @@ export default function App() {
                 </div>
                 <div style={{color:C.g,fontWeight:700}}>→</div>
               </div>
-              {/* Also show a direct product search on Google Maps */}
-              {pResults?.searchQ && <div onClick={()=>translateAndOpen(q=>mu(q), pResults.searchQ, null)}
-                style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                <div style={{fontSize:'1.2rem'}}>🔍</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:'0.78rem',fontWeight:600}}>"{pResults.searchQ}" {t('nearbyWord')}</div>
-                  <div style={{fontSize:'0.62rem',color:C.m}}>{t('searchOnGoogleMaps')}</div>
-                </div>
-                <div style={{color:C.g}}>→</div>
-              </div>}
+              {/* product-name Maps search removed */}
             </div>
             {/* ONLINE-SHOPS — category-specific + generic */}
             <div style={s.card}>

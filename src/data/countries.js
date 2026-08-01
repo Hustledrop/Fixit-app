@@ -571,7 +571,11 @@ export const LOCAL_STORE_SEARCH = {
 };
 
 export function getLocalStoreSearch(category, lang) {
-  const entry = LOCAL_STORE_SEARCH[category] || LOCAL_STORE_SEARCH.home;
+  // 'moto' is the Parts/Nearby UI key; 'motorcycle' is the LOCAL_STORE_SEARCH key.
+  // Without this normalisation, getLocalStoreSearch('moto', ...) falls through to
+  // LOCAL_STORE_SEARCH.home → 'Baumarkt Eisenwaren' — wrong for motorcycle.
+  const normalised = category === 'moto' ? 'motorcycle' : category;
+  const entry = LOCAL_STORE_SEARCH[normalised] || LOCAL_STORE_SEARCH.home;
   return entry[lang] || entry.en;
 }
 

@@ -65,6 +65,9 @@ const KEYS = [
   'trialCompleteTitle','trialCompleteDesc','trialCompleted','trialDiagnosis','trialGuide','trialSteps','trialParts','trialNearby','trialUnlockWith','trialUnlimitedAI','trialUnlimitedGuides','trialUnlimitedParts','trialUnlimitedNearby','trialFutureAI','trialBackToRepair',
   // Forgot / reset password flow
   'forgotPassword','resetPassword','resetEmailSent','resetEmailDesc','sendResetLink','backToSignIn','createNewPassword','newPasswordPlaceholder','confirmPasswordPlaceholder','passwordsNoMatch','passwordUpdated','updatePassword',
+  // Local store card labels — per category, fully i18n
+  'localStoreCar','localStoreMoto','localStoreBike','localStoreHome',
+  'localStoreAppl','localStoreTech','localStoreGarden','localStorePets'
 ];
 
 // ─── TRANSLATIONS ─────────────────────────────────────────────────────────────
@@ -260,6 +263,16 @@ T.en = {
   trialUnlimitedNearby:'Unlimited nearby stores',
   trialFutureAI:'Future premium AI features',
   trialBackToRepair:'Back to last repair',
+
+  // Local store card labels
+  localStoreCar:"Find auto parts store nearby",
+  localStoreMoto:"Find motorcycle parts store nearby",
+  localStoreBike:"Find bicycle parts store nearby",
+  localStoreHome:"Find home improvement store nearby",
+  localStoreAppl:"Find appliance repair shop nearby",
+  localStoreTech:"Find electronics repair shop nearby",
+  localStoreGarden:"Find garden centre nearby",
+  localStorePets:"Find pet store or vet nearby",
 };
 
 T.de = {
@@ -455,6 +468,16 @@ T.de = {
   trialUnlimitedNearby:'Unbegrenzte Werkstätten-Suche',
   trialFutureAI:'Zukünftige Premium-KI-Funktionen',
   trialBackToRepair:'Zur letzten Reparatur zurück',
+
+  // Local store card labels
+  localStoreCar:"Autoteile in der Nähe finden",
+  localStoreMoto:"Motorradteile in der Nähe finden",
+  localStoreBike:"Fahrradteile in der Nähe finden",
+  localStoreHome:"Baumarkt in der Nähe finden",
+  localStoreAppl:"Haushaltsgeräte-Reparatur in der Nähe finden",
+  localStoreTech:"Computer-Reparatur in der Nähe finden",
+  localStoreGarden:"Gartencenter in der Nähe finden",
+  localStorePets:"Tierhandlung oder Tierarzt in der Nähe finden",
 };
 
 T.fr = {
@@ -648,6 +671,16 @@ T.fr = {
   trialUnlimitedNearby:'Magasins à proximité illimités',
   trialFutureAI:'Futures fonctionnalités IA premium',
   trialBackToRepair:'Retour à la dernière réparation',
+
+  // Local store card labels
+  localStoreCar:"Trouver un magasin de pièces auto à proximité",
+  localStoreMoto:"Trouver un magasin de pièces moto à proximité",
+  localStoreBike:"Trouver un magasin de pièces vélo à proximité",
+  localStoreHome:"Trouver une quincaillerie à proximité",
+  localStoreAppl:"Trouver un réparateur d'électroménager à proximité",
+  localStoreTech:"Trouver un réparateur informatique à proximité",
+  localStoreGarden:"Trouver une jardinerie à proximité",
+  localStorePets:"Trouver une animalerie ou vétérinaire à proximité",
 };
 
 T.es = {
@@ -840,6 +873,16 @@ T.es = {
   trialUnlimitedNearby:'Tiendas cercanas ilimitadas',
   trialFutureAI:'Futuras funciones IA premium',
   trialBackToRepair:'Volver a la última reparación',
+
+  // Local store card labels
+  localStoreCar:"Buscar tienda de repuestos cerca",
+  localStoreMoto:"Buscar tienda de repuestos moto cerca",
+  localStoreBike:"Buscar tienda de repuestos bici cerca",
+  localStoreHome:"Buscar ferretería cerca",
+  localStoreAppl:"Buscar taller de electrodomésticos cerca",
+  localStoreTech:"Buscar tienda de reparación electrónica cerca",
+  localStoreGarden:"Buscar centro de jardinería cerca",
+  localStorePets:"Buscar tienda de mascotas o veterinario cerca",
 };
 
 T.it = {
@@ -1032,6 +1075,16 @@ T.it = {
   trialUnlimitedNearby:'Negozi vicini illimitati',
   trialFutureAI:'Future funzionalità IA premium',
   trialBackToRepair:"Torna all'ultima riparazione",
+
+  // Local store card labels
+  localStoreCar:"Trova un negozio di ricambi vicino",
+  localStoreMoto:"Trova un negozio di ricambi moto vicino",
+  localStoreBike:"Trova un negozio di ricambi bici vicino",
+  localStoreHome:"Trova un negozio di bricolage vicino",
+  localStoreAppl:"Trova un riparatore di elettrodomestici vicino",
+  localStoreTech:"Trova un negozio di riparazione elettronica vicino",
+  localStoreGarden:"Trova un centro giardinaggio vicino",
+  localStorePets:"Trova un negozio animali o veterinario vicino",
 };
 
 T.pl = {
@@ -1224,6 +1277,16 @@ T.pl = {
   trialUnlimitedNearby:'Nieograniczone sklepy w pobliżu',
   trialFutureAI:'Przyszłe funkcje AI premium',
   trialBackToRepair:'Wróć do ostatniej naprawy',
+
+  // Local store card labels
+  localStoreCar:"Znajdź sklep z częściami samochodowymi w pobliżu",
+  localStoreMoto:"Znajdź sklep z częściami motocyklowymi w pobliżu",
+  localStoreBike:"Znajdź sklep z częściami rowerowymi w pobliżu",
+  localStoreHome:"Znajdź sklep budowlany w pobliżu",
+  localStoreAppl:"Znajdź serwis AGD w pobliżu",
+  localStoreTech:"Znajdź serwis elektroniczny w pobliżu",
+  localStoreGarden:"Znajdź centrum ogrodnicze w pobliżu",
+  localStorePets:"Znajdź sklep zoologiczny lub weterynarza w pobliżu",
 };
 
 T.sr = {
@@ -1416,6 +1479,16 @@ T.sr = {
   trialUnlimitedNearby:'Neograničena pretraga obližnjih prodavnica',
   trialFutureAI:'Buduće premium AI funkcije',
   trialBackToRepair:'Nazad na poslednju popravku',
+
+  // Local store card labels
+  localStoreCar:"Pronađi prodavnicu auto delova u blizini",
+  localStoreMoto:"Pronađi prodavnicu moto delova u blizini",
+  localStoreBike:"Pronađi prodavnicu biciklističkih delova u blizini",
+  localStoreHome:"Pronađi prodavnicu građevinskog materijala u blizini",
+  localStoreAppl:"Pronađi servis kućnih aparata u blizini",
+  localStoreTech:"Pronađi IT servis u blizini",
+  localStoreGarden:"Pronađi baštovansko-cvetni centar u blizini",
+  localStorePets:"Pronađi zoološku prodavnicu ili veterinara u blizini",
 };
 
 T.hr = {
@@ -1608,6 +1681,16 @@ T.hr = {
   trialUnlimitedNearby:'Neograničena pretraga obližnjih trgovina',
   trialFutureAI:'Buduće premium AI funkcije',
   trialBackToRepair:'Natrag na zadnju popravku',
+
+  // Local store card labels
+  localStoreCar:"Pronađi prodavaonicu auto dijelova u blizini",
+  localStoreMoto:"Pronađi prodavaonicu moto dijelova u blizini",
+  localStoreBike:"Pronađi prodavaonicu biciklističkih dijelova u blizini",
+  localStoreHome:"Pronađi prodavaonicu građevinskog materijala u blizini",
+  localStoreAppl:"Pronađi servis kućanskih aparata u blizini",
+  localStoreTech:"Pronađi IT servis u blizini",
+  localStoreGarden:"Pronađi vrtni centar u blizini",
+  localStorePets:"Pronađi prodavaonicu za kućne ljubimce ili veterinara u blizini",
 };
 
 T.mk = {
@@ -1800,6 +1883,16 @@ T.mk = {
   trialUnlimitedNearby:'Неограничено пребарување продавници',
   trialFutureAI:'Идни премиум AI функции',
   trialBackToRepair:'Назад кон последната поправка',
+
+  // Local store card labels
+  localStoreCar:"Најди продавница за авто делови",
+  localStoreMoto:"Најди продавница за мото делови",
+  localStoreBike:"Најди продавница за велосипедски делови",
+  localStoreHome:"Најди продавница за градежни материјали",
+  localStoreAppl:"Најди сервис за бела техника",
+  localStoreTech:"Најди IT сервис во близина",
+  localStoreGarden:"Најди градинарски центар",
+  localStorePets:"Најди зоолошка продавница или ветеринар",
 };
 
 T.tr = {
@@ -1992,6 +2085,16 @@ T.tr = {
   trialUnlimitedNearby:'Sınırsız yakın mağaza',
   trialFutureAI:'Gelecekteki premium AI özellikleri',
   trialBackToRepair:'Son onarıma dön',
+
+  // Local store card labels
+  localStoreCar:"Yakınımda oto yedek parça mağazası bul",
+  localStoreMoto:"Yakınımda motosiklet yedek parça mağazası bul",
+  localStoreBike:"Yakınımda bisiklet parça mağazası bul",
+  localStoreHome:"Yakınımda yapı marketi bul",
+  localStoreAppl:"Yakınımda beyaz eşya tamircisi bul",
+  localStoreTech:"Yakınımda elektronik tamircisi bul",
+  localStoreGarden:"Yakınımda bahçe merkezi bul",
+  localStorePets:"Yakınımda evcil hayvan mağazası veya veteriner bul",
 };
 
 // ─── VERIFY ALL LANGUAGES HAVE ALL KEYS ──────────────────────────────────────
