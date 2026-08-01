@@ -365,9 +365,26 @@ module.exports = async function handler(req, res) {
   catch (e) { return res.status(400).json({ error: 'invalid_json_body', version: DEPLOY_VERSION }); }
 
   // Only safe fields from body — userId, isPro, usageCount are NEVER read from body
-  const { problem, photoB64, category, langName, countryName, userProfile } = body;
+  const { problem, photoB64, category, langName, countryName, countryCode, userProfile } = body;
   const cat   = String(category || 'home');
   const lang2 = String(langName || 'English');
+  // Market language: the commerce/search language of the USER'S COUNTRY.
+  // Used only for partsNeeded search terms — NOT for the UI text.
+  // This ensures store URLs get German terms for a German user with a Macedonian UI.
+  const CC_MARKET_LANG = {
+    DE:'German',AT:'German',CH:'German',LU:'German',LI:'German',
+    GB:'English',US:'English',AU:'English',CA:'English',NZ:'English',IE:'English',
+    FR:'French',BE:'French',MC:'French',
+    IT:'Italian',SM:'Italian',VA:'Italian',
+    ES:'Spanish',MX:'Spanish',AR:'Spanish',CL:'Spanish',CO:'Spanish',
+    PL:'Polish',HR:'Croatian',RS:'Serbian',TR:'Turkish',
+    MK:'Macedonian',  // North Macedonia — users search in Macedonian
+    SE:'Swedish',NO:'Norwegian',DK:'Danish',FI:'Finnish',
+    NL:'Dutch',PT:'Portuguese',GR:'Greek',CZ:'Czech',SK:'Czech',
+    HU:'Hungarian',RO:'Romanian',BG:'Bulgarian',
+  };
+  const cc2 = String(countryCode || '').toUpperCase().trim();
+  const marketLangName = (cc2 && CC_MARKET_LANG[cc2]) ? CC_MARKET_LANG[cc2] : null;
   const prob  = String(problem  || '').trim().slice(0, 500);
   const hasText  = prob.length > 0;
   const hasImage = typeof photoB64 === 'string' && photoB64.length > 100;
@@ -429,9 +446,9 @@ module.exports = async function handler(req, res) {
         `partsNeeded REQUIRED: You MUST use EXACTLY this pre-computed list as your partsNeeded array. Do not change it, do not add generic alternatives, do not modify the order: ${JSON.stringify(intelligentParts)}. These are vehicle-specific search suggestions generated from a fitment knowledge base. Copy them exactly into the partsNeeded field.`,
       ] : vehicleCtx ? [
         `DETECTED VEHICLE: ${[vehicleCtx.year, vehicleCtx.make, vehicleCtx.model, vehicleCtx.generation, vehicleCtx.engine].filter(Boolean).join(' ')}. Use this for vehicle-specific part search queries.`,
-        `partsNeeded: 2–4 vehicle-specific search terms using detected vehicle. Include model in each. Include 1 brand (Brembo/Bosch/Varta/NGK). No sentences. SEARCH SUGGESTIONS only.`,
+        `partsNeeded: 2–4 vehicle-specific buyable search terms.${marketLangName && marketLangName !== lang2 ? ` CRITICAL: write in ${marketLangName} (market language for ${countryName}), NOT in ${lang2} (UI language). Use terms mechanics search for on local parts sites.` : ''} Include vehicle model in each term. Include 1 brand (Brembo/Bosch/Varta/NGK). No sentences. 2–5 words max.`,
       ] : [
-        `partsNeeded: 2–4 SHORT buyable search terms, 2–5 words each. GOOD: ["Geberit Spülkasten Dichtung","Universal WC Flapper 63mm"]. BAD: ["Ablaufventil passend zum Modell"]. No sentences. No "passend für".`,
+        `partsNeeded: 2–4 SHORT buyable search terms, 2–5 words each.${marketLangName && marketLangName !== lang2 ? ` CRITICAL: write partsNeeded search terms in ${marketLangName} (the user's country market language, NOT the UI language ${lang2}). This ensures store search URLs work correctly. For example, a user with German UI in Italy needs Italian search terms.` : ''} GOOD: ["Geberit Spülkasten Dichtung","Universal WC Flapper 63mm"]. BAD: ["Ablaufventil passend zum Modell"]. No sentences. No "passend für".`,
       ]),
       `estimatedCost: realistic DIY parts cost only, in the currency of ${countryName}. Format: "€5–15". timeEstimate: realistic hands-on time.`,
       `Category: ${cat}. Problem: ${prob || 'analyse the image and diagnose the issue'}`,

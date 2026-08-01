@@ -207,6 +207,8 @@ const STORES = {
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
     ],
+  
+    mk:'продавница за авто делови сервис',
   },
   tech: {
     DE:[
@@ -241,6 +243,8 @@ const STORES = {
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
       {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
+  
+    mk:'сервис за компјутери мобилни телефони',
   },
   home: {
     DE:[
@@ -291,6 +295,8 @@ const STORES = {
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
       {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
+  
+    mk:'продавница за градежни материјали',
   },
   appliances: {
     DE:[
@@ -313,6 +319,8 @@ const STORES = {
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
       {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
+  
+    mk:'поправка апарати сервис бела техника',
   },
   garden: {
     DE:[
@@ -332,6 +340,8 @@ const STORES = {
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
+  
+    mk:'градинарски центар расадник цветна',
   },
   pets: {
     DE:[
@@ -351,6 +361,8 @@ const STORES = {
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
+  
+    mk:'продавница за миленици ветеринар',
   },
   bike: {
     DE:[
@@ -370,6 +382,8 @@ const STORES = {
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
     ],
+  
+    mk:'продавница за велосипеди велосервис',
   },
   motorcycle: {
     DE:[
@@ -384,7 +398,7 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?ObjectPath=/Shops/FCMoto/Categories/Motorcycles&SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -534,8 +548,13 @@ export const LOCAL_STORE_SEARCH = {
     pl:'czesci motocyklowe sklep moto naprawa',
     sr:'delovi za motocikl servis motocikla',
     hr:'dijelovi za motocikl servis motocikala',
-    mk:'делови за мотоцикл сервис',
+    mk:'делови за мотоцикл сервис продавница',
     tr:'motosiklet parcalari tamirhanesi',
+    sv:'motorcykeldelar verkstad',
+    no:'motorsykkeldelar verksted',
+    da:'motorcykeldele vaerksted',
+    nl:'motoronderdelen motorwinkel',
+    pt:'pecas moto oficina motos',
   },
   pets: {
     en:'pet shop pet store',
@@ -655,6 +674,101 @@ export function getEmergencySearchQuery(serviceKey, countryCode) {
 // GPS country code determines WHICH country; UI lang determines HOW it reads.
 // 'sr' (Serbian) uses Latin script in this app → mapped to 'sr-Latn'.
 const INTL_LANG_MAP = { sr: 'sr-Latn' };
+
+// Maps country code → primary commerce/search language key (for store URLs + Google Maps).
+// Completely independent of the UI language.
+// Example: cc='DE' → 'de' even if UI is 'mk' (Macedonian).
+// MK (North Macedonia) maps to 'de' because German-market stores (Amazon.de, FC-Moto, etc.)
+// serve MK customers far better than any Macedonian-language e-commerce.
+const CC_TO_MARKET_LANG = {
+  DE:'de', AT:'de', CH:'de', LU:'de', LI:'de',
+  GB:'en', US:'en', AU:'en', CA:'en', NZ:'en', IE:'en',
+  FR:'fr', BE:'fr', MC:'fr',
+  IT:'it', SM:'it', VA:'it',
+  ES:'es', MX:'es', AR:'es', CL:'es', CO:'es',
+  PL:'pl',
+  RS:'sr', BA:'sr', ME:'sr',
+  HR:'hr',
+  MK:'mk',  // North Macedonia — users search in Macedonian
+  TR:'tr',
+};
+
+export function getMarketLang(cc) {
+  return CC_TO_MARKET_LANG[String(cc||'').toUpperCase()] || 'en';
+}
+
+// Checks whether a string is in a latin-script language.
+// Returns false if it contains Cyrillic, Greek, Arabic, CJK, etc.
+function isLatinScript(str) {
+  // Covers Basic Latin + Latin-1 Supplement + Latin Extended A/B (0x0000–0x024F)
+  // This includes Polish (ą,ę,ś,ź,ż), French (é,è,ç), German (ä,ö,ü,ß),
+  // Croatian (č,ć,đ,š,ž), Turkish (ğ,ı,ş), etc.
+  // Cyrillic starts at 0x0400 — anything above 0x024F that isn't a space/punct is non-latin.
+  if (!str) return true;
+  for (let i = 0; i < str.length; i++) {
+    const cp = str.codePointAt(i);
+    // Allow: Basic Latin (0-127), Latin supplements (128-591), spaces, punctuation, digits
+    if (cp > 0x024F && cp !== 0x20 && cp !== 0x2019 && cp !== 0x2018) {
+      // Reject Cyrillic (0x0400+), Greek (0x0370+), Arabic (0x0600+), CJK (0x4E00+), etc.
+      return false;
+    }
+  }
+  return true;
+}
+
+
+
+
+// Latin-script market languages — queries must be in latin for these markets.
+const LATIN_MARKET_LANGS = new Set([
+  'de','en','fr','es','it','pl','hr','tr','sv','no','da','nl','pt','cs','hu','ro',
+]);
+
+
+/**
+ * Detects whether a Parts search query needs market-language normalisation.
+ * For synchronous/fallback use only — the full AI-based normalisation is handled
+ * by /api/translate-part (called from App.jsx before opening store URLs).
+ *
+ * Returns the query as-is. The function is kept as a lightweight check point;
+ * App.jsx calls translatePartForMarket() for the actual async normalisation.
+ */
+export function normalizeQueryForMarket(query, cc, category, vehicleCtx) {
+  if (!query) return query;
+  // Pass through — normalisation is handled asynchronously by translatePartForMarket
+  return query;
+}
+
+/**
+ * Returns true when a query is in the wrong script for the given market language.
+ * Used by App.jsx to decide whether to call /api/translate-part.
+ */
+export function queryNeedsTranslation(query, cc, queryLang) {
+  // Language-aware decision: translate whenever the query language differs from the market language.
+  // queryLang = the UI language at the time of diagnosis (the language the AI wrote the query in).
+  // getMarketLang(cc) = the commerce language of the user's GPS country.
+  // If they differ → the query is in the wrong language for this market → translate.
+  if (!query) return false;
+  const marketLang = getMarketLang(cc);
+  // No queryLang given → fall back to script detection (Cyrillic in latin market)
+  if (!queryLang) return LATIN_MARKET_LANGS.has(marketLang) && !isLatinScript(query);
+  // Language comparison: if UI lang equals market lang, no translation needed
+  return queryLang !== marketLang;
+}
+
+
+// ── Word-level translation for Cyrillic → Latin market language ───────────────
+// Covers: MK (Macedonian), SR (Serbian), HR (Croatian Cyrillic), BG (Bulgarian)
+// Strategy:
+//   1. Split query into tokens (words, numbers, codes, dimensions)
+//   2. Translate known Cyrillic descriptive words → market language equivalent
+//   3. Always preserve: numbers, dimensions (50cc, 28mm, R134a), codes, brand names
+//   4. Reassemble in order — the product structure is preserved
+
+// Cyrillic → market-language translation tables for common repair part words.
+// Each entry: [cyrillic_word_or_root, {de, en, fr, it, es, pl, hr, tr, nl, pt, sv}]
+// Words are matched case-insensitively and root-matched (e.g. "филтер" matches "филтерот").
+
 
 /**
  * Returns the country name for `cc` localized to `lang`.

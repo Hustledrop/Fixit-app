@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LANGS, tx, getStatusLabel, getDiffLabel } from './data/lang.js';
-import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch, getEmergencySearchQuery, getCountryName } from './data/countries.js';
+import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch, getMarketLang, queryNeedsTranslation, getEmergencySearchQuery, getCountryName } from './data/countries.js';
 import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
 import { getQP } from './data/quickproblems.js';
 import { useLocation } from './hooks/useLocation.js';
@@ -174,6 +174,9 @@ export default function App() {
   // ── Auth / paywall state ──────────────────────────────────────────────────
   const [freeLimitHit,      setFreeLimitHit]      = useState(false); // paywall overlay
   const [freeRepairActive,  setFreeRepairActive]  = useState(false); // unlocks parts+nearby during free session
+  // Cache of AI-translated part queries: Map<original, translated>
+  // Avoids repeat API calls when the user clicks multiple store links for the same query.
+  const translatedQueryCache = useRef({});
   const [freeRepairDone,    setFreeRepairDone]    = useState(false); // celebration screen after free trial ends
   const [showInstallModal,  setShowInstallModal]  = useState(false); // iOS install instructions
   const [authScreen,    setAuthScreen]    = useState(null);  // null|'login'|'signup'|'account'
@@ -543,7 +546,7 @@ export default function App() {
     diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
     setRestoredResult(null); // clear any restored history result
     goto('result');
-    await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, userProfile: profile });
+    await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, cc, userProfile: profile });
   }
 
   // ── Shared validator for diagnosis history entries ──────────────────────
@@ -1194,6 +1197,59 @@ export default function App() {
     }
   }, [authProfile, isPro]);
 
+  // ── Market-language query normalisation for Parts links ─────────────────────
+  // Called when a user clicks a store URL or Maps link in the Parts screen.
+  // If the query is already in the market language (or the market uses the same script),
+  // opens the URL immediately. If not, calls /api/translate-part once (result cached),
+  // then opens the translated URL.
+  async function translateAndOpen(url_builder, query, targetUrl) {
+    // Language-aware fast path:
+    // queryNeedsTranslation compares the UI language (lang = the language the AI generated
+    // the query in) against the market language (derived from GPS country cc).
+    // If they are the same, open immediately — no translation needed.
+    if (!queryNeedsTranslation(query, cc, lang)) {
+      window.open(targetUrl || url_builder(query), '_blank', 'noopener,noreferrer');
+      return;
+    }
+    // Cache hit: same query was already translated this session
+    if (translatedQueryCache.current[query]) {
+      const t = translatedQueryCache.current[query];
+      window.open(targetUrl || url_builder(t), '_blank', 'noopener,noreferrer');
+      return;
+    }
+    // Translation needed — call /api/translate-part.
+    // Open about:blank immediately (browser popup policy requires the window.open to happen
+    // synchronously on the user click — we navigate it to the real URL after the API returns).
+    const pending = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    try {
+      const token = await getAccessToken().catch(() => null);
+      const resp = await fetch('/api/translate-part', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query,
+          queryLang:  lang,          // UI language — the language the query is currently in
+          countryCode: cc,           // GPS country code — determines market language
+          category: vType || 'car',
+          vehicleCtx: pResults?.vehicleCtx || null,
+        }),
+      });
+      const data = await resp.json();
+      const translated = data?.translated || query;
+      translatedQueryCache.current[query] = translated;
+      const finalUrl = targetUrl || url_builder(translated);
+      if (pending && !pending.closed) pending.location.href = finalUrl;
+      else window.open(finalUrl, '_blank', 'noopener,noreferrer');
+    } catch (_err) {
+      const fallbackUrl = targetUrl || url_builder(query);
+      if (pending && !pending.closed) pending.location.href = fallbackUrl;
+      else window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
+    }
+  }
+
   // ── Check Stripe redirect on app load ────────────────────────────────────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1789,7 +1845,7 @@ export default function App() {
                         setCurFix(h.category || 'home');
                         setShowHistory(false);
                         goto('result');
-                        diagnose({problem:h.problem,category:h.category||'home',lang,countryName:cd.name});
+                        diagnose({problem:h.problem,category:h.category||'home',lang,countryName:cd.name,cc});
                       }} style={{marginLeft:'auto',background:C.o,border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:'0.65rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                         {lang==='de'?'Erneut':lang==='tr'?'Tekrar':lang==='pl'?'Ponów':lang==='mk'?'Повтори':t('retryBtn')||'↻ Retry'}
                       </button>
@@ -2525,7 +2581,7 @@ export default function App() {
     }
     const localStores      = getStores(vType, cc);          // category-specific ONLINE stores
     const onlineStores     = getOnlineStores(cc);            // generic Amazon/eBay/Idealo
-    const localSearchTerm  = getLocalStoreSearch(vType, lang); // local Google Maps term
+    const localSearchTerm  = getLocalStoreSearch(vType, getMarketLang(cc)); // local Google Maps term — uses MARKET language, not UI language
     const localMapsUrl     = mu(localSearchTerm);             // Google Maps search URL
     const ptCt = catTerms(vType, lang); // category-aware terms for parts screen
     const isPetParts = vType === 'pets';
@@ -2681,7 +2737,7 @@ export default function App() {
                 <div style={{color:C.g,fontWeight:700}}>→</div>
               </div>
               {/* Also show a direct product search on Google Maps */}
-              {pResults?.searchQ && <div onClick={()=>window.open(mu(`${pResults.searchQ}`), '_blank', 'noopener,noreferrer')}
+              {pResults?.searchQ && <div onClick={()=>translateAndOpen(q=>mu(q), pResults.searchQ, null)}
                 style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
                 <div style={{fontSize:'1.2rem'}}>🔍</div>
                 <div style={{flex:1}}>
@@ -2698,14 +2754,14 @@ export default function App() {
               </div>
               {/* Category-specific online stores (Autodoc for car, MediaMarkt for tech, etc.) */}
               {localStores.map((st,i)=>(
-                <div key={`cat-${i}`} onClick={()=>window.open(st.u(pResults.searchQ), '_blank', 'noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`cat-${i}`} onClick={()=>translateAndOpen(q=>st.u(q), pResults.searchQ, null)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700,display:'flex',alignItems:'center',gap:8}}>{st.n}{st.badge&&<span style={{background:C.o,color:'#fff',fontSize:'0.5rem',padding:'2px 7px',borderRadius:100,fontWeight:700}}>{st.badge}</span>}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
               ))}
               {/* Generic online stores (Amazon, eBay, Idealo) */}
               {onlineStores.map((st,i)=>(
-                <div key={`gen-${i}`} onClick={()=>window.open(st.u(pResults.searchQ), '_blank', 'noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`gen-${i}`} onClick={()=>translateAndOpen(q=>st.u(q), pResults.searchQ, null)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700}}>{st.n}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
