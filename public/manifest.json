@@ -1,11 +1,11 @@
 {
-  "name": "FixIt \u2014 Fix Anything",
+  "name": "FixIt — Fix Anything",
   "short_name": "FixIt",
   "description": "AI-powered repair guide, emergency help, and nearby services worldwide.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0908",
-  "theme_color": "#E8521A",
+  "theme_color": "#153A6B",
   "orientation": "portrait",
   "icons": [
     {
@@ -16,6 +16,11 @@
     {
       "src": "/favicon-32x32.png",
       "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
       "type": "image/png"
     },
     {
