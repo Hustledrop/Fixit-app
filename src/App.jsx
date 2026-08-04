@@ -1285,57 +1285,79 @@ export default function App() {
   // Falls back to the store's `u(q)` URL (Google site-search) if resolution fails.
   function openStore(st, query) {
     if (!st.resolve) {
-      // No resolution needed — open directly with native search URL (Amazon, eBay, etc.)
+      // No resolution needed (Amazon, eBay, etc.) — open directly.
       window.open(st.u(query), '_blank', 'noopener,noreferrer');
       return;
     }
-    // This store needs server-side URL resolution (Polo, Louis, future stores).
-    // Open a new tab synchronously to satisfy browser popup policy.
+
+    // ── Moto stores with resolve: property ──────────────────────────────────
+    // Flow:
+    //   1. Open a new tab immediately (popup policy; FixIt stays open).
+    //   2. Show a brief loading page so the user never sees a raw blank tab.
+    //   3. Try to resolve a direct product URL with a strict 1.5 s timeout.
+    //      - Hit  → navigate the tab to the exact product page.
+    //      - Miss → immediately navigate to the store's verified search URL
+    //               with the full query pre-entered (never homepage, never 404).
     const tabWin = window.open('', '_blank');
     if (tabWin) {
-      const msg = lang === 'de' ? 'Produktseite wird gesucht...'
-                : lang === 'fr' ? 'Recherche de la page produit...'
-                : lang === 'it' ? 'Ricerca della pagina prodotto...'
-                : lang === 'tr' ? 'Urun sayfasi aranıyor...'
-                : lang === 'pl' ? 'Szukam strony produktu...'
-                : 'Finding product page...';
       tabWin.document.write(
-        '<!DOCTYPE html><html><head><meta charset="utf-8">' +
-        '<title>' + msg + '</title>' +
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>...</title>' +
         '<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;' +
         'height:100vh;margin:0;background:#0f1117;color:#fff;font-size:1.1rem}' +
-        '</style></head><body><div>🔍 ' + msg + '</div></body></html>'
+        '</style></head><body><div>🔍 ' +
+        (lang === 'de' ? 'Wird geöffnet…' :
+         lang === 'fr' ? 'Ouverture…' :
+         lang === 'it' ? 'Apertura…' :
+         lang === 'pl' ? 'Otwieranie…' : 'Opening…') +
+        '</div></body></html>'
       );
     }
+
+    const searchFallback = st.u(query); // verified generic search URL — always works
+
     (async () => {
+      let targetUrl = searchFallback; // default to search if resolve is slow or fails
+
       try {
-        const resp = await fetch('/api/resolve-store-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, domain: st.resolve }),
-        });
-        const text = await resp.text();
-        const data = JSON.parse(text);
-        if (resp.ok && data && data.url) {
-          // Navigate the loading tab directly to the resolved product page.
-          // No special session-warming needed — the resolver validates the URL is a real product.
-          if (tabWin && !tabWin.closed) {
-            tabWin.location.href = data.url;
-          }
-          return;
+        // 1.5 s hard timeout — resolver must respond within this window.
+        // If it can find a direct product URL that fast (cache hit), great.
+        // Otherwise the user gets the search page immediately — no long wait.
+        const ctrl    = new AbortController();
+        const timeout = setTimeout(() => ctrl.abort(), 1500);
+
+        let resp, data;
+        try {
+          resp = await fetch('/api/resolve-store-url', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ query, domain: st.resolve }),
+            signal:  ctrl.signal,
+          });
+          data = await resp.json().catch(() => ({}));
+        } finally {
+          clearTimeout(timeout);
         }
-        // No direct product URL found — close the tab and tell the user.
-        if (tabWin && !tabWin.closed) tabWin.close();
-        setToast(lang === 'de' ? '⚠️ Kein direkter Produktlink gefunden'
-               : lang === 'fr' ? '⚠️ Aucun lien produit direct trouvé'
-               : lang === 'it' ? '⚠️ Nessun link prodotto diretto trovato'
-               : lang === 'tr' ? '⚠️ Dogrudan urun baglantisi bulunamadi'
-               : lang === 'pl' ? '⚠️ Nie znaleziono bezposredniego linku'
-               : '⚠️ No direct product link found');
+
+        // Accept only a validated direct product URL on the correct domain.
+        if (resp && resp.ok && data && data.url) {
+          targetUrl = data.url; // direct product page
+          console.log('[FixIt] openStore resolved:', data.url, data.cached ? '(cache)' : '(live)');
+        } else {
+          console.log('[FixIt] openStore: no direct URL, using search fallback:', searchFallback);
+        }
       } catch (err) {
-        console.error('[FixIt] openStore error:', err.message);
-        if (tabWin && !tabWin.closed) tabWin.close();
-        setToast('⚠️ Error finding product link');
+        // AbortError (timeout) or network error → fall through to search.
+        if (err.name !== 'AbortError') {
+          console.error('[FixIt] openStore error:', err.message);
+        } else {
+          console.log('[FixIt] openStore: resolver timeout, using search fallback');
+        }
+      }
+
+      // Navigate the already-open tab.
+      // tabWin.location.href works because we own the tab (opened without noopener).
+      if (tabWin && !tabWin.closed) {
+        tabWin.location.href = targetUrl;
       }
     })();
   }

@@ -377,20 +377,21 @@ const STORES = {
   },
   motorcycle: {
     DE:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/en-en/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/de-de/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"Scooter Attack 🛵",u:(q)=>`https://www.scooter-attack.com/search?sSearch=${encodeURIComponent(q)}`,types:["scooter"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`,types:["road","scooter","mx","atv"]},
     ],
     AT:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/en-en/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/de-at/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/en-en/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/de-ch/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/en-en/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/en-gb/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Demon Tweeks 🔴",u:(q)=>`https://www.demon-tweeks.com/search?q=${encodeURIComponent(q)}`,types:["road","mx","atv"]},
       {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
@@ -414,7 +415,7 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     HR:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/en-en/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/hr-hr/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`,types:["road","scooter","mx","atv"]},
     ],
