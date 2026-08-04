@@ -685,31 +685,30 @@ export default function App() {
       return updated;
     });
 
-    // ── Persist to Supabase for cross-device sync (non-blocking) ─────────
+    // ── Persist to Supabase via server-side API (non-blocking) ─────────
+    // Uses /api/save-diagnosis with service_role key — guaranteed to write
+    // regardless of client session state or RLS issues.
     if (user && AUTH_AVAILABLE) {
       (async () => {
         try {
-          const client = await getSbClient();
-          if (!client) return;
-          const { error: upsertErr } = await client.from('diagnoses').upsert({
-            id:        entry.id,
-            user_id:   user.id,
-            problem:   entry.problem,
-            diagnosis: entry.diagnosis,
-            entry:     entry,
-            category:  entry.category || null,
-            lang:      entry.lang     || null,
-            cc:        entry.cc       || null,
-            saved_amt: entry.savedAmt || 0,
-            fixed:     entry.fixed    ?? null,
-          }, { onConflict: 'id,user_id', ignoreDuplicates: false });
-          if (upsertErr) {
-            console.error('[FixIt] diagnoses upsert FAILED:', upsertErr.code, upsertErr.message);
+          const token = await getAccessToken().catch(() => null);
+          if (!token) { console.warn('[FixIt] save-diagnosis: no token'); return; }
+          const resp = await fetch('/api/save-diagnosis', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ entry }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || data.error) {
+            console.error('[FixIt] save-diagnosis FAILED:', resp.status, data.error);
           } else {
-            console.log('[FixIt] diagnoses upsert OK id=', entry.id, 'user=', user.id.slice(0,8));
+            console.log('[FixIt] save-diagnosis OK id=', entry.id);
           }
         } catch (e) {
-          console.error('[FixIt] history upsert threw:', e.message);
+          console.error('[FixIt] save-diagnosis threw:', e.message);
         }
       })();
     }
@@ -1247,12 +1246,10 @@ export default function App() {
             .order('created_at', { ascending: false })
             .limit(100);
           if (error) {
-            console.error('[FixIt] diagnoses fetch FAILED:', error.code, error.message);
-          } else if (data?.length) {
-            cloudEntries = data.map(r => r.entry).filter(isValidDiagEntry);
-            console.log('[FixIt] diagnoses fetch OK:', data.length, 'rows for user', user.id.slice(0,8));
+            console.error('[FixIt] diagnoses fetch FAILED:', error.code, error.message, '— check RLS policy');
           } else {
-            console.log('[FixIt] diagnoses fetch: no rows yet for user', user.id.slice(0,8));
+            cloudEntries = (data || []).map(r => r.entry).filter(isValidDiagEntry);
+            console.log('[FixIt] diagnoses fetch:', cloudEntries.length, 'valid entries for user', user.id.slice(0,8));
           }
         }
 

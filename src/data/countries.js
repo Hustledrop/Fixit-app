@@ -387,14 +387,14 @@ const STORES = {
   },
   motorcycle: {
     DE:[
-      {n:"Polo Motorrad 🏍️",u:(q)=>`https://www.polo-motorrad.de/catalogsearch/result/?q=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Louis Motorrad 🔵",u:(q)=>`https://www.louis.de/search?query=${encodeURIComponent(q)}`},
+      {n:"Polo Motorrad 🏍️",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}+site%3Apolo-motorrad.de`,badge:"BEST"},
+      {n:"Louis Motorrad 🔵",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}+site%3Alouis.de`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`},
     ],
     AT:[
-      {n:"Polo Motorrad 🏍️",u:(q)=>`https://www.polo-motorrad.de/catalogsearch/result/?q=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Louis Motorrad 🔵",u:(q)=>`https://www.louis.de/search?query=${encodeURIComponent(q)}`},
+      {n:"Polo Motorrad 🏍️",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}+site%3Apolo-motorrad.de`,badge:"BEST"},
+      {n:"Louis Motorrad 🔵",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}+site%3Alouis.de`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
