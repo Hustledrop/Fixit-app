@@ -1285,26 +1285,26 @@ export default function App() {
   // Falls back to the store's `u(q)` URL (Google site-search) if resolution fails.
   function openStore(st, query) {
     if (!st.resolve) {
+      // No resolution needed — open directly with native search URL (Amazon, eBay, etc.)
       window.open(st.u(query), '_blank', 'noopener,noreferrer');
       return;
     }
-    // Open a new tab synchronously (popup policy: must be in sync click handler).
-    // We do NOT pass a URL so the tab starts as about:blank and we own it fully.
+    // This store needs server-side URL resolution (Polo, Louis, future stores).
+    // Open a new tab synchronously to satisfy browser popup policy.
     const tabWin = window.open('', '_blank');
     if (tabWin) {
-      // Write a simple loading page so the user never sees a raw blank tab.
-      const msg = lang === 'de' ? 'Direkten Link wird gesucht…'
-                : lang === 'fr' ? 'Recherche du lien direct…'
-                : lang === 'it' ? 'Ricerca del link diretto…'
-                : lang === 'tr' ? 'Doğrudan bağlantı aranıyor…'
-                : lang === 'pl' ? 'Szukam bezpośredniego linku…'
-                : 'Finding direct link…';
+      const msg = lang === 'de' ? 'Produktseite wird gesucht...'
+                : lang === 'fr' ? 'Recherche de la page produit...'
+                : lang === 'it' ? 'Ricerca della pagina prodotto...'
+                : lang === 'tr' ? 'Urun sayfasi aranıyor...'
+                : lang === 'pl' ? 'Szukam strony produktu...'
+                : 'Finding product page...';
       tabWin.document.write(
         '<!DOCTYPE html><html><head><meta charset="utf-8">' +
         '<title>' + msg + '</title>' +
-        '<style>body{font-family:sans-serif;display:flex;align-items:center;' +
-        'justify-content:center;height:100vh;margin:0;background:#0f1117;color:#fff;font-size:1.1rem}</style>' +
-        '</head><body><div>🔍 ' + msg + '</div></body></html>'
+        '<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;' +
+        'height:100vh;margin:0;background:#0f1117;color:#fff;font-size:1.1rem}' +
+        '</style></head><body><div>🔍 ' + msg + '</div></body></html>'
       );
     }
     (async () => {
@@ -1316,26 +1316,26 @@ export default function App() {
         });
         const text = await resp.text();
         const data = JSON.parse(text);
-        if (resp.ok && data?.url) {
-          // Navigate the already-open tab to the direct product URL.
-          // We own this tab (no noopener), so location.href works.
+        if (resp.ok && data && data.url) {
+          // Navigate the loading tab directly to the resolved product page.
+          // No special session-warming needed — the resolver validates the URL is a real product.
           if (tabWin && !tabWin.closed) {
             tabWin.location.href = data.url;
           }
           return;
         }
-        // Resolver returned null — no direct URL found. Close the tab and show a toast.
+        // No direct product URL found — close the tab and tell the user.
         if (tabWin && !tabWin.closed) tabWin.close();
-        setToast(lang === 'de' ? '⚠️ Kein direkter Link gefunden'
-               : lang === 'fr' ? '⚠️ Lien direct introuvable'
-               : lang === 'it' ? '⚠️ Link diretto non trovato'
-               : lang === 'tr' ? '⚠️ Doğrudan bağlantı bulunamadı'
-               : lang === 'pl' ? '⚠️ Nie znaleziono bezpośredniego linku'
-               : '⚠️ No direct link found');
+        setToast(lang === 'de' ? '⚠️ Kein direkter Produktlink gefunden'
+               : lang === 'fr' ? '⚠️ Aucun lien produit direct trouvé'
+               : lang === 'it' ? '⚠️ Nessun link prodotto diretto trovato'
+               : lang === 'tr' ? '⚠️ Dogrudan urun baglantisi bulunamadi'
+               : lang === 'pl' ? '⚠️ Nie znaleziono bezposredniego linku'
+               : '⚠️ No direct product link found');
       } catch (err) {
         console.error('[FixIt] openStore error:', err.message);
         if (tabWin && !tabWin.closed) tabWin.close();
-        setToast('⚠️ Error finding store link');
+        setToast('⚠️ Error finding product link');
       }
     })();
   }

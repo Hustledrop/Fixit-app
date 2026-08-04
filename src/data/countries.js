@@ -175,26 +175,26 @@ export function mapsUrlFor(q, lat, lng, cc, lang) {
 const STORES = {
   car: {
     DE:[
-      {n:"Autodoc.de 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.de+${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.de 🚗",u:(q)=>`https://www.autodoc.de/search?query=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
       {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
     ],
     AT:[
-      {n:"Autodoc.at 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.de+${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.at 🚗",u:(q)=>`https://www.autodoc.de/search?query=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Autodoc.ch 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.de+${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.ch 🚗",u:(q)=>`https://www.autodoc.de/search?query=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
-      {n:"Autodoc.co.uk 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.co.uk+${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.co.uk 🚗",u:(q)=>`https://www.autodoc.co.uk/search?query=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Euro Car Parts 🔴",u:(q)=>`https://www.eurocarparts.com/search?q=${encodeURIComponent(q)}`},
       {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     FR:[
-      {n:"Autodoc.fr 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.fr+${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc.fr 🚗",u:(q)=>`https://www.autodoc.fr/search?query=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon.fr 📦",u:(q)=>`https://www.amazon.fr/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     US:[
@@ -203,7 +203,7 @@ const STORES = {
       {n:"RockAuto 🔩",u:(q)=>`https://www.rockauto.com/en/partsearch/?query=${encodeURIComponent(q)}`},
     ],
     DEFAULT:[
-      {n:"Autodoc 🚗",u:(q)=>`https://www.google.com/search?q=site%3Aautodoc.co.uk+${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"Autodoc 🚗",u:(q)=>`https://www.autodoc.co.uk/search?query=${encodeURIComponent(q)}`,badge:"BEST"},
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
     ],
@@ -241,20 +241,19 @@ const STORES = {
     DEFAULT:[
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
-      {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
   
     mk:'сервис за компјутери мобилни телефони',
   },
   home: {
     DE:[
-      {n:"OBI 🟡",u:(q)=>`https://www.google.com/search?q=site%3Aobi.de+${encodeURIComponent(q)}`},
+      {n:"OBI 🟡",u:(q)=>`https://www.obi.de/suche/${encodeURIComponent(q)}/`},
       {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.info/suche?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
     ],
     AT:[
-      {n:"OBI 🟡",u:(q)=>`https://www.google.com/search?q=site%3Aobi.at+${encodeURIComponent(q)}`},
+      {n:"OBI 🟡",u:(q)=>`https://www.obi.at/suche/${encodeURIComponent(q)}/`},
       {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.at/suche?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
@@ -293,7 +292,6 @@ const STORES = {
     DEFAULT:[
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
-      {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
   
     mk:'продавница за градежни материјали',
@@ -317,14 +315,13 @@ const STORES = {
     DEFAULT:[
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
-      {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
   
     mk:'поправка апарати сервис бела техника',
   },
   garden: {
     DE:[
-      {n:"OBI Garten 🌿",u:(q)=>`https://www.google.com/search?q=site%3Aobi.de+${encodeURIComponent(q)}`},
+      {n:"OBI Garten 🌿",u:(q)=>`https://www.obi.de/suche/${encodeURIComponent(q)}/`},
       {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.info/suche?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
@@ -338,7 +335,6 @@ const STORES = {
     ],
     DEFAULT:[
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
   
     mk:'градинарски центар расадник цветна',
@@ -359,7 +355,6 @@ const STORES = {
     ],
     DEFAULT:[
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"Google Shopping 🔍",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`},
     ],
   
     mk:'продавница за миленици ветеринар',
