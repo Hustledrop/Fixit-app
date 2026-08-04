@@ -1287,9 +1287,15 @@ export default function App() {
       return;
     }
     // Store needs URL resolution (Polo, Louis).
-    // Open a placeholder tab immediately (popup policy: must be in sync click handler).
-    const pending = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    // Strategy:
+    //   1. Open about:blank synchronously (satisfies browser popup policy).
+    //      Do NOT use noopener — we need to control the tab after opening it.
+    //   2. After the resolver returns, navigate the tab with pending.location.href.
+    //   3. If pending is null (popup blocked) or the tab was closed, fall back to
+    //      window.location.assign() on the current tab as the last resort.
+    const pending = window.open('about:blank', '_blank'); // no noopener — need reference
     (async () => {
+      let url;
       try {
         const resp = await fetch('/api/resolve-store-url', {
           method: 'POST',
@@ -1297,16 +1303,26 @@ export default function App() {
           body: JSON.stringify({ query, domain: st.resolve }),
         });
         const data = await resp.json().catch(() => ({}));
-        const url = data?.url || st.u(query); // direct URL or Google site-search fallback
-        console.log('[FixIt] openStore', st.n, url);
-        if (pending && !pending.closed) {
-          pending.location.replace(url);
-        }
+        url = data?.url || st.u(query);
       } catch (_) {
-        // On any error: navigate to Google site-search fallback
-        const fallback = st.u(query);
-        if (pending && !pending.closed) pending.location.replace(fallback);
+        url = st.u(query); // resolver threw — use Google site-search fallback
       }
+      console.log('[FixIt] openStore', st.n, '->', url);
+      // Navigate the placeholder tab if we still have a reference to it
+      if (pending && !pending.closed) {
+        try {
+          pending.location.href = url;
+          return;
+        } catch (_) {
+          // Cross-origin access denied (shouldn't happen since we own about:blank,
+          // but handle defensively)
+          pending.close();
+        }
+      }
+      // Fallback: open a fresh tab (works in most mobile browsers after async,
+      // since the API call is short). If that's also blocked, navigate current tab.
+      const w2 = window.open(url, '_blank');
+      if (!w2) window.location.assign(url);
     })();
   }
 
