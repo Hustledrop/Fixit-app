@@ -1203,23 +1203,27 @@ export default function App() {
   // opens the URL immediately. If not, calls /api/translate-part once (result cached),
   // then opens the translated URL.
   async function translateAndOpen(url_builder, query, targetUrl) {
-    // Language-aware fast path:
-    // queryNeedsTranslation compares the UI language (lang = the language the AI generated
-    // the query in) against the market language (derived from GPS country cc).
-    // If they are the same, open immediately — no translation needed.
+    // Fast path: UI language matches market language — open immediately, no translation needed.
     if (!queryNeedsTranslation(query, cc, lang)) {
       window.open(targetUrl || url_builder(query), '_blank', 'noopener,noreferrer');
       return;
     }
-    // Cache hit: same query was already translated this session
+    // Cache hit: this query was already translated this session.
     if (translatedQueryCache.current[query]) {
-      const t = translatedQueryCache.current[query];
-      window.open(targetUrl || url_builder(t), '_blank', 'noopener,noreferrer');
+      const cached = translatedQueryCache.current[query];
+      console.log('[FixIt] translateAndOpen CACHE HIT',
+        {original: query, translated: cached, url: (targetUrl || url_builder(cached))});
+      window.open(targetUrl || url_builder(cached), '_blank', 'noopener,noreferrer');
       return;
     }
-    // Translation needed — call /api/translate-part.
-    // Open about:blank immediately (browser popup policy requires the window.open to happen
-    // synchronously on the user click — we navigate it to the real URL after the API returns).
+    // Translation needed.
+    // Open about:blank synchronously — browser popup policy requires window.open
+    // to be in the synchronous part of the click handler.
+    // We then use location.replace() on the SAME tab after translation completes.
+    // location.replace() sends the FixIt app URL as the HTTP Referer (not about:blank),
+    // which is why Polo Motorrad and Louis Motorrad serve the search correctly.
+    // (location.href navigation from about:blank sends an empty Referer, causing
+    // those sites to drop the query or redirect to their homepage.)
     const pending = window.open('about:blank', '_blank', 'noopener,noreferrer');
     try {
       const token = await getAccessToken().catch(() => null);
@@ -1231,22 +1235,32 @@ export default function App() {
         },
         body: JSON.stringify({
           query,
-          queryLang:  lang,          // UI language — the language the query is currently in
-          countryCode: cc,           // GPS country code — determines market language
-          category: vType || 'car',
-          vehicleCtx: pResults?.vehicleCtx || null,
+          queryLang:   lang,
+          countryCode: cc,
+          category:    vType || 'car',
+          vehicleCtx:  pResults?.vehicleCtx || null,
         }),
       });
       const data = await resp.json();
       const translated = data?.translated || query;
       translatedQueryCache.current[query] = translated;
       const finalUrl = targetUrl || url_builder(translated);
-      if (pending && !pending.closed) pending.location.href = finalUrl;
-      else window.open(finalUrl, '_blank', 'noopener,noreferrer');
-    } catch (_err) {
+      console.log('[FixIt] translateAndOpen',
+        {original: query, translated, finalUrl});
+      // Navigate the already-open tab with location.replace().
+      // replace() removes about:blank from history and sends the opener URL as Referer.
+      if (pending && !pending.closed) {
+        pending.location.replace(finalUrl);
+      } else {
+        // Tab was closed by the user while waiting — nothing to do.
+        console.warn('[FixIt] translateAndOpen: pending tab was closed before navigation');
+      }
+    } catch (err) {
+      console.error('[FixIt] translateAndOpen error:', err);
       const fallbackUrl = targetUrl || url_builder(query);
-      if (pending && !pending.closed) pending.location.href = fallbackUrl;
-      else window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
+      if (pending && !pending.closed) {
+        pending.location.replace(fallbackUrl);
+      }
     }
   }
 
