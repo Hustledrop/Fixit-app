@@ -1288,12 +1288,25 @@ export default function App() {
       window.open(st.u(query), '_blank', 'noopener,noreferrer');
       return;
     }
-    setToast(lang === 'de' ? '🔍 Suche direkten Link…'
-           : lang === 'fr' ? '🔍 Recherche du lien direct…'
-           : lang === 'it' ? '🔍 Cerco link diretto…'
-           : lang === 'tr' ? '🔍 Doğrudan bağlantı aranıyor…'
-           : lang === 'pl' ? '🔍 Szukam bezpośredniego linku…'
-           : '🔍 Finding direct link…');
+    // Open a new tab synchronously (popup policy: must be in sync click handler).
+    // We do NOT pass a URL so the tab starts as about:blank and we own it fully.
+    const tabWin = window.open('', '_blank');
+    if (tabWin) {
+      // Write a simple loading page so the user never sees a raw blank tab.
+      const msg = lang === 'de' ? 'Direkten Link wird gesucht…'
+                : lang === 'fr' ? 'Recherche du lien direct…'
+                : lang === 'it' ? 'Ricerca del link diretto…'
+                : lang === 'tr' ? 'Doğrudan bağlantı aranıyor…'
+                : lang === 'pl' ? 'Szukam bezpośredniego linku…'
+                : 'Finding direct link…';
+      tabWin.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+        '<title>' + msg + '</title>' +
+        '<style>body{font-family:sans-serif;display:flex;align-items:center;' +
+        'justify-content:center;height:100vh;margin:0;background:#0f1117;color:#fff;font-size:1.1rem}</style>' +
+        '</head><body><div>🔍 ' + msg + '</div></body></html>'
+      );
+    }
     (async () => {
       try {
         const resp = await fetch('/api/resolve-store-url', {
@@ -1303,16 +1316,26 @@ export default function App() {
         });
         const text = await resp.text();
         const data = JSON.parse(text);
-        setToast(null);
         if (resp.ok && data?.url) {
-          window.location.assign(data.url);
+          // Navigate the already-open tab to the direct product URL.
+          // We own this tab (no noopener), so location.href works.
+          if (tabWin && !tabWin.closed) {
+            tabWin.location.href = data.url;
+          }
           return;
         }
-        window.location.assign(st.u(query));
+        // Resolver returned null — no direct URL found. Close the tab and show a toast.
+        if (tabWin && !tabWin.closed) tabWin.close();
+        setToast(lang === 'de' ? '⚠️ Kein direkter Link gefunden'
+               : lang === 'fr' ? '⚠️ Lien direct introuvable'
+               : lang === 'it' ? '⚠️ Link diretto non trovato'
+               : lang === 'tr' ? '⚠️ Doğrudan bağlantı bulunamadı'
+               : lang === 'pl' ? '⚠️ Nie znaleziono bezpośredniego linku'
+               : '⚠️ No direct link found');
       } catch (err) {
-        console.error('[FixIt v2026-08-04T14:00Z] openStore error:', err.message);
-        setToast(null);
-        window.location.assign(st.u(query));
+        console.error('[FixIt] openStore error:', err.message);
+        if (tabWin && !tabWin.closed) tabWin.close();
+        setToast('⚠️ Error finding store link');
       }
     })();
   }
