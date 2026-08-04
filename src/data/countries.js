@@ -180,6 +180,7 @@ const STORES = {
       {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
     ],
     AT:[
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
@@ -376,80 +377,124 @@ const STORES = {
   },
   motorcycle: {
     DE:[
-      {n:"Louis Motorrad 🔵",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}+site%3Alouis.de`,resolve:"louis.de"},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`},
+      {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`,types:["road","scooter","mx","atv"]},
     ],
     AT:[
-      {n:"Louis Motorrad 🔵",u:(q)=>`https://www.google.com/search?q=${encodeURIComponent(q)}+site%3Alouis.de`,resolve:"louis.de"},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Demon Tweeks 🔴",u:(q)=>`https://www.demon-tweeks.com/search?q=${encodeURIComponent(q)}`},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"Demon Tweeks 🔴",u:(q)=>`https://www.demon-tweeks.com/search?q=${encodeURIComponent(q)}`,types:["road","mx","atv"]},
       {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     FR:[
-      {n:"Motoblouz 🏍️",u:(q)=>`https://www.motoblouz.com/recherche/${encodeURIComponent(q)}.html`,badge:"BEST"},
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/fr_FR/?SearchString=${encodeURIComponent(q)}`},
+      {n:"Motoblouz 🏍️",u:(q)=>`https://www.motoblouz.com/recherche/${encodeURIComponent(q)}.html`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/fr_FR/?SearchString=${encodeURIComponent(q)}`,types:["road","scooter","mx"]},
       {n:"Amazon.fr 📦",u:(q)=>`https://www.amazon.fr/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     IT:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/it_IT/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Motocross Center 🏍️",u:(q)=>`https://www.motocross-center.com/it/search?query=${encodeURIComponent(q)}`},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/it_IT/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"Motocross Center 🏍️",u:(q)=>`https://www.motocross-center.com/it/search?query=${encodeURIComponent(q)}`,types:["mx"]},
       {n:"Amazon.it 📦",u:(q)=>`https://www.amazon.it/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     ES:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/es_ES/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/es_ES/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.es 📦",u:(q)=>`https://www.amazon.es/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     PL:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/pl_PL/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Scooter Attack 🛵",u:(q)=>`https://www.scooter-attack.com/search?sSearch=${encodeURIComponent(q)}`},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/pl_PL/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"Scooter Attack 🛵",u:(q)=>`https://www.scooter-attack.com/search?sSearch=${encodeURIComponent(q)}`,types:["scooter"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     HR:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
-      {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`},
+      {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`,types:["road","scooter","mx","atv"]},
     ],
     RS:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     MK:[
-      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
+      {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     US:[
-      {n:"RevZilla 🏍️",u:(q)=>`https://www.revzilla.com/search?query=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Rocky Mountain ATV/MC 🏔️",u:(q)=>`https://www.rockymountainatvmc.com/search/q-${encodeURIComponent(q)}`},
+      {n:"RevZilla 🏍️",u:(q)=>`https://www.revzilla.com/search?query=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter"]},
+      {n:"Rocky Mountain ATV/MC 🏔️",u:(q)=>`https://www.rockymountainatvmc.com/search/q-${encodeURIComponent(q)}`,types:["mx","atv"]},
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     DEFAULT:[
-      {n:"FC-Moto 🌍",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST"},
-      {n:"Scooter Attack 🛵",u:(q)=>`https://www.scooter-attack.com/search?sSearch=${encodeURIComponent(q)}`},
-      {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`},
+      {n:"FC-Moto 🌍",u:(q)=>`https://www.fc-moto.de/epages/FCMoto.sf/en_GB/?SearchString=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
+      {n:"Scooter Attack 🛵",u:(q)=>`https://www.scooter-attack.com/search?sSearch=${encodeURIComponent(q)}`,types:["scooter"]},
+      {n:"eBay 🛒",u:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=6000`,types:["road","scooter","mx","atv"]},
     ],
   },
 };
 
 // GPS-based store lookup — language plays NO role here
 // Category-specific ONLINE stores (previously misnamed as local stores)
-export function getCategoryOnlineStores(category, cc) {
+export function getCategoryOnlineStores(category, cc, vehicleHint) {
   // 'moto' is the nearby/UI key; 'motorcycle' is the STORES key — normalise here
   const normalised = category === 'moto' ? 'motorcycle' : category;
   const cat = STORES[normalised] || STORES.home;
-  return cat[cc] || cat.DEFAULT || STORES.home.DEFAULT;
+  const storeList = cat[cc] || cat.DEFAULT || STORES.home.DEFAULT;
+
+  // For motorcycle category: filter stores by vehicle subtype.
+  // Stores with a types[] array are subtype-specific.
+  // Stores without types[] are broad fallbacks (Amazon, non-annotated) — always shown.
+  if (normalised === 'motorcycle' && vehicleHint) {
+    const subtype = detectMotoSubtype(vehicleHint);
+    return storeList.filter(st => !st.types || st.types.includes(subtype));
+  }
+  return storeList;
 }
 
 // Backward compat alias
-export function getStores(category, cc) {
-  return getCategoryOnlineStores(category, cc);
+// ── Moto subtype detection ──────────────────────────────────────────────────
+// Returns 'scooter' | 'mx' | 'atv' | 'road' based on vehicle name string.
+// Priority: vehicleCtx.motoType (structured) → pattern match on name → 'road'.
+// Patterns use make/model tokens only — no country/language/product names.
+export function detectMotoSubtype(vehicleName, structuredSubtype) {
+  // 1. Prefer structured subtype if provided by vehicleCtx (future: AI returns this)
+  if (structuredSubtype) {
+    const s = structuredSubtype.toLowerCase();
+    if (s === 'scooter' || s === 'moped') return 'scooter';
+    if (s === 'mx' || s === 'enduro' || s === 'motocross' || s === 'cross') return 'mx';
+    if (s === 'atv' || s === 'quad') return 'atv';
+    if (s === 'road' || s === 'touring' || s === 'naked' || s === 'sport') return 'road';
+  }
+
+  // 2. Pattern match on vehicle name string (make + model)
+  if (!vehicleName) return 'road';
+  const v = vehicleName.toLowerCase();
+
+  // ATV / Quad — check first (Polaris, Can-Am also make road/snow vehicles)
+  const ATV = /\batv\b|\bquad\b|\b4x4\b|\boutlander\b|\bgrizzly\b|\bkodiak\b|\bbrute[\s-]force\b|\bforeman\b|\bpioneer\b|\bfour[\s-]?trax\b|\btrx\b|\bsportsman\b|\bcan[\s-]am\b|\bpolaris\b|\brenegade\b|\bdefender\b|\bmaverick\b/;
+  if (ATV.test(v)) return 'atv';
+
+  // Motocross / Enduro / Off-road
+  const MX = /\bmotocross\b|\benduro\b|\b(mx|cross|dirtbike)\b|\boff[\s-]?road\b|\btrial\b|\bsupermoto\b|\bexc\b|\bexce?\b|\bsxf?\b|\bxcw\b|\bxcf\b|\byz|\bcrf|\bcr\b|\bklx|\bkxf?|\brmz|\brmx|\bdrz|\bwr\b|\b(te|fe|tc|fc)\b|\b(rr|ec|ex)\b(?!\d{3})|\bsherco\b|\bgasgas\b|\bgas[\s-]gas\b|\bhusqvarna\b|\bktm\b/;
+  if (MX.test(v)) return 'mx';
+
+  // Scooter / Moped / Maxi-scooter
+  const SCOOTER = /\bscooter\b|\bmoped\b|\bmofa\b|\broller\b|\bmaxi[\s-]?scoot|\bsr\s*\d{2,3}\b|\bvespa\b|\bpiaggio\b|\b(px|lx|gts|primavera|sprint)\b|\bpcx\b|\bsh\s*\d|\bnss\b|\bforza\b|\bintegra\b|\bsilverw|\bx[\s-]?adv\b|\bnmax\b|\bxmax\b|\btmax\b|\bxenter\b|\btricity\b|\baeox\b|\bkymco\b|\bsym\b|\bpeugeot\b|\bspeedfight\b|\bgilera\b|\bmalaguti\b|\bderbi\b|\baprilia.*\bsr\b|\bpgo\b|\bkeeway\b|\bznen\b|\bbarossa\b|\brieju\b|\bonyx\b/;
+  if (SCOOTER.test(v)) return 'scooter';
+
+  // Default: road motorcycle
+  return 'road';
+}
+
+
+export function getStores(category, cc, vehicleHint) {
+  return getCategoryOnlineStores(category, cc, vehicleHint);
 }
 
 // Local store search terms per category — used to open Google Maps nearby search

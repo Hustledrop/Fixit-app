@@ -2747,7 +2747,7 @@ export default function App() {
       if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
       setScreen('home'); return null;
     }
-    const localStores      = getStores(vType, cc);          // category-specific ONLINE stores
+    const localStores      = getStores(vType, cc, vType === 'moto' ? (pResults?.vehicle || '') : '');          // category-specific ONLINE stores
     const onlineStores     = getOnlineStores(cc);            // generic Amazon/eBay/Idealo
     const localSearchTerm  = getLocalStoreSearch(vType, getMarketLang(cc)); // local Google Maps term — uses MARKET language, not UI language
     const localMapsUrl     = mu(localSearchTerm);             // Google Maps search URL
