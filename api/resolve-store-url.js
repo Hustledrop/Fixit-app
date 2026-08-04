@@ -28,7 +28,7 @@ function extractDomainUrl(text, domain) {
   // Return the first match that looks like a product page (has a path beyond /)
   for (const url of matches) {
     const path = url.replace(/^https?:\/\/(?:www\.)?[^/]+/, '');
-    if (path && path !== '/' && path.length > 3) {
+    if (path && path !== '/' && path.length > 10) {
       return url.replace(/[.,;)]+$/, ''); // strip trailing punctuation
     }
   }
@@ -95,6 +95,9 @@ RULES:
         resultText += block.text + '\n';
       }
     }
+
+    // Log the full Claude response for debugging (appears in Vercel logs)
+    console.log('[resolve-store-url] Claude response text:', JSON.stringify(resultText.slice(0, 300)));
 
     // Try to find a valid URL for the requested domain in the response
     const found = extractDomainUrl(resultText, domain);

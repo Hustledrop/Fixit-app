@@ -1287,42 +1287,44 @@ export default function App() {
       return;
     }
     // Store needs URL resolution (Polo, Louis).
-    // Strategy:
-    //   1. Open about:blank synchronously (satisfies browser popup policy).
-    //      Do NOT use noopener — we need to control the tab after opening it.
-    //   2. After the resolver returns, navigate the tab with pending.location.href.
-    //   3. If pending is null (popup blocked) or the tab was closed, fall back to
-    //      window.location.assign() on the current tab as the last resort.
-    const pending = window.open('about:blank', '_blank'); // no noopener — need reference
+    // The resolver calls Claude + web_search and takes 10-20 seconds.
+    // Opening a blank placeholder tab fails on mobile: users close it during the wait,
+    // and window.open after an async gap is blocked by popup policy.
+    //
+    // Reliable strategy: resolve first, then navigate the CURRENT TAB.
+    // The user can tap Back to return to FixIt. No popup is needed.
+    setToast(lang === 'de' ? '🔍 Suche direkten Link…'
+           : lang === 'fr' ? '🔍 Recherche du lien direct…'
+           : lang === 'it' ? '🔍 Cerco link diretto…'
+           : lang === 'tr' ? '🔍 Doğrudan bağlantı aranıyor…'
+           : lang === 'pl' ? '🔍 Szukam bezpośredniego linku…'
+           : '🔍 Finding direct link…');
     (async () => {
-      let url;
+      let url = st.u(query); // default: Google site-search fallback
       try {
         const resp = await fetch('/api/resolve-store-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, domain: st.resolve }),
         });
-        const data = await resp.json().catch(() => ({}));
-        url = data?.url || st.u(query);
-      } catch (_) {
-        url = st.u(query); // resolver threw — use Google site-search fallback
-      }
-      console.log('[FixIt] openStore', st.n, '->', url);
-      // Navigate the placeholder tab if we still have a reference to it
-      if (pending && !pending.closed) {
-        try {
-          pending.location.href = url;
-          return;
-        } catch (_) {
-          // Cross-origin access denied (shouldn't happen since we own about:blank,
-          // but handle defensively)
-          pending.close();
+        // Log HTTP status and raw text before parsing (visible in browser console)
+        const rawText = await resp.text();
+        console.log('[FixIt] openStore HTTP', resp.status, 'raw:', rawText.slice(0, 200));
+        let data = {};
+        try { data = JSON.parse(rawText); } catch (e) {
+          console.error('[FixIt] openStore JSON parse error:', e.message, 'raw:', rawText.slice(0, 100));
         }
+        console.log('[FixIt] openStore data.url:', data?.url);
+        if (data?.url) url = data.url;
+      } catch (err) {
+        console.error('[FixIt] openStore fetch error:', err.message);
+        // url stays as Google site-search fallback
       }
-      // Fallback: open a fresh tab (works in most mobile browsers after async,
-      // since the API call is short). If that's also blocked, navigate current tab.
-      const w2 = window.open(url, '_blank');
-      if (!w2) window.location.assign(url);
+      console.log('[FixIt] openStore navigating to:', url);
+      setToast(null); // clear the "Finding link…" toast
+      // Navigate the current tab — always works, no popup policy concerns.
+      // User taps Back to return to FixIt.
+      window.location.assign(url);
     })();
   }
 
