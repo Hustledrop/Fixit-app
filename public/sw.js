@@ -1,8 +1,8 @@
-// FixIt Service Worker v999
+// FixIt Service Worker v1000 build=2026-08-04T14:00Z
 // PASSTHROUGH ONLY — no caching of JS/API/assets
 // Caching caused stale code to run old broken fetch paths
 
-const CACHE = 'fixit-v999';
+const CACHE = 'fixit-v1000';
 
 self.addEventListener('install', e => {
   // Skip waiting immediately — activate this SW right away

@@ -162,6 +162,9 @@ const CSS = `
 `;
 
 export default function App() {
+  // Version marker — confirms which bundle the phone is running
+  // Change BUILD_ID here forces cache-busted re-evaluation
+  console.log('[FixIt] BUILD 2026-08-04T14:00Z loaded');
   const [lang, setLang]           = useState(() => SS.get('lang') || 'en');
   const [selLang, setSelLang]     = useState('en');
   const [showLP, setShowLP]       = useState(false);
@@ -1282,17 +1285,9 @@ export default function App() {
   // Falls back to the store's `u(q)` URL (Google site-search) if resolution fails.
   function openStore(st, query) {
     if (!st.resolve) {
-      // No resolution needed — open directly (Amazon, eBay, etc.)
       window.open(st.u(query), '_blank', 'noopener,noreferrer');
       return;
     }
-    // Store needs URL resolution (Polo, Louis).
-    // The resolver calls Claude + web_search and takes 10-20 seconds.
-    // Opening a blank placeholder tab fails on mobile: users close it during the wait,
-    // and window.open after an async gap is blocked by popup policy.
-    //
-    // Reliable strategy: resolve first, then navigate the CURRENT TAB.
-    // The user can tap Back to return to FixIt. No popup is needed.
     setToast(lang === 'de' ? '🔍 Suche direkten Link…'
            : lang === 'fr' ? '🔍 Recherche du lien direct…'
            : lang === 'it' ? '🔍 Cerco link diretto…'
@@ -1300,31 +1295,25 @@ export default function App() {
            : lang === 'pl' ? '🔍 Szukam bezpośredniego linku…'
            : '🔍 Finding direct link…');
     (async () => {
-      let url = st.u(query); // default: Google site-search fallback
       try {
         const resp = await fetch('/api/resolve-store-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, domain: st.resolve }),
         });
-        // Log HTTP status and raw text before parsing (visible in browser console)
-        const rawText = await resp.text();
-        console.log('[FixIt] openStore HTTP', resp.status, 'raw:', rawText.slice(0, 200));
-        let data = {};
-        try { data = JSON.parse(rawText); } catch (e) {
-          console.error('[FixIt] openStore JSON parse error:', e.message, 'raw:', rawText.slice(0, 100));
+        const text = await resp.text();
+        const data = JSON.parse(text);
+        setToast(null);
+        if (resp.ok && data?.url) {
+          window.location.assign(data.url);
+          return;
         }
-        console.log('[FixIt] openStore data.url:', data?.url);
-        if (data?.url) url = data.url;
+        window.location.assign(st.u(query));
       } catch (err) {
-        console.error('[FixIt] openStore fetch error:', err.message);
-        // url stays as Google site-search fallback
+        console.error('[FixIt v2026-08-04T14:00Z] openStore error:', err.message);
+        setToast(null);
+        window.location.assign(st.u(query));
       }
-      console.log('[FixIt] openStore navigating to:', url);
-      setToast(null); // clear the "Finding link…" toast
-      // Navigate the current tab — always works, no popup policy concerns.
-      // User taps Back to return to FixIt.
-      window.location.assign(url);
     })();
   }
 
