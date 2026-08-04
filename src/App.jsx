@@ -691,7 +691,7 @@ export default function App() {
         try {
           const client = await getSbClient();
           if (!client) return;
-          await client.from('diagnoses').upsert({
+          const { error: upsertErr } = await client.from('diagnoses').upsert({
             id:        entry.id,
             user_id:   user.id,
             problem:   entry.problem,
@@ -703,8 +703,13 @@ export default function App() {
             saved_amt: entry.savedAmt || 0,
             fixed:     entry.fixed    ?? null,
           }, { onConflict: 'id,user_id', ignoreDuplicates: false });
+          if (upsertErr) {
+            console.error('[FixIt] diagnoses upsert FAILED:', upsertErr.code, upsertErr.message);
+          } else {
+            console.log('[FixIt] diagnoses upsert OK id=', entry.id, 'user=', user.id.slice(0,8));
+          }
         } catch (e) {
-          console.warn('[FixIt] history sync to Supabase failed (non-fatal):', e.message);
+          console.error('[FixIt] history upsert threw:', e.message);
         }
       })();
     }
@@ -1241,8 +1246,13 @@ export default function App() {
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(100);
-          if (!error && data?.length) {
+          if (error) {
+            console.error('[FixIt] diagnoses fetch FAILED:', error.code, error.message);
+          } else if (data?.length) {
             cloudEntries = data.map(r => r.entry).filter(isValidDiagEntry);
+            console.log('[FixIt] diagnoses fetch OK:', data.length, 'rows for user', user.id.slice(0,8));
+          } else {
+            console.log('[FixIt] diagnoses fetch: no rows yet for user', user.id.slice(0,8));
           }
         }
 
@@ -2843,14 +2853,14 @@ export default function App() {
               </div>
               {/* Category-specific online stores (Autodoc for car, MediaMarkt for tech, etc.) */}
               {localStores.map((st,i)=>(
-                <div key={`cat-${i}`} onClick={()=>translateAndOpen(q=>st.u(q), pResults.searchQ, null)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`cat-${i}`} onClick={()=>window.open(st.u(pResults.searchQ),'_blank','noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700,display:'flex',alignItems:'center',gap:8}}>{st.n}{st.badge&&<span style={{background:C.o,color:'#fff',fontSize:'0.5rem',padding:'2px 7px',borderRadius:100,fontWeight:700}}>{st.badge}</span>}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
               ))}
               {/* Generic online stores (Amazon, eBay, Idealo) */}
               {onlineStores.map((st,i)=>(
-                <div key={`gen-${i}`} onClick={()=>translateAndOpen(q=>st.u(q), pResults.searchQ, null)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`gen-${i}`} onClick={()=>window.open(st.u(pResults.searchQ),'_blank','noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700}}>{st.n}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
