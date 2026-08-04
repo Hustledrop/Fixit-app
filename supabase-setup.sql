@@ -375,3 +375,54 @@ $$;
 -- Restrict execution to service_role only (anon/authenticated may not call this)
 REVOKE EXECUTE ON FUNCTION public.admin_consume_diagnosis(uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.admin_consume_diagnosis(uuid) TO service_role;
+
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- DIAGNOSES TABLE — cross-device analysis history
+-- Each row is one saved diagnosis, owned by user_id.
+-- PRIMARY KEY is (id, user_id):
+--   id      = client Date.now() timestamp (bigint, not UUID — simple and unique per session)
+--   user_id = the owning user's auth.uid()
+-- The composite PK means the same entry id can exist for different users
+-- (impossible in practice, but safe by design).
+-- The upsert conflict target on the client is also (id, user_id).
+--
+-- Safe to re-run: all statements are idempotent.
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CREATE TABLE IF NOT EXISTS public.diagnoses (
+  id          BIGINT        NOT NULL,
+  user_id     UUID          NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  problem     TEXT          NOT NULL DEFAULT '',
+  diagnosis   TEXT          NOT NULL DEFAULT '',
+  entry       JSONB         NOT NULL DEFAULT '{}',
+  category    TEXT,
+  lang        TEXT,
+  cc          TEXT,
+  saved_amt   INTEGER       NOT NULL DEFAULT 0,
+  fixed       BOOLEAN,
+  created_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  PRIMARY KEY (id, user_id)
+);
+
+-- RLS: each user can only read/write their own rows.
+-- A different user's rows are invisible even if they know the entry id.
+ALTER TABLE public.diagnoses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "diagnoses_own"   ON public.diagnoses;
+DROP POLICY IF EXISTS "diagnoses_select" ON public.diagnoses;
+DROP POLICY IF EXISTS "diagnoses_insert" ON public.diagnoses;
+DROP POLICY IF EXISTS "diagnoses_update" ON public.diagnoses;
+DROP POLICY IF EXISTS "diagnoses_delete" ON public.diagnoses;
+
+CREATE POLICY "diagnoses_own" ON public.diagnoses
+  FOR ALL
+  USING  (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+-- Index for fast per-user history queries (most-recent first)
+CREATE INDEX IF NOT EXISTS diagnoses_user_created
+  ON public.diagnoses (user_id, created_at DESC);
+
+-- RLS verification: run these after migrating to confirm isolation
+-- SELECT count(*) FROM public.diagnoses;           -- should only return rows for current user
+-- SELECT user_id, count(*) FROM public.diagnoses GROUP BY user_id; -- confirms row isolation

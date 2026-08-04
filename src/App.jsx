@@ -11,13 +11,19 @@ import LEGAL from './config/legal.js'; // triggers build-time warning if require
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
 import { useAuth } from './useAuth.js';
 import { getAccessToken, resetPasswordForEmail, updatePassword } from './auth.js';
-import { AUTH_AVAILABLE, checkUsage, incrementUsage, restoreProStatus } from './auth.js';
+import { AUTH_AVAILABLE, checkUsage, incrementUsage, restoreProStatus, sb as getSbClient } from './auth.js';
 
 // ── localStorage helpers (prefixed fixit_) ────────────────────────────────────
 const LS = {
   get: k => { try { return JSON.parse(localStorage.getItem('fixit_'+k)); } catch { return null; } },
   set: (k,v) => { try { localStorage.setItem('fixit_'+k, JSON.stringify(v)); } catch {} },
 };
+// Returns the localStorage key for diagnosis history scoped to the current user.
+// Logged-in users get 'fixit_history:<uid>' — completely isolated per account.
+// Unauthenticated sessions use 'fixit_history:guest' — never merged into any account.
+function historyKey(uid) {
+  return uid ? 'history:' + uid : 'history:guest';
+}
 // Session storage for tab-return persistence (cleared when browser closes)
 const SS = {
   get: k => { try { return JSON.parse(sessionStorage.getItem('fixit_'+k)); } catch { return null; } },
@@ -204,12 +210,10 @@ export default function App() {
   // Loaded once on mount with migration: removes corrupted string entries
   // (screen-name strings that were previously mixed in via the same state variable)
   const [diagHistory, setDiagHistory] = useState(() => {
-    const raw = LS.get('history') || [];
+    // On first render user is unknown — read the guest key only.
+    // The login useEffect will swap to the user-scoped key once auth resolves.
+    const raw = LS.get(historyKey(null)) || [];
     const cleaned = raw.filter(isValidDiagEntry);
-    // Write back immediately so corrupted entries don't survive a refresh
-    if (cleaned.length !== raw.length) {
-      try { localStorage.setItem('fixit_history', JSON.stringify(cleaned)); } catch {}
-    }
     return cleaned;
   });
   const [showHistory, setShowHistory] = useState(false);
@@ -676,16 +680,41 @@ export default function App() {
     // ── Prepend to diagHistory (use functional update to avoid stale closure) ─
     setDiagHistory(prev => {
       const updated = [entry, ...prev].slice(0, 20);
-      LS.set('history', updated);
+      // Write to user-scoped key — never to the global 'history' key
+      LS.set(historyKey(user?.id), updated);
       return updated;
     });
+
+    // ── Persist to Supabase for cross-device sync (non-blocking) ─────────
+    if (user && AUTH_AVAILABLE) {
+      (async () => {
+        try {
+          const client = await getSbClient();
+          if (!client) return;
+          await client.from('diagnoses').upsert({
+            id:        entry.id,
+            user_id:   user.id,
+            problem:   entry.problem,
+            diagnosis: entry.diagnosis,
+            entry:     entry,
+            category:  entry.category || null,
+            lang:      entry.lang     || null,
+            cc:        entry.cc       || null,
+            saved_amt: entry.savedAmt || 0,
+            fixed:     entry.fixed    ?? null,
+          }, { onConflict: 'id,user_id', ignoreDuplicates: false });
+        } catch (e) {
+          console.warn('[FixIt] history sync to Supabase failed (non-fatal):', e.message);
+        }
+      })();
+    }
   }
 
   function handleFeedback(val) {
     setFeedback(val);
     setDiagHistory(prev => {
       const updated = prev.map((h, i) => i === 0 ? {...h, fixed: val === 'fixed'} : h);
-      LS.set('history', updated);
+      LS.set(historyKey(user?.id), updated);
       return updated;
     });
 
@@ -706,76 +735,65 @@ export default function App() {
     const r = aiResult;
     if (!r) return;
 
-    // Build share text
-    const savedLine = r.estimatedCost ? (
-      lang==='de' ? `Mögliches Sparpotenzial: ca. ${r.estimatedCost}` :
-      lang==='tr' ? `Tahmini tasarruf: yaklaşık ${r.estimatedCost}` :
-      lang==='pl' ? `Potencjalne oszczędności: ok. ${r.estimatedCost}` :
-      `Estimated savings: approx. ${r.estimatedCost}`
-    ) : '';
-    const shareText = [
+    // Build shareable summary text (synchronous — must complete before any async call
+    // so navigator.share() is called within the user gesture window)
+    const savedLine = r.estimatedCost
+      ? (lang==='de' ? `Mögliches Sparpotenzial: ca. ${r.estimatedCost}`
+       : lang==='tr' ? `Tahmini tasarruf: yaklaşık ${r.estimatedCost}`
+       : lang==='pl' ? `Potencjalne oszczędności: ok. ${r.estimatedCost}`
+       : lang==='sr'||lang==='hr' ? `Procjena uštedine: oko ${r.estimatedCost}`
+       : lang==='mk' ? `Проценета заштеда: ок. ${r.estimatedCost}`
+       : `Estimated savings: approx. ${r.estimatedCost}`)
+      : '';
+
+    const headline =
       lang==='de' ? '🔧 Gerade selbst repariert mit FixIt!' :
       lang==='tr' ? '🔧 FixIt ile kendim tamir ettim!' :
       lang==='pl' ? '🔧 Sam naprawiłem z FixIt!' :
-      '🔧 Just fixed it myself with FixIt!',
+      lang==='fr' ? '🔧 Réparé moi-même avec FixIt !' :
+      lang==='es' ? '🔧 ¡Lo arreglé yo mismo con FixIt!' :
+      lang==='it' ? '🔧 Riparato da solo con FixIt!' :
+      lang==='sr'||lang==='hr' ? '🔧 Sam/a popravio/la uz FixIt!' :
+      lang==='mk' ? '🔧 Сам/а поправив со FixIt!' :
+      '🔧 Just fixed it myself with FixIt!';
+
+    const shareLines = [
+      headline,
       savedLine,
       r.status || '',
-      `fixit-app.vercel.app`,
-    ].filter(Boolean).join('\n');
+      'https://www.fixit-app.com',
+    ].filter(Boolean);
+    const shareText = shareLines.join('\n');
+    const shareUrl  = 'https://www.fixit-app.com';
 
-    // Try canvas share card first, fall back to text share
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1080; canvas.height = 1080;
-      const ctx = canvas.getContext('2d');
-      // Background
-      const grad = ctx.createLinearGradient(0, 0, 1080, 1080);
-      grad.addColorStop(0, '#1f0c00'); grad.addColorStop(1, '#0A0908');
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, 1080, 1080);
-      // Orange accent bar
-      ctx.fillStyle = '#E8521A'; ctx.fillRect(0, 0, 8, 1080);
-      // FIXIT logo
-      ctx.font = 'bold 80px system-ui'; ctx.fillStyle = '#ffffff';
-      ctx.fillText('FIX', 80, 130);
-      ctx.fillStyle = '#E8521A'; ctx.fillText('IT', 248, 130);
-      // Emoji + status
-      ctx.font = '120px system-ui'; ctx.fillText('🔧', 80, 320);
-      ctx.font = 'bold 56px system-ui'; ctx.fillStyle = '#4ade80';
-      ctx.fillText(lang==='de'?'Problem behoben!':lang==='tr'?'Problem çözüldü!':lang==='pl'?'Naprawione!':'Fixed it!', 80, 420);
-      // Problem
-      const prob = (problemRef.current || '').substring(0, 45);
-      ctx.font = '36px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText(prob, 80, 490);
-      // Savings
-      if (r.estimatedCost) {
-        ctx.font = 'bold 100px system-ui'; ctx.fillStyle = '#4ade80';
-        ctx.fillText(r.estimatedCost, 80, 640);
-        ctx.font = 'bold 36px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillText(lang==='de'?'Sparpotenzial (ca.)':lang==='tr'?'tahmini tasarruf':lang==='pl'?'potencjalne oszczędności':'est. savings', 80, 700);
+    // Path A: Web Share API (iPhone, Android Chrome — must be called synchronously
+    // within the user gesture; no await before this call)
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'FixIt', text: shareText, url: shareUrl });
+        return;
+      } catch (err) {
+        // User cancelled (AbortError) or API failed — fall through to clipboard
+        if (err?.name === 'AbortError') return; // user dismissed intentionally
+        console.warn('[FixIt] navigator.share failed:', err);
       }
-      // URL
-      ctx.font = '28px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fillText('fixit-app.vercel.app', 80, 1020);
+    }
 
-      canvas.toBlob(async blob => {
-        if (blob && navigator.share && navigator.canShare?.({ files: [new File([blob], 'fixit.png', {type:'image/png'})] })) {
-          await navigator.share({ files: [new File([blob], 'fixit.png', {type:'image/png'})], title: 'FixIt', text: shareText });
-        } else if (blob) {
-          // Download the image
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = 'fixit-repair.png';
-          a.click();
-          // Also try text share
-          if (navigator.share) await navigator.share({ title: 'FixIt', text: shareText, url: window.location.href });
-        } else if (navigator.share) {
-          await navigator.share({ title: 'FixIt', text: shareText, url: window.location.href });
-        }
-      }, 'image/png');
-    } catch (e) {
-      // Final fallback: copy to clipboard
-      try { await navigator.clipboard.writeText(shareText + '\n' + window.location.href); setToast('✅ Copied!'); }
-      catch (_) {}
+    // Path B: Clipboard fallback (desktop browsers, unsupported browsers)
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setToast(
+        lang==='de' ? '✅ In Zwischenablage kopiert!' :
+        lang==='tr' ? '✅ Panoya kopyalandı!' :
+        lang==='pl' ? '✅ Skopiowano do schowka!' :
+        lang==='fr' ? '✅ Copié dans le presse-papiers !' :
+        lang==='es' ? '✅ ¡Copiado al portapapeles!' :
+        lang==='it' ? '✅ Copiato negli appunti!' :
+        '✅ Copied to clipboard!'
+      );
+    } catch (_) {
+      // Clipboard also denied — last resort: show the text in a toast so user can copy manually
+      setToast('FixIt — ' + shareUrl);
     }
   }
 
@@ -1182,20 +1200,70 @@ export default function App() {
   }, [authEvent]);
 
   // ── Derive free trial state from Supabase profile (account-scoped) ──────────
-  // Runs whenever the profile is loaded or refreshed.
-  // This is the ONLY authoritative source — localStorage is never consulted for this decision.
   useEffect(() => {
     if (authProfile && !isPro) {
       if (authProfile.free_trial_completed_at) {
-        // Trial has been used on this account (on any device) — activate the session flag
         setFreeRepairActive(true);
       }
     } else if (!authProfile) {
-      // Signed out — clear trial state
       setFreeRepairActive(false);
       setFreeRepairDone(false);
     }
   }, [authProfile, isPro]);
+
+  // ── Sync analysis history on login ─────────────────────────────────────────
+  // Triggered when user changes (null → logged-in, or account switch).
+  // Security rules:
+  //   • Reads ONLY from user-scoped localStorage key: history:<uid>
+  //   • NEVER reads from history:guest or the previous in-memory state
+  //     (state may still contain the previous user's entries if this is an
+  //     account switch without a page reload)
+  //   • Merges user-scoped local entries with Supabase cloud entries
+  //   • Deduplicates by entry.id; keeps newest 50 (UI shows latest 20)
+  //   • Non-blocking — never delays the UI
+  useEffect(() => {
+    if (!user || !AUTH_AVAILABLE) return;
+    // Clear previous user's history from state immediately, BEFORE the async fetch.
+    // This prevents briefly showing the wrong user's entries.
+    setDiagHistory([]);
+    (async () => {
+      try {
+        // Step 1: read this user's local history (safe — scoped key)
+        const localEntries = (LS.get(historyKey(user.id)) || []).filter(isValidDiagEntry);
+
+        // Step 2: fetch cloud entries (ordered newest-first, up to 100)
+        let cloudEntries = [];
+        const client = await getSbClient();
+        if (client) {
+          const { data, error } = await client
+            .from('diagnoses')
+            .select('entry, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(100);
+          if (!error && data?.length) {
+            cloudEntries = data.map(r => r.entry).filter(isValidDiagEntry);
+          }
+        }
+
+        // Step 3: merge cloud + local, dedup by entry.id (cloud wins on conflict)
+        const seen = new Set();
+        const merged = [...cloudEntries, ...localEntries]
+          .filter(e => { if (!e?.id || seen.has(e.id)) return false; seen.add(e.id); return true; })
+          .slice(0, 50);
+
+        // Step 4: write merged list to user-scoped local key and update state
+        LS.set(historyKey(user.id), merged);
+        setDiagHistory(merged);
+        console.log('[FixIt] history synced:', merged.length, 'entries for user', user.id.slice(0,8));
+      } catch (e) {
+        // Sync failed — load local-only as fallback
+        console.warn('[FixIt] history sync failed (non-fatal):', e.message);
+        const localOnly = (LS.get(historyKey(user.id)) || []).filter(isValidDiagEntry);
+        setDiagHistory(localOnly);
+      }
+    })();
+  }, [user]); // eslint-disable-line
 
   // ── Market-language query normalisation for Parts links ─────────────────────
   // Called when a user clicks a store URL or Maps link in the Parts screen.
@@ -1211,9 +1279,16 @@ export default function App() {
     // Cache hit: this query was already translated this session.
     if (translatedQueryCache.current[query]) {
       const cached = translatedQueryCache.current[query];
-      console.log('[FixIt] translateAndOpen CACHE HIT',
-        {original: query, translated: cached, url: (targetUrl || url_builder(cached))});
-      window.open(targetUrl || url_builder(cached), '_blank', 'noopener,noreferrer');
+      const cacheUrl = targetUrl || url_builder(cached);
+      console.log('[FixIt] ═══ CACHE HIT — opening directly ═══',
+        {original: query, translated: cached, url: cacheUrl});
+      // On mobile, if window.open is blocked (returns null), fall back to
+      // navigating the current tab as a last resort.
+      const cacheWin = window.open(cacheUrl, '_blank', 'noopener,noreferrer');
+      if (!cacheWin) {
+        console.warn('[FixIt] window.open blocked (mobile). Navigating current tab.');
+        window.location.href = cacheUrl;
+      }
       return;
     }
     // Translation needed.
@@ -1251,8 +1326,15 @@ export default function App() {
       // replace() removes about:blank from history and sends the opener URL as Referer.
       if (pending && !pending.closed) {
         pending.location.replace(finalUrl);
+      } else if (!pending) {
+        // Popup was blocked by the browser (common on mobile).
+        // Translation is now cached — the next tap will hit the cache and open directly.
+        // As an immediate fallback, try window.open once more (succeeds if user gesture is fresh).
+        console.warn('[FixIt] translateAndOpen: popup blocked, trying direct open.');
+        const retry = window.open(finalUrl, '_blank', 'noopener,noreferrer');
+        if (!retry) window.location.href = finalUrl;
       } else {
-        // Tab was closed by the user while waiting — nothing to do.
+        // pending.closed: user closed the tab while waiting.
         console.warn('[FixIt] translateAndOpen: pending tab was closed before navigation');
       }
     } catch (err) {
@@ -1429,16 +1511,18 @@ export default function App() {
                   {/* Sign out */}
                   <button onClick={async()=>{
                     await logout();
-                    // Clear all user-specific UI state immediately on sign-out.
-                    // This ensures a guest or new user cannot inherit subscription,
-                    // usage, history, or navigation state from the previous account.
+                    // Clear all user-specific state immediately on sign-out so the
+                    // next user or guest session never inherits previous account data.
                     setAuthScreen(null);
                     setDeleteConfirm(false);
                     setFreeLimitHit(false); setFreeRepairActive(false); setFreeRepairDone(false);
                     setScreen('home');
                     setNavStack([]);
-                    // Clear the per-device free-diagnosis key so a new account
-                    // on the same device gets a fresh free diagnosis.
+                    // IMPORTANT: clear in-memory history immediately.
+                    // Do NOT fall back to localStorage guest history — show empty list.
+                    // The previous user's localStorage key ('history:<uid>') is untouched
+                    // and will only be readable if the same account logs in again.
+                    setDiagHistory([]);
                     LS.set('free_diagnosis_used', false);
                   }} style={{...linkBtn,color:'rgba(255,255,255,0.5)'}}>
                     <span>↩</span>{t('signOut')}
@@ -1873,7 +1957,7 @@ export default function App() {
                 <div style={{fontSize:'1.5rem',fontWeight:900,color:C.g}}>ca. €{totalSaved}</div>
                 <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.22)',marginTop:4}}>{lang==='de'?'Schätzung basierend auf typischen Reparaturkosten. Keine Garantie.':lang==='tr'?'Tipik onarım maliyetlerine göre tahmin. Garanti yoktur.':lang==='pl'?'Szacunek oparty na typowych kosztach naprawy. Bez gwarancji.':'Estimate based on typical repair costs. No guarantee.'}</div>
               </div>}
-              <button onClick={()=>{setDiagHistory([]);LS.set('history',[]);setTotalSaved(0);LS.set('totalSaved',0);}} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{lang==='de'?'Verlauf löschen':lang==='tr'?'Geçmişi temizle':lang==='pl'?'Wyczyść historię':'Clear history'}</button>
+              <button onClick={()=>{setDiagHistory([]);LS.set(historyKey(user?.id),[]);setTotalSaved(0);LS.set('totalSaved',0);}} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{lang==='de'?'Verlauf löschen':lang==='tr'?'Geçmişi temizle':lang==='pl'?'Wyczyść historię':'Clear history'}</button>
             </div>
           </div>
         )}

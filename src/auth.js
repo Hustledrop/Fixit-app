@@ -25,7 +25,7 @@ if (SUPABASE_URL) {
 // Promise-based singleton — guarantees createClient() is called exactly once
 // even when multiple async callers (React StrictMode double-effect) race on startup.
 let _sbPromise = null;
-async function sb() {
+export async function sb() {
   if (!AUTH_AVAILABLE) return null;
   if (!_sbPromise) {
     _sbPromise = (async () => {

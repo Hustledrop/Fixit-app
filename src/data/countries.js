@@ -748,15 +748,12 @@ export function normalizeQueryForMarket(query, cc, category, vehicleCtx) {
  * Used by App.jsx to decide whether to call /api/translate-part.
  */
 export function queryNeedsTranslation(query, cc, queryLang) {
-  // Language-aware decision: translate whenever the query language differs from the market language.
-  // queryLang = the UI language at the time of diagnosis (the language the AI wrote the query in).
-  // getMarketLang(cc) = the commerce language of the user's GPS country.
-  // If they differ → the query is in the wrong language for this market → translate.
   if (!query) return false;
+  // If country is unknown (GPS not loaded yet), we cannot determine the market language.
+  // Do not translate — open with the original query immediately.
+  if (!cc || cc === 'DEFAULT') return false;
   const marketLang = getMarketLang(cc);
-  // No queryLang given → fall back to script detection (Cyrillic in latin market)
   if (!queryLang) return LATIN_MARKET_LANGS.has(marketLang) && !isLatinScript(query);
-  // Language comparison: if UI lang equals market lang, no translation needed
   return queryLang !== marketLang;
 }
 
