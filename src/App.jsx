@@ -1277,6 +1277,39 @@ export default function App() {
   // If the query is already in the market language (or the market uses the same script),
   // opens the URL immediately. If not, calls /api/translate-part once (result cached),
   // then opens the translated URL.
+  // Opens a store link. For stores with a `resolve` property (Polo, Louis),
+  // attempts to find the direct product URL server-side first.
+  // Falls back to the store's `u(q)` URL (Google site-search) if resolution fails.
+  function openStore(st, query) {
+    if (!st.resolve) {
+      // No resolution needed — open directly (Amazon, eBay, etc.)
+      window.open(st.u(query), '_blank', 'noopener,noreferrer');
+      return;
+    }
+    // Store needs URL resolution (Polo, Louis).
+    // Open a placeholder tab immediately (popup policy: must be in sync click handler).
+    const pending = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    (async () => {
+      try {
+        const resp = await fetch('/api/resolve-store-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, domain: st.resolve }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        const url = data?.url || st.u(query); // direct URL or Google site-search fallback
+        console.log('[FixIt] openStore', st.n, url);
+        if (pending && !pending.closed) {
+          pending.location.replace(url);
+        }
+      } catch (_) {
+        // On any error: navigate to Google site-search fallback
+        const fallback = st.u(query);
+        if (pending && !pending.closed) pending.location.replace(fallback);
+      }
+    })();
+  }
+
   async function translateAndOpen(url_builder, query, targetUrl) {
     // Fast path: UI language matches market language — open immediately, no translation needed.
     if (!queryNeedsTranslation(query, cc, lang)) {
@@ -2850,14 +2883,14 @@ export default function App() {
               </div>
               {/* Category-specific online stores (Autodoc for car, MediaMarkt for tech, etc.) */}
               {localStores.map((st,i)=>(
-                <div key={`cat-${i}`} onClick={()=>window.open(st.u(pResults.searchQ),'_blank','noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`cat-${i}`} onClick={()=>openStore(st, pResults.searchQ)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700,display:'flex',alignItems:'center',gap:8}}>{st.n}{st.badge&&<span style={{background:C.o,color:'#fff',fontSize:'0.5rem',padding:'2px 7px',borderRadius:100,fontWeight:700}}>{st.badge}</span>}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
               ))}
               {/* Generic online stores (Amazon, eBay, Idealo) */}
               {onlineStores.map((st,i)=>(
-                <div key={`gen-${i}`} onClick={()=>window.open(st.u(pResults.searchQ),'_blank','noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`gen-${i}`} onClick={()=>openStore(st, pResults.searchQ)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700}}>{st.n}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>

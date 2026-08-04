@@ -53,6 +53,18 @@ export async function getSession() {
 // supabase.auth.getUser(token) to derive user.id from the signed JWT,
 // rather than trusting user.id from the request body.
 export async function getAccessToken() {
+  const c = await sb(); if (!c) return null;
+  // Call refreshSession() to ensure the token is always fresh.
+  // getSession() only reads from localStorage — if the cached token is expired,
+  // diagnose.js gets a stale JWT and Supabase rejects it with "Auth session missing!".
+  // refreshSession() exchanges the refresh token for a new access token from the server.
+  // Falls back to the cached session if refresh fails (e.g. network error).
+  try {
+    const { data, error } = await c.auth.refreshSession();
+    if (!error && data?.session?.access_token) {
+      return data.session.access_token;
+    }
+  } catch (_) { /* ignore refresh errors — fall back to cached session below */ }
   const session = await getSession();
   return session?.access_token ?? null;
 }
