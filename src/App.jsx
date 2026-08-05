@@ -135,9 +135,10 @@ function catTerms(cat, lang) {
     fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':it?'❌ Ancora rotto':mk?'❌ Сè уште дефектно':(sr||hr)?'❌ Još uvek pokvareno':lang==='tr'?'❌ Hâlâ bozuk':lang==='pl'?'❌ Nadal zepsute':'❌ Still broken',
     proBtn:    de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':mk?'Најди стручњак':(sr||hr)?'Nađi stručnjaka':lang==='tr'?'Usta bul':lang==='pl'?'Znajdź fachowca':'Find Professional',
     partsBtn:  cat==='car'?(de?'Autoteile finden':lang==='tr'?'Araba parçası bul':lang==='pl'?'Znajdź części do auta':'Find Auto Parts'):
+             cat==='motorcycle'||cat==='moto'?(de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts'):
              cat==='tech'?(de?'Ersatzteile finden':lang==='tr'?'Yedek parça bul':lang==='pl'?'Znajdź części zamienne':'Find Spare Parts'):
              cat==='appliances'?(de?'Ersatzteile finden':lang==='tr'?'Yedek parça bul':lang==='pl'?'Znajdź części zamienne':'Find Spare Parts'):
-               (de?'Teile finden':'Find Parts'),
+               (de?'Teile finden':fr?'Trouver les pièces':es?'Buscar piezas':it?'Trovare parti':mk?'Барај делови':(sr||hr)?'Traži dijelove':lang==='tr'?'Parça bul':lang==='pl'?'Znajdź części':'Find Parts'),
     loading:   de?['Problem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile und Werkzeuge werden gesucht…']:
                fr?['Analyse du problème…','Identification de la cause…','Préparation des étapes…','Recherche des pièces…']:
                es?['Analizando tu problema…','Identificando la causa…','Preparando los pasos…','Buscando repuestos…']:
@@ -529,8 +530,9 @@ export default function App() {
     if (/\b(z[uü]ndkerze|spark.?plug|vergaser|carburet|hauptd[uü]se|main.?jet|nema.?iskra|iskra|kettenöl|ölfilter.*motor|luftfilter.*motor)\b/.test(t)) return 'motorcycle';
     // Tech / devices
     if (/\b(wifi|wi-fi|wlan|router|laptop|computer|smartphone|handy|drucker|printer|bluetooth|gaming|playstation|xbox)\b/.test(t)) return 'tech';
-    // Car
-    if (/\b(kfz|fahrzeug|ölwechsel|kühlwasser|getriebe|kupplung|vw|volkswagen|audi|mercedes|opel|renault|toyota|hyundai|skoda|subaru|nissan|volvo|porsche|hsn|tsn)\b/.test(t)) return 'car';
+    // Car — makes, models, and automotive part terms
+    if (/\b(kfz|fahrzeug|ölwechsel|kühlwasser|getriebe|kupplung|bremse|bremsbelag|auspuff|abgas|dpf|agr|egr|turbo|diesel|benzin|petrol|starter|lichtmaschine|alternator|batterie|battery|radiator|thermostat|zahnriemen|timing.?belt)\b/.test(t)) return 'car';
+    if (/\b(vw|volkswagen|golf|polo|passat|tiguan|touareg|caddy|transporter|t-roc|t-cross|arteon|audi|a[1-9]\b|q[1-9]\b|tt\b|r8\b|mercedes|benz|bmw|serie|3er|5er|7er|x[1-9]\b|ford|focus|fiesta|mondeo|kuga|puma|ranger|transit|seat|ibiza|leon|ateca|tarraco|arona|citroen|citroën|c[1-9]\b|berlingo|fiat|500|panda|tipo|punto|opel|corsa|astra|insignia|mokka|zafira|renault|clio|megane|scenic|kadjar|duster|peugeot|208|308|508|3008|5008|skoda|octavia|fabia|superb|kodiaq|karoq|hyundai|tucson|santa|kona|ioniq|kia|sportage|sorento|stinger|ceed|toyota|corolla|camry|rav4|yaris|aygo|highlander|honda|civic|accord|cr-v|hr-v|jazz|fr-v|mazda|cx-[0-9]|mx-[0-9]|mazda[0-9]|subaru|impreza|forester|outback|nissan|qashqai|juke|leaf|micra|note|volvo|v[0-9]{2}|xc[0-9]{2}|s[0-9]{2}|porsche|cayenne|macan|panamera|911|glühkerze|glow.?plug|einspritz|injektor|injector|zylinder|cylinder|kolben|piston|nockenwelle|camshaft|kurbelwelle|crankshaft|ölpumpe)\b/.test(t)) return 'car';
     // Garden
     if (/\b(rasenmäher|lawn.?mow|garten|garden|kettensäge|chainsaw|freischneider)\b/.test(t)) return 'garden';
     // Appliances
@@ -2052,6 +2054,7 @@ export default function App() {
                            proReason:     h.proReason     || '',
                            callPro:       h.callPro       ?? false,
                            proSearchQuery:h.proSearchQuery|| '',
+                           _category:     h.category      || 'home',
                          });
                          problemRef.current = h.problem;
                          setCurFix(h.category || 'home');
@@ -2089,7 +2092,51 @@ export default function App() {
                 <div style={{fontSize:'1.5rem',fontWeight:900,color:C.g}}>ca. €{totalSaved}</div>
                 <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.22)',marginTop:4}}>{lang==='de'?'Schätzung basierend auf typischen Reparaturkosten. Keine Garantie.':lang==='tr'?'Tipik onarım maliyetlerine göre tahmin. Garanti yoktur.':lang==='pl'?'Szacunek oparty na typowych kosztach naprawy. Bez gwarancji.':'Estimate based on typical repair costs. No guarantee.'}</div>
               </div>}
-              <button onClick={()=>{setDiagHistory([]);LS.set(historyKey(user?.id),[]);setTotalSaved(0);LS.set('totalSaved',0);}} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{lang==='de'?'Verlauf löschen':lang==='tr'?'Geçmişi temizle':lang==='pl'?'Wyczyść historię':'Clear history'}</button>
+              <button onClick={async ()=>{
+                // Confirmation before deleting
+                const confirmMsg = lang==='de' ? 'Verlauf wirklich löschen?' :
+                  lang==='tr' ? 'Geçmişi silmek istediğinizden emin misiniz?' :
+                  lang==='pl' ? 'Czy na pewno usunąć historię?' :
+                  lang==='fr' ? "Supprimer tout l'historique ?" :
+                  lang==='it' ? 'Eliminare tutta la cronologia?' :
+                  lang==='es' ? '¿Eliminar todo el historial?' :
+                  lang==='mk' ? 'Да се избрише историјата?' :
+                  (lang==='sr'||lang==='hr') ? 'Obrisati svu istoriju?' :
+                  'Delete all history?';
+                if (!window.confirm(confirmMsg)) return;
+                // 1. Clear in-memory state immediately
+                setDiagHistory([]);
+                setTotalSaved(0);
+                // 2. Clear this user's local history key (never touches other users)
+                LS.set(historyKey(user?.id), []);
+                LS.set('totalSaved', 0);
+                // 3. Delete this user's rows from Supabase (non-blocking, best-effort)
+                if (user && AUTH_AVAILABLE) {
+                  (async () => {
+                    try {
+                      const client = await getSbClient();
+                      if (client) {
+                        const { error } = await client
+                          .from('diagnoses')
+                          .delete()
+                          .eq('user_id', user.id);
+                        if (error) console.error('[FixIt] delete history Supabase error:', error.message);
+                        else console.log('[FixIt] Supabase history deleted for user', user.id.slice(0,8));
+                      }
+                    } catch (e) { console.error('[FixIt] delete history threw:', e.message); }
+                  })();
+                }
+              }} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{
+                lang==='de'?'Verlauf löschen':
+                lang==='tr'?'Geçmişi temizle':
+                lang==='pl'?'Wyczyść historię':
+                lang==='fr'?"Effacer l'historique":
+                lang==='it'?'Cancella cronologia':
+                lang==='es'?'Borrar historial':
+                lang==='mk'?'Избриши историја':
+                (lang==='sr'||lang==='hr')?'Obriši istoriju':
+                'Delete history'
+              }</button>
             </div>
           </div>
         )}
@@ -2185,6 +2232,11 @@ export default function App() {
   // ── RESULT ───────────────────────────────────────────────────────────────────
   if (screen === 'result') {
     const r   = restoredResult || aiResult;
+    // Single source of truth for the active diagnosis category.
+    // r._category is set by useEffect (fresh) or restoredResult._category (history).
+    // Falls back to curFix only when _category is absent (old history entries).
+    // Never defaults to 'home' unless the entry itself is categorised as 'home'.
+    const effectiveCat = (r && r._category) ? r._category : curFix;
     const pct = r?.confidence||0;
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
@@ -2215,7 +2267,7 @@ export default function App() {
     }
     const isDE = lang === 'de';
     const proQ = normalizeProSearch(r?.proSearchQuery, curFix, isDE)||`${curFix} repair service`;
-    const ct  = catTerms(curFix, lang);  // category-aware terminology
+    const ct  = catTerms(effectiveCat, lang);  // category from saved entry, not stale curFix
 
 
 
@@ -2444,14 +2496,13 @@ export default function App() {
             ) : (
               <div style={{display:'flex',gap:10}}>
                 <button onClick={()=>{
-                  // r._category is attached by useEffect when the AI result arrives.
-                  // Using it (not curFix) ensures motorcycle diagnoses always open the Moto tab.
-                  const _baseCat2 = r._category || curFix;
-                  const cat=_baseCat2==='car'?'car':_baseCat2==='motorcycle'?'moto':_baseCat2==='moto'?'moto':_baseCat2==='bike'?'moto':_baseCat2==='tech'?'tech':_baseCat2==='appliances'?'appliances':_baseCat2==='garden'?'garden':_baseCat2==='pets'?'pets':'home';
+                  // effectiveCat is derived from r._category (set at save/restore time),
+                  // falling back to curFix only for old entries. Never depends on stale curFix.
+                  const cat=effectiveCat==='car'?'car':effectiveCat==='motorcycle'?'moto':effectiveCat==='moto'?'moto':effectiveCat==='bike'?'moto':effectiveCat==='tech'?'tech':effectiveCat==='appliances'?'appliances':effectiveCat==='garden'?'garden':effectiveCat==='pets'?'pets':'home';
                   setVType(cat);
                   // Build query from CURRENT diagnosis — never reuse old parts search
                   const detectedVehicle = r._vehicleCtx;
-                  const diagQuery = buildPartsQueryFromDiagnosis(r, problemRef.current, curFix, detectedVehicle);
+                  const diagQuery = buildPartsQueryFromDiagnosis(r, problemRef.current, effectiveCat, detectedVehicle);
                   // Build the vehicle label string for the vInput field
                   const vehicleLabel = detectedVehicle
                     ? [detectedVehicle.make, detectedVehicle.model, detectedVehicle.engine, detectedVehicle.year].filter(Boolean).join(' ')
