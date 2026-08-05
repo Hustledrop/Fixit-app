@@ -2031,22 +2031,18 @@ export default function App() {
               ref={historyScrollRef}
               onClick={e=>e.stopPropagation()}
               style={{
-                position:'absolute', top:0, left:0, right:0, bottom:0,
-                overflowY:'auto', overflowX:'hidden',
+                position:'absolute',
+                bottom:0, left:0, right:0,
+                maxHeight:'90vh',
+                overflowY:'auto',
+                overflowX:'hidden',
                 WebkitOverflowScrolling:'touch',
-                paddingTop:'calc(env(safe-area-inset-top, 20px) + 52px)',
-                paddingBottom:'calc(110px + env(safe-area-inset-bottom, 0px) + 24px)',
-                paddingLeft:0, paddingRight:0,
+                background:'#151310',
+                borderRadius:'26px 26px 0 0',
+                paddingBottom:'calc(110px + env(safe-area-inset-bottom, 0px) + 16px)',
                 boxSizing:'border-box',
               }}>
-              <div
-                style={{
-                  background:'#151310',
-                  borderRadius:'26px 26px 0 0',
-                  minHeight:'60vh',
-                  padding:'20px',
-                  boxSizing:'border-box',
-                }}>
+              <div style={{padding:'20px'}}>
               <div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
               {diagHistory.filter(isValidDiagEntry).map(h=>{
                 // Safe date formatting — never call new Date() on an unvalidated value
