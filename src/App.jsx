@@ -393,9 +393,7 @@ export default function App() {
       // Attach the active category so part-chip handlers can read it from `r._category`
       // instead of relying on curFix, which may not reflect the motorcycle category
       // when the user typed a motorcycle problem without selecting a motorcycle category tab.
-      console.log('[CAT-TRACE] useEffect aiResult: diagCategoryRef='+diagCategoryRef.current+' curFix='+curFix+' _vehicleCtx='+(aiResult._vehicleCtx?aiResult._vehicleCtx.make+' '+aiResult._vehicleCtx.model:'null'));
       if (!aiResult._category) aiResult._category = diagCategoryRef.current || curFix;
-      console.log('[CAT-TRACE] aiResult._category now='+aiResult._category);
       saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
     }
   }, [aiResult]); // eslint-disable-line
@@ -519,7 +517,32 @@ export default function App() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  async function runAI(override) {
+  // Detects diagnosis category from free-text when curFix==='home' (NavBar Fix entry).
+  // Returns a valid category string or null (caller keeps 'home').
+  function detectCategoryFromText(text) {
+    if (!text) return null;
+    const t = text.toLowerCase();
+    // Motorcycle / scooter — checked first (shares brand names with cars)
+    if (/\baprilia|vespa|piaggio|gilera|malaguti|kymco|sym\b/.test(t)) return 'motorcycle';
+    if (/\b(motocro|enduro|scooter|moped|mofa|motorrad|motorbike|motorcycle|atv|quad|pit.?bike|dirt.?bike)\b/.test(t)) return 'motorcycle';
+    if (/\b(ktm|husqvarna|sherco|ducati|triumph|harley|gasgas)\b/.test(t)) return 'motorcycle';
+    if (/\b(z[uü]ndkerze|spark.?plug|vergaser|carburet|hauptd[uü]se|main.?jet|nema.?iskra|iskra|kettenöl|ölfilter.*motor|luftfilter.*motor)\b/.test(t)) return 'motorcycle';
+    // Tech / devices
+    if (/\b(wifi|wi-fi|wlan|router|laptop|computer|smartphone|handy|drucker|printer|bluetooth|gaming|playstation|xbox)\b/.test(t)) return 'tech';
+    // Car
+    if (/\b(kfz|fahrzeug|ölwechsel|kühlwasser|getriebe|kupplung|vw|volkswagen|audi|mercedes|opel|renault|toyota|hyundai|skoda|subaru|nissan|volvo|porsche|hsn|tsn)\b/.test(t)) return 'car';
+    // Garden
+    if (/\b(rasenmäher|lawn.?mow|garten|garden|kettensäge|chainsaw|freischneider)\b/.test(t)) return 'garden';
+    // Appliances
+    if (/\b(waschmaschine|washing.?machine|kühlschrank|fridge|geschirrspüler|dishwasher|mikrowelle|microwave|staubsauger|vacuum|boiler|heizung)\b/.test(t)) return 'appliances';
+    // Bicycle
+    if (/\b(fahrrad|bicycle|ebike|e-bike|pedelec|mountainbike)\b/.test(t)) return 'bike';
+    // Pets
+    if (/\b(hund|dog|katze|cat|haustier|tierarzt)\b/.test(t)) return 'pets';
+    return null;
+  }
+
+    async function runAI(override) {
     // Read textarea DOM directly as fallback — catches any onChange race conditions
     if (!override) {
       const el = document.getElementById('fixit-problem-input');
@@ -553,16 +576,22 @@ export default function App() {
     setVInput('');
     setPInput('');
     setHsnModel('');
-    diagCategoryRef.current = curFix;
+    // When curFix is 'home' (user arrived via NavBar Fix without selecting a tile),
+    // detect the actual category from the problem text. This makes motorcycle, tech,
+    // car etc. diagnoses open the correct Parts tab automatically — same as when the
+    // user explicitly taps a category tile (which sets curFix before runAI).
+    const effectiveCat = (curFix === 'home' && prob)
+      ? (detectCategoryFromText(prob) || 'home')
+      : curFix;
+    diagCategoryRef.current = effectiveCat;
     setPrevScr('fix-now');
     setFeedback(null);
     // Generate a new runId for this submission; prevents double-save from
     // React StrictMode double-effects and rapid resubmits/retries
     diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
     setRestoredResult(null); // clear any restored history result
-    console.log('[CAT-TRACE] runAI: curFix='+curFix+' diagCategoryRef='+diagCategoryRef.current);
     goto('result');
-    await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, cc, userProfile: profile });
+    await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: effectiveCat, lang, countryName: cd.name, cc, userProfile: profile });
   }
 
   // ── Shared validator for diagnosis history entries ──────────────────────
@@ -2362,11 +2391,9 @@ export default function App() {
                       // Use r._category (attached at diagnosis time) so the correct
                       // Parts tab is selected even when curFix differs from the diagnosis category.
                       // Falls back to curFix for old history entries without _category.
-                      console.log('[CAT-TRACE] chip tap: r._category='+(r&&r._category)+' curFix='+curFix+' diagCategoryRef='+diagCategoryRef.current+' r._vehicleCtx='+(r&&r._vehicleCtx?r._vehicleCtx.make:'null'));
                       const _baseCat = r._category || curFix;
                       const cat2=_baseCat==='car'?'car':_baseCat==='motorcycle'?'moto':_baseCat==='moto'?'moto':_baseCat==='bike'?'moto':_baseCat==='tech'?'tech':_baseCat==='appliances'?'appliances':_baseCat==='garden'?'garden':_baseCat==='pets'?'pets':'home';
                        const cq2 = cleanProductSearchQuery(p,'',cat2,'','');
-                       console.log('[CAT-TRACE] setVType called with: '+cat2+' (_baseCat='+_baseCat+')');
                        setPInput(cq2); setVInput(''); setHsnModel(''); setVType(cat2);
                        setPResults({ q: cq2, vehicle: '', hsnModel: '', searchQ: cq2, isHSN: false, category: cat2, fromDiagnosis: true });
                       if (!user) { setAuthScreen('login'); } else if (isPro || freeRepairActive) { goto('parts'); } else if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
