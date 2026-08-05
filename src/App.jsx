@@ -226,6 +226,7 @@ export default function App() {
   // ── diagnosisRunId: unique per submit, carried through to save guard ───
   const diagRunIdRef   = useRef(null);   // set on each new submission
   const savedRunIdsRef = useRef(new Set()); // prevents double-save per run
+  const historyScrollRef  = useRef(null);
   const [nearbyBump,  setNearbyBump]  = useState(0); // increment to force nearby refresh
   const [nearbyForce, setNearbyForce] = useState(false); // true = bypass 30min cache
   const [isOnline, setIsOnline]   = useState(navigator.onLine);
@@ -1980,7 +1981,7 @@ export default function App() {
           {/* Right: history + lang flag + user icon */}
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'flex-end',gap:6,minWidth:0}}>
             {diagHistory.length > 0 &&
-              <button onClick={()=>setShowHistory(true)} title="History"
+              <button onClick={()=>{setShowHistory(true); setTimeout(()=>{if(historyScrollRef.current)historyScrollRef.current.scrollTop=0;},0);}} title="History"
                 style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:10,width:34,height:34,cursor:'pointer',color:C.m,fontFamily:'inherit',fontSize:'0.7rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                 🕐{diagHistory.length}
               </button>}
@@ -2023,8 +2024,29 @@ export default function App() {
       <Scroll>
         {/* History modal */}
         {showHistory && (
-          <div onClick={()=>setShowHistory(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:100,display:'flex',alignItems:'flex-end'}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:'#151310',borderRadius:'26px 26px 0 0',width:'100%',maxHeight:'80vh',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',padding:'20px 20px 32px',boxSizing:'border-box'}}>
+          <div
+            onClick={()=>setShowHistory(false)}
+            style={{position:'fixed',inset:0,zIndex:100,background:'rgba(0,0,0,0.75)'}}>
+            <div
+              ref={historyScrollRef}
+              onClick={e=>e.stopPropagation()}
+              style={{
+                position:'absolute', top:0, left:0, right:0, bottom:0,
+                overflowY:'auto', overflowX:'hidden',
+                WebkitOverflowScrolling:'touch',
+                paddingTop:'calc(env(safe-area-inset-top, 20px) + 52px)',
+                paddingBottom:'calc(110px + env(safe-area-inset-bottom, 0px) + 24px)',
+                paddingLeft:0, paddingRight:0,
+                boxSizing:'border-box',
+              }}>
+              <div
+                style={{
+                  background:'#151310',
+                  borderRadius:'26px 26px 0 0',
+                  minHeight:'60vh',
+                  padding:'20px',
+                  boxSizing:'border-box',
+                }}>
               <div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
               {diagHistory.filter(isValidDiagEntry).map(h=>{
                 // Safe date formatting — never call new Date() on an unvalidated value
@@ -2145,6 +2167,7 @@ export default function App() {
                 (lang==='sr'||lang==='hr')?'Obriši istoriju':
                 'Delete history'
               }</button>
+              </div>
             </div>
           </div>
         )}
