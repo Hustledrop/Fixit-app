@@ -389,7 +389,13 @@ export default function App() {
   // so each diagnosis run has a unique ID that prevents double-saves
   useEffect(() => {
     console.log('[FixIt] saveHistory useEffect fired', { hasResult: !!aiResult, runId: diagRunIdRef.current });
-    if (aiResult) saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
+    if (aiResult) {
+      // Attach the active category so part-chip handlers can read it from `r._category`
+      // instead of relying on curFix, which may not reflect the motorcycle category
+      // when the user typed a motorcycle problem without selecting a motorcycle category tab.
+      if (!aiResult._category) aiResult._category = curFix;
+      saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
+    }
   }, [aiResult]); // eslint-disable-line
 
   function goto(s) {
@@ -2348,7 +2354,11 @@ export default function App() {
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:0}}>{ct.parts}</div>
               <div style={{fontSize:'0.6rem',color:'rgba(255,178,36,0.65)',fontStyle:'italic'}}>{lang==='de'?'Suchvorschläge':lang==='tr'?'Arama önerileri':lang==='pl'?'Sugestie':'Search suggestions'}</div></div>
               <div style={{display:'flex',flexWrap:'wrap'}}>{r.partsNeeded.map((p,i)=><span key={i} onClick={()=>{
-                      const cat2=curFix==='car'?'car':curFix==='motorcycle'?'moto':curFix==='bike'?'moto':curFix==='tech'?'tech':curFix==='appliances'?'appliances':curFix==='garden'?'garden':curFix==='pets'?'pets':'home';
+                      // Use r._category (attached at diagnosis time) so the correct
+                      // Parts tab is selected even when curFix differs from the diagnosis category.
+                      // Falls back to curFix for old history entries without _category.
+                      const _baseCat = r._category || curFix;
+                      const cat2=_baseCat==='car'?'car':_baseCat==='motorcycle'?'moto':_baseCat==='moto'?'moto':_baseCat==='bike'?'moto':_baseCat==='tech'?'tech':_baseCat==='appliances'?'appliances':_baseCat==='garden'?'garden':_baseCat==='pets'?'pets':'home';
                        const cq2 = cleanProductSearchQuery(p,'',cat2,'','');
                        setPInput(cq2); setVInput(''); setHsnModel(''); setVType(cat2);
                        setPResults({ q: cq2, vehicle: '', hsnModel: '', searchQ: cq2, isHSN: false, category: cat2, fromDiagnosis: true });
@@ -2400,7 +2410,10 @@ export default function App() {
             ) : (
               <div style={{display:'flex',gap:10}}>
                 <button onClick={()=>{
-                  const cat = curFix==='car'?'car':curFix==='motorcycle'?'moto':curFix==='bike'?'moto':curFix==='tech'?'tech':curFix==='appliances'?'appliances':curFix==='garden'?'garden':curFix==='pets'?'pets':'home';
+                  // r._category is attached by useEffect when the AI result arrives.
+                  // Using it (not curFix) ensures motorcycle diagnoses always open the Moto tab.
+                  const _baseCat2 = r._category || curFix;
+                  const cat=_baseCat2==='car'?'car':_baseCat2==='motorcycle'?'moto':_baseCat2==='moto'?'moto':_baseCat2==='bike'?'moto':_baseCat2==='tech'?'tech':_baseCat2==='appliances'?'appliances':_baseCat2==='garden'?'garden':_baseCat2==='pets'?'pets':'home';
                   setVType(cat);
                   // Build query from CURRENT diagnosis — never reuse old parts search
                   const detectedVehicle = r._vehicleCtx;
