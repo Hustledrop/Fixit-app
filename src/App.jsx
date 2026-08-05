@@ -702,7 +702,7 @@ export default function App() {
       proSearchQuery:result.proSearchQuery|| '',
       // ── Metadata (not rendered, used for history management) ────────────
       savedAmt,
-      category:      curFix,
+      category:      result._category || curFix,
       lang:          lang,
       date:          new Date().toISOString(),
       cc,
@@ -2024,7 +2024,7 @@ export default function App() {
         {/* History modal */}
         {showHistory && (
           <div onClick={()=>setShowHistory(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:100,display:'flex',alignItems:'flex-end'}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:'#151310',borderRadius:'26px 26px 0 0',width:'100%',maxHeight:'70vh',overflowY:'auto',padding:20}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:'#151310',borderRadius:'26px 26px 0 0',width:'100%',maxHeight:'80vh',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',padding:'20px 20px 32px',boxSizing:'border-box'}}>
               <div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
               {diagHistory.filter(isValidDiagEntry).map(h=>{
                 // Safe date formatting — never call new Date() on an unvalidated value
@@ -2054,7 +2054,15 @@ export default function App() {
                            proReason:     h.proReason     || '',
                            callPro:       h.callPro       ?? false,
                            proSearchQuery:h.proSearchQuery|| '',
-                           _category:     h.category      || 'home',
+                           _category:     (() => {
+                             // Use saved category. For old entries saved with 'home' as a
+                             // fallback, try to detect from the saved problem text.
+                             const saved = h.category;
+                             if (saved && saved !== 'home') return saved;
+                             // 'home' may be a stale default — re-detect from problem text
+                             const detected = detectCategoryFromText && detectCategoryFromText(h.problem || '');
+                             return detected || saved || 'home';
+                           })(),
                          });
                          problemRef.current = h.problem;
                          setCurFix(h.category || 'home');
