@@ -389,7 +389,15 @@ export default function App() {
   // so each diagnosis run has a unique ID that prevents double-saves
   useEffect(() => {
     console.log('[FixIt] saveHistory useEffect fired', { hasResult: !!aiResult, runId: diagRunIdRef.current });
-    if (aiResult) saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
+    if (aiResult) {
+      // Attach the active category so part-chip handlers can read it from `r._category`
+      // instead of relying on curFix, which may not reflect the motorcycle category
+      // when the user typed a motorcycle problem without selecting a motorcycle category tab.
+      console.log('[CAT-TRACE] useEffect aiResult: diagCategoryRef='+diagCategoryRef.current+' curFix='+curFix+' _vehicleCtx='+(aiResult._vehicleCtx?aiResult._vehicleCtx.make+' '+aiResult._vehicleCtx.model:'null'));
+      if (!aiResult._category) aiResult._category = diagCategoryRef.current || curFix;
+      console.log('[CAT-TRACE] aiResult._category now='+aiResult._category);
+      saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
+    }
   }, [aiResult]); // eslint-disable-line
 
   function goto(s) {
@@ -552,6 +560,7 @@ export default function App() {
     // React StrictMode double-effects and rapid resubmits/retries
     diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
     setRestoredResult(null); // clear any restored history result
+    console.log('[CAT-TRACE] runAI: curFix='+curFix+' diagCategoryRef='+diagCategoryRef.current);
     goto('result');
     await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, cc, userProfile: profile });
   }
@@ -2017,6 +2026,7 @@ export default function App() {
                          });
                          problemRef.current = h.problem;
                          setCurFix(h.category || 'home');
+                         diagCategoryRef.current = h.category || 'home';
                          setShowHistory(false);
                          goto('result');
                        }}>
@@ -2033,6 +2043,7 @@ export default function App() {
                         setRestoredResult(null);
                         problemRef.current = h.problem;
                         setCurFix(h.category || 'home');
+                        diagCategoryRef.current = h.category || 'home';
                         setShowHistory(false);
                         goto('result');
                         diagnose({problem:h.problem,category:h.category||'home',lang,countryName:cd.name,cc});
@@ -2348,8 +2359,14 @@ export default function App() {
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:0}}>{ct.parts}</div>
               <div style={{fontSize:'0.6rem',color:'rgba(255,178,36,0.65)',fontStyle:'italic'}}>{lang==='de'?'Suchvorschläge':lang==='tr'?'Arama önerileri':lang==='pl'?'Sugestie':'Search suggestions'}</div></div>
               <div style={{display:'flex',flexWrap:'wrap'}}>{r.partsNeeded.map((p,i)=><span key={i} onClick={()=>{
-                      const cat2=curFix==='car'?'car':curFix==='motorcycle'?'motorcycle':curFix==='bike'?'motorcycle':curFix==='tech'?'tech':curFix==='appliances'?'appliances':curFix==='garden'?'garden':curFix==='pets'?'pets':'home';
+                      // Use r._category (attached at diagnosis time) so the correct
+                      // Parts tab is selected even when curFix differs from the diagnosis category.
+                      // Falls back to curFix for old history entries without _category.
+                      console.log('[CAT-TRACE] chip tap: r._category='+(r&&r._category)+' curFix='+curFix+' diagCategoryRef='+diagCategoryRef.current+' r._vehicleCtx='+(r&&r._vehicleCtx?r._vehicleCtx.make:'null'));
+                      const _baseCat = r._category || curFix;
+                      const cat2=_baseCat==='car'?'car':_baseCat==='motorcycle'?'moto':_baseCat==='moto'?'moto':_baseCat==='bike'?'moto':_baseCat==='tech'?'tech':_baseCat==='appliances'?'appliances':_baseCat==='garden'?'garden':_baseCat==='pets'?'pets':'home';
                        const cq2 = cleanProductSearchQuery(p,'',cat2,'','');
+                       console.log('[CAT-TRACE] setVType called with: '+cat2+' (_baseCat='+_baseCat+')');
                        setPInput(cq2); setVInput(''); setHsnModel(''); setVType(cat2);
                        setPResults({ q: cq2, vehicle: '', hsnModel: '', searchQ: cq2, isHSN: false, category: cat2, fromDiagnosis: true });
                       if (!user) { setAuthScreen('login'); } else if (isPro || freeRepairActive) { goto('parts'); } else if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
@@ -2400,7 +2417,10 @@ export default function App() {
             ) : (
               <div style={{display:'flex',gap:10}}>
                 <button onClick={()=>{
-                  const cat = curFix==='car'?'car':curFix==='motorcycle'?'motorcycle':curFix==='bike'?'motorcycle':curFix==='tech'?'tech':curFix==='appliances'?'appliances':curFix==='garden'?'garden':curFix==='pets'?'pets':'home';
+                  // r._category is attached by useEffect when the AI result arrives.
+                  // Using it (not curFix) ensures motorcycle diagnoses always open the Moto tab.
+                  const _baseCat2 = r._category || curFix;
+                  const cat=_baseCat2==='car'?'car':_baseCat2==='motorcycle'?'moto':_baseCat2==='moto'?'moto':_baseCat2==='bike'?'moto':_baseCat2==='tech'?'tech':_baseCat2==='appliances'?'appliances':_baseCat2==='garden'?'garden':_baseCat2==='pets'?'pets':'home';
                   setVType(cat);
                   // Build query from CURRENT diagnosis — never reuse old parts search
                   const detectedVehicle = r._vehicleCtx;
@@ -2412,7 +2432,7 @@ export default function App() {
                   setPInput(diagQuery);
                   setVInput(vehicleLabel); // populate vehicle field with detected vehicle
                   setHsnModel('');
-                  setVType('car');
+                  // vType already set correctly above via setVType(cat) — do NOT override
                   // Pre-populate pResults so parts are immediately visible
                   const fullSearchQ = diagQuery; // vehicle already in diagQuery via ensureVehicle
                   setPResults({ q: diagQuery, vehicle: vehicleLabel, hsnModel: '', searchQ: fullSearchQ, isHSN: false, category: cat, fromDiagnosis: true, vehicleCtx: detectedVehicle });
