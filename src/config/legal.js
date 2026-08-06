@@ -22,8 +22,8 @@ export const LEGAL = {
   vatId:        '',        // USt-IdNr. e.g. 'DE123456789' — leave empty to hide entirely
 
   // ── CONTACT ───────────────────────────────────────────────────────────────
-  supportEmail: 'support@fixit-app.com',
-  privacyEmail: 'support@fixit-app.com',
+  supportEmail: 'fixitapp.support@gmail.com',
+  privacyEmail: 'fixitapp.support@gmail.com',
 
   // ── APP URL ────────────────────────────────────────────────────────────────
   appUrl:       'https://www.fixit-app.com',

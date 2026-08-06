@@ -1627,7 +1627,7 @@ export default function App() {
                     <div style={dividerStyle}/>
                   </>}
                   {/* Links */}
-                  <button onClick={()=>window.open('mailto:support@fixit-app.com','_blank')} style={linkBtn}>
+                  <button onClick={()=>window.open('mailto:fixitapp.support@gmail.com','_blank')} style={linkBtn}>
                     <span>✉️</span>{t('support')}
                   </button>
                   <button onClick={()=>setLegalPage('privacy')} style={linkBtn}>
