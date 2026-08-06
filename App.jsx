@@ -226,7 +226,6 @@ export default function App() {
   // ── diagnosisRunId: unique per submit, carried through to save guard ───
   const diagRunIdRef   = useRef(null);   // set on each new submission
   const savedRunIdsRef = useRef(new Set()); // prevents double-save per run
-  const historyScrollRef  = useRef(null);
   const [nearbyBump,  setNearbyBump]  = useState(0); // increment to force nearby refresh
   const [nearbyForce, setNearbyForce] = useState(false); // true = bypass 30min cache
   const [isOnline, setIsOnline]   = useState(navigator.onLine);
@@ -1948,6 +1947,144 @@ export default function App() {
   );
 
   // ── HOME ─────────────────────────────────────────────────────────────────────
+  // ── HISTORY SCREEN ────────────────────────────────────────────────────────
+  // Rendered as a proper full-screen view — same pattern as fix-now, result, etc.
+  // Avoids all z-index / overflow / stacking-context issues that plagued the modal approach.
+  if (showHistory) return (
+    <>
+    <Screen>
+      <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>setShowHistory(false)} style={{background:'none',border:'none',color:C.m,fontSize:'0.85rem',cursor:'pointer',padding:'0 8px 0 0',fontFamily:'inherit'}}>←</button>
+        <div style={{fontSize:'1.1rem',fontWeight:800}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'} <span style={{fontSize:'0.8rem',fontWeight:400,color:C.m}}>({diagHistory.length})</span></div>
+      </div>
+      <Scroll>
+<div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
+      {diagHistory.filter(isValidDiagEntry).map(h=>{
+        // Safe date formatting — never call new Date() on an unvalidated value
+        const dateStr = (() => {
+          const d = new Date(h.date);
+          return isNaN(d.getTime()) ? '' : d.toLocaleDateString(lang, {day:'numeric',month:'short',year:'numeric'});
+        })();
+        return (
+          <div key={h.id} style={{...s.card,marginBottom:8,cursor:'pointer'}}
+               onClick={()=>{
+                 // Restore the full saved result to the result screen
+                 setRestoredResult({
+                   // All fields the result screen renders — must match what saveToHistory stores
+                   diagnosis:     h.diagnosis,
+                   confidence:    h.confidence    ?? 0,
+                   status:        h.status        || null,
+                   difficulty:    h.difficulty    || '',
+                   timeEstimate:  h.timeEstimate  || '',
+                   estimatedCost: h.estimatedCost || '',
+                   warningLevel:  h.warningLevel  || '',
+                   safetyWarning: h.safetyWarning || '',
+                   causes:        Array.isArray(h.causes)      ? h.causes      : [],
+                   steps:         Array.isArray(h.steps)       ? h.steps       : [],
+                   tools:         Array.isArray(h.tools)       ? h.tools       : [],
+                   partsNeeded:   Array.isArray(h.partsNeeded) ? h.partsNeeded : [],
+                   proTip:        h.proTip        || '',
+                   proReason:     h.proReason     || '',
+                   callPro:       h.callPro       ?? false,
+                   proSearchQuery:h.proSearchQuery|| '',
+                   _category:     (() => {
+                     // Use saved category. For old entries saved with 'home' as a
+                     // fallback, try to detect from the saved problem text.
+                     const saved = h.category;
+                     if (saved && saved !== 'home') return saved;
+                     // 'home' may be a stale default — re-detect from problem text
+                     const detected = detectCategoryFromText && detectCategoryFromText(h.problem || '');
+                     return detected || saved || 'home';
+                   })(),
+                 });
+                 problemRef.current = h.problem;
+                 setCurFix(h.category || 'home');
+                 diagCategoryRef.current = h.category || 'home';
+                 setShowHistory(false);
+                 goto('result');
+               }}>
+            <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
+            <div style={{fontSize:'0.72rem',color:C.m,marginBottom:6,WebkitLineClamp:2,display:'-webkit-box',WebkitBoxOrient:'vertical',overflow:'hidden'}}>{h.diagnosis}</div>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              {dateStr && <span style={{fontSize:'0.65rem',color:C.m}}>{dateStr}</span>}
+              {h.fixed===true  && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
+              {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
+              <button onClick={e=>{
+                e.stopPropagation(); // don't also trigger the view onClick
+                // Retry: generate a new runId so this is a fresh diagnosis run
+                diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+                setRestoredResult(null);
+                problemRef.current = h.problem;
+                setCurFix(h.category || 'home');
+                diagCategoryRef.current = h.category || 'home';
+                setShowHistory(false);
+                goto('result');
+                diagnose({problem:h.problem,category:h.category||'home',lang,countryName:cd.name,cc});
+              }} style={{marginLeft:'auto',background:C.o,border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:'0.65rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {lang==='de'?'Erneut':lang==='tr'?'Tekrar':lang==='pl'?'Ponów':lang==='mk'?'Повтори':t('retryBtn')||'↻ Retry'}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      {diagHistory.length === 0 && <div style={{textAlign:'center',color:C.m,padding:'20px 0'}}>No repairs yet</div>}
+      {totalSaved > 0 && <div style={{background:'rgba(26,158,92,0.08)',border:'1px solid rgba(26,158,92,0.18)',borderRadius:10,padding:'10px 14px',marginBottom:12,textAlign:'center'}}>
+        <div style={{fontSize:'0.65rem',color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{lang==='de'?'Mögliches Sparpotenzial mit FixIt':lang==='tr'?'FixIt ile tahmini tasarruf':lang==='pl'?'Potencjalne oszczędności z FixIt':'Estimated savings with FixIt'}</div>
+        <div style={{fontSize:'1.5rem',fontWeight:900,color:C.g}}>ca. €{totalSaved}</div>
+        <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.22)',marginTop:4}}>{lang==='de'?'Schätzung basierend auf typischen Reparaturkosten. Keine Garantie.':lang==='tr'?'Tipik onarım maliyetlerine göre tahmin. Garanti yoktur.':lang==='pl'?'Szacunek oparty na typowych kosztach naprawy. Bez gwarancji.':'Estimate based on typical repair costs. No guarantee.'}</div>
+      </div>}
+      <button onClick={async ()=>{
+        // Confirmation before deleting
+        const confirmMsg = lang==='de' ? 'Verlauf wirklich löschen?' :
+          lang==='tr' ? 'Geçmişi silmek istediğinizden emin misiniz?' :
+          lang==='pl' ? 'Czy na pewno usunąć historię?' :
+          lang==='fr' ? "Supprimer tout l'historique ?" :
+          lang==='it' ? 'Eliminare tutta la cronologia?' :
+          lang==='es' ? '¿Eliminar todo el historial?' :
+          lang==='mk' ? 'Да се избрише историјата?' :
+          (lang==='sr'||lang==='hr') ? 'Obrisati svu istoriju?' :
+          'Delete all history?';
+        if (!window.confirm(confirmMsg)) return;
+        // 1. Clear in-memory state immediately
+        setDiagHistory([]);
+        setTotalSaved(0);
+        // 2. Clear this user's local history key (never touches other users)
+        LS.set(historyKey(user?.id), []);
+        LS.set('totalSaved', 0);
+        // 3. Delete this user's rows from Supabase (non-blocking, best-effort)
+        if (user && AUTH_AVAILABLE) {
+          (async () => {
+            try {
+              const client = await getSbClient();
+              if (client) {
+                const { error } = await client
+                  .from('diagnoses')
+                  .delete()
+                  .eq('user_id', user.id);
+                if (error) console.error('[FixIt] delete history Supabase error:', error.message);
+                else console.log('[FixIt] Supabase history deleted for user', user.id.slice(0,8));
+              }
+            } catch (e) { console.error('[FixIt] delete history threw:', e.message); }
+          })();
+        }
+      }} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{
+        lang==='de'?'Verlauf löschen':
+        lang==='tr'?'Geçmişi temizle':
+        lang==='pl'?'Wyczyść historię':
+        lang==='fr'?"Effacer l'historique":
+        lang==='it'?'Cancella cronologia':
+        lang==='es'?'Borrar historial':
+        lang==='mk'?'Избриши историја':
+        (lang==='sr'||lang==='hr')?'Obriši istoriju':
+        'Delete history'
+      }</button>
+      </Scroll>
+      <NavBar screen="history" t={t} goto={goto}/>
+      <style>{CSS}</style>
+    </Screen>
+    </>
+  );
+
   if (screen === 'home') return (
     <>
     <Screen>
@@ -1981,7 +2118,7 @@ export default function App() {
           {/* Right: history + lang flag + user icon */}
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'flex-end',gap:6,minWidth:0}}>
             {diagHistory.length > 0 &&
-              <button onClick={()=>{setShowHistory(true); setTimeout(()=>{if(historyScrollRef.current)historyScrollRef.current.scrollTop=0;},0);}} title="History"
+              <button onClick={()=>setShowHistory(true)} title="History"
                 style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:10,width:34,height:34,cursor:'pointer',color:C.m,fontFamily:'inherit',fontSize:'0.7rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                 🕐{diagHistory.length}
               </button>}
@@ -2056,151 +2193,7 @@ export default function App() {
       <NavBar screen={screen} t={t} goto={goto}/>
       <style>{CSS}</style>
     </Screen>
-    {/* History modal — rendered outside Scroll to avoid iOS position:fixed/overflow:auto bug */}
-    {showHistory && (
-      <div
-        onClick={()=>setShowHistory(false)}
-        style={{position:'fixed',inset:0,zIndex:100,background:'rgba(0,0,0,0.75)'}}>
-        <div
-          ref={historyScrollRef}
-          onClick={e=>e.stopPropagation()}
-          style={{
-            position:'absolute',
-            bottom:0, left:0, right:0,
-            maxHeight:'90vh',
-            overflowY:'auto',
-            overflowX:'hidden',
-            WebkitOverflowScrolling:'touch',
-            background:'#151310',
-            borderRadius:'26px 26px 0 0',
-            paddingBottom:'calc(110px + env(safe-area-inset-bottom, 0px) + 16px)',
-            boxSizing:'border-box',
-          }}>
-          <div style={{padding:'20px'}}>
-          <div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
-          {diagHistory.filter(isValidDiagEntry).map(h=>{
-            // Safe date formatting — never call new Date() on an unvalidated value
-            const dateStr = (() => {
-              const d = new Date(h.date);
-              return isNaN(d.getTime()) ? '' : d.toLocaleDateString(lang, {day:'numeric',month:'short',year:'numeric'});
-            })();
-            return (
-              <div key={h.id} style={{...s.card,marginBottom:8,cursor:'pointer'}}
-                   onClick={()=>{
-                     // Restore the full saved result to the result screen
-                     setRestoredResult({
-                       // All fields the result screen renders — must match what saveToHistory stores
-                       diagnosis:     h.diagnosis,
-                       confidence:    h.confidence    ?? 0,
-                       status:        h.status        || null,
-                       difficulty:    h.difficulty    || '',
-                       timeEstimate:  h.timeEstimate  || '',
-                       estimatedCost: h.estimatedCost || '',
-                       warningLevel:  h.warningLevel  || '',
-                       safetyWarning: h.safetyWarning || '',
-                       causes:        Array.isArray(h.causes)      ? h.causes      : [],
-                       steps:         Array.isArray(h.steps)       ? h.steps       : [],
-                       tools:         Array.isArray(h.tools)       ? h.tools       : [],
-                       partsNeeded:   Array.isArray(h.partsNeeded) ? h.partsNeeded : [],
-                       proTip:        h.proTip        || '',
-                       proReason:     h.proReason     || '',
-                       callPro:       h.callPro       ?? false,
-                       proSearchQuery:h.proSearchQuery|| '',
-                       _category:     (() => {
-                         // Use saved category. For old entries saved with 'home' as a
-                         // fallback, try to detect from the saved problem text.
-                         const saved = h.category;
-                         if (saved && saved !== 'home') return saved;
-                         // 'home' may be a stale default — re-detect from problem text
-                         const detected = detectCategoryFromText && detectCategoryFromText(h.problem || '');
-                         return detected || saved || 'home';
-                       })(),
-                     });
-                     problemRef.current = h.problem;
-                     setCurFix(h.category || 'home');
-                     diagCategoryRef.current = h.category || 'home';
-                     setShowHistory(false);
-                     goto('result');
-                   }}>
-                <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
-                <div style={{fontSize:'0.72rem',color:C.m,marginBottom:6,WebkitLineClamp:2,display:'-webkit-box',WebkitBoxOrient:'vertical',overflow:'hidden'}}>{h.diagnosis}</div>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  {dateStr && <span style={{fontSize:'0.65rem',color:C.m}}>{dateStr}</span>}
-                  {h.fixed===true  && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
-                  {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
-                  <button onClick={e=>{
-                    e.stopPropagation(); // don't also trigger the view onClick
-                    // Retry: generate a new runId so this is a fresh diagnosis run
-                    diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
-                    setRestoredResult(null);
-                    problemRef.current = h.problem;
-                    setCurFix(h.category || 'home');
-                    diagCategoryRef.current = h.category || 'home';
-                    setShowHistory(false);
-                    goto('result');
-                    diagnose({problem:h.problem,category:h.category||'home',lang,countryName:cd.name,cc});
-                  }} style={{marginLeft:'auto',background:C.o,border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:'0.65rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {lang==='de'?'Erneut':lang==='tr'?'Tekrar':lang==='pl'?'Ponów':lang==='mk'?'Повтори':t('retryBtn')||'↻ Retry'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-          {diagHistory.length === 0 && <div style={{textAlign:'center',color:C.m,padding:'20px 0'}}>No repairs yet</div>}
-          {totalSaved > 0 && <div style={{background:'rgba(26,158,92,0.08)',border:'1px solid rgba(26,158,92,0.18)',borderRadius:10,padding:'10px 14px',marginBottom:12,textAlign:'center'}}>
-            <div style={{fontSize:'0.65rem',color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{lang==='de'?'Mögliches Sparpotenzial mit FixIt':lang==='tr'?'FixIt ile tahmini tasarruf':lang==='pl'?'Potencjalne oszczędności z FixIt':'Estimated savings with FixIt'}</div>
-            <div style={{fontSize:'1.5rem',fontWeight:900,color:C.g}}>ca. €{totalSaved}</div>
-            <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.22)',marginTop:4}}>{lang==='de'?'Schätzung basierend auf typischen Reparaturkosten. Keine Garantie.':lang==='tr'?'Tipik onarım maliyetlerine göre tahmin. Garanti yoktur.':lang==='pl'?'Szacunek oparty na typowych kosztach naprawy. Bez gwarancji.':'Estimate based on typical repair costs. No guarantee.'}</div>
-          </div>}
-          <button onClick={async ()=>{
-            // Confirmation before deleting
-            const confirmMsg = lang==='de' ? 'Verlauf wirklich löschen?' :
-              lang==='tr' ? 'Geçmişi silmek istediğinizden emin misiniz?' :
-              lang==='pl' ? 'Czy na pewno usunąć historię?' :
-              lang==='fr' ? "Supprimer tout l'historique ?" :
-              lang==='it' ? 'Eliminare tutta la cronologia?' :
-              lang==='es' ? '¿Eliminar todo el historial?' :
-              lang==='mk' ? 'Да се избрише историјата?' :
-              (lang==='sr'||lang==='hr') ? 'Obrisati svu istoriju?' :
-              'Delete all history?';
-            if (!window.confirm(confirmMsg)) return;
-            // 1. Clear in-memory state immediately
-            setDiagHistory([]);
-            setTotalSaved(0);
-            // 2. Clear this user's local history key (never touches other users)
-            LS.set(historyKey(user?.id), []);
-            LS.set('totalSaved', 0);
-            // 3. Delete this user's rows from Supabase (non-blocking, best-effort)
-            if (user && AUTH_AVAILABLE) {
-              (async () => {
-                try {
-                  const client = await getSbClient();
-                  if (client) {
-                    const { error } = await client
-                      .from('diagnoses')
-                      .delete()
-                      .eq('user_id', user.id);
-                    if (error) console.error('[FixIt] delete history Supabase error:', error.message);
-                    else console.log('[FixIt] Supabase history deleted for user', user.id.slice(0,8));
-                  }
-                } catch (e) { console.error('[FixIt] delete history threw:', e.message); }
-              })();
-            }
-          }} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{
-            lang==='de'?'Verlauf löschen':
-            lang==='tr'?'Geçmişi temizle':
-            lang==='pl'?'Wyczyść historię':
-            lang==='fr'?"Effacer l'historique":
-            lang==='it'?'Cancella cronologia':
-            lang==='es'?'Borrar historial':
-            lang==='mk'?'Избриши историја':
-            (lang==='sr'||lang==='hr')?'Obriši istoriju':
-            'Delete history'
-          }</button>
-          </div>
-        </div>
-      </div>
-    )}
+
     {AUTH_MODAL}
     </>
   );
