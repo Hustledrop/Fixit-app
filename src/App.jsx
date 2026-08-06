@@ -512,25 +512,132 @@ export default function App() {
 
   function handlePhoto(e) {
     const f = e.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = ev => {
-      const dataUrl = ev.target.result;
-      const b64 = dataUrl.split(',')[1];
-      const realMime = detectMime(b64);
 
-      if (!realMime) {
-        // HEIC, TIFF, BMP or other unsupported format
-        showToast(lang === 'de'
-          ? '⚠️ Bildformat nicht unterstützt. Bitte JPG, PNG oder WebP verwenden.'
-          : '⚠️ Image format not supported. Please upload JPG, PNG or WebP.');
+    // Client-side resize + compress before upload.
+    // Vercel body limit is 4.5 MB. iPhone photos can be 12+ MB raw.
+    // We target ≤2.5 MB binary (~3.3 MB base64) so the full JSON request stays under 4.5 MB.
+    const MAX_BYTES = 2.5 * 1024 * 1024;
+    const MAX_DIM   = 1920; // longest side cap — sufficient for AI vision analysis
+
+    // Read EXIF orientation tag from a JPEG's binary (first 64 KB is enough).
+    // Needed for browsers that don't auto-rotate on canvas drawImage (older Safari/WebKit).
+    function getExifOrientation(b64str) {
+      try {
+        const bin = atob(b64str.slice(0, 87380));
+        if (bin.charCodeAt(0) !== 0xFF || bin.charCodeAt(1) !== 0xD8) return 1;
+        let i = 2;
+        while (i < bin.length - 1) {
+          if (bin.charCodeAt(i) !== 0xFF) break;
+          const marker = bin.charCodeAt(i + 1);
+          const len    = (bin.charCodeAt(i + 2) << 8) | bin.charCodeAt(i + 3);
+          if (marker === 0xE1) {
+            const exif  = bin.slice(i + 4, i + 4 + len);
+            const isLE  = exif[6] === 'I';
+            const rd16  = (o) => isLE ? (exif.charCodeAt(o) | (exif.charCodeAt(o+1) << 8))
+                                      : ((exif.charCodeAt(o) << 8) | exif.charCodeAt(o+1));
+            const ifd   = 6 + rd16(10);
+            const count = rd16(ifd);
+            for (let j = 0; j < count; j++) {
+              const off = ifd + 2 + j * 12;
+              if (rd16(off) === 0x0112) return rd16(off + 8);
+            }
+          }
+          if (marker === 0xDA) break;
+          i += 2 + len;
+        }
+      } catch (_) {}
+      return 1;
+    }
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target.result;
+      const b64     = dataUrl.split(',')[1];
+      const rawMime = detectMime(b64);
+
+      if (!rawMime) {
+        showToast(
+          lang === 'de' ? '⚠️ Bildformat nicht unterstützt. Bitte JPG, PNG oder WebP verwenden.'
+        : lang === 'fr' ? '⚠️ Format non supporté. Utilisez JPG, PNG ou WebP.'
+        : lang === 'it' ? '⚠️ Formato non supportato. Usa JPG, PNG o WebP.'
+        : lang === 'es' ? '⚠️ Formato no compatible. Usa JPG, PNG o WebP.'
+        : lang === 'pl' ? '⚠️ Format nieobsługiwany. Użyj JPG, PNG lub WebP.'
+        : lang === 'mk' ? '⚠️ Форматот не е поддржан. Користете JPG, PNG или WebP.'
+        : (lang==='sr'||lang==='hr') ? '⚠️ Format nije podržan. Koristite JPG, PNG ili WebP.'
+        : '⚠️ Image format not supported. Please upload JPG, PNG or WebP.');
         return;
       }
 
-      setPhoto(dataUrl);
-      setPhotoB64(b64);
-      setPhotoMime(realMime); // always use detected MIME, not browser's f.type
+      const img = new Image();
+      img.onload = () => {
+        const orientation = rawMime === 'image/jpeg' ? getExifOrientation(b64) : 1;
+        const swap = orientation >= 5; // 90° or 270° rotation needed
+        const srcW = img.naturalWidth;
+        const srcH = img.naturalHeight;
+
+        // Canvas output dimensions (post-rotation)
+        let outW = swap ? srcH : srcW;
+        let outH = swap ? srcW : srcH;
+        if (outW > MAX_DIM || outH > MAX_DIM) {
+          const scale = Math.min(MAX_DIM / outW, MAX_DIM / outH);
+          outW = Math.round(outW * scale);
+          outH = Math.round(outH * scale);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = outW;
+        canvas.height = outH;
+        const ctx = canvas.getContext('2d');
+
+        // Apply EXIF rotation so the image is visually upright
+        ctx.save();
+        if      (orientation === 2) ctx.transform(-1,  0,  0,  1, outW,    0);
+        else if (orientation === 3) ctx.transform(-1,  0,  0, -1, outW, outH);
+        else if (orientation === 4) ctx.transform( 1,  0,  0, -1,    0, outH);
+        else if (orientation === 5) ctx.transform( 0,  1,  1,  0,    0,    0);
+        else if (orientation === 6) ctx.transform( 0,  1, -1,  0, outH,    0);
+        else if (orientation === 7) ctx.transform( 0, -1, -1,  0, outH, outW);
+        else if (orientation === 8) ctx.transform( 0, -1,  1,  0,    0, outW);
+        // orientation===1: no transform needed
+        ctx.drawImage(img,
+          0, 0, srcW, srcH,             // source rect
+          0, 0, swap ? outH : outW, swap ? outW : outH  // dest rect (pre-swap logical size)
+        );
+        ctx.restore();
+
+        // Encode to JPEG, reducing quality until under MAX_BYTES
+        let quality = 0.85;
+        let outUrl  = canvas.toDataURL('image/jpeg', quality);
+        let outB64  = outUrl.split(',')[1];
+        while (outB64.length * 0.75 > MAX_BYTES && quality > 0.3) {
+          quality -= 0.1;
+          outUrl   = canvas.toDataURL('image/jpeg', quality);
+          outB64   = outUrl.split(',')[1];
+        }
+
+        if (outB64.length * 0.75 > MAX_BYTES) {
+          showToast(
+            lang === 'de' ? '⚠️ Bild zu groß. Bitte kleineres Bild verwenden.'
+          : lang === 'fr' ? '⚠️ Image trop grande. Utilisez une image plus petite.'
+          : lang === 'it' ? '⚠️ Immagine troppo grande. Usa un\'immagine più piccola.'
+          : lang === 'es' ? '⚠️ Imagen demasiado grande. Usa una imagen más pequeña.'
+          : lang === 'pl' ? '⚠️ Obraz za duży. Użyj mniejszego obrazu.'
+          : '⚠️ Image too large to process. Please use a smaller image.');
+          return;
+        }
+
+        setPhoto(outUrl);
+        setPhotoB64(outB64);
+        setPhotoMime('image/jpeg'); // always JPEG after canvas compression
+      };
+      img.onerror = () => {
+        showToast(lang === 'de'
+          ? '⚠️ Bild konnte nicht geladen werden.'
+          : '⚠️ Could not load image.');
+      };
+      img.src = dataUrl;
     };
-    r.readAsDataURL(f);
+    reader.readAsDataURL(f);
   }
 
   function showToast(msg) {
