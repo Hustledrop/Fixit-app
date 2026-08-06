@@ -2158,7 +2158,6 @@ export default function App() {
         </div>
       </div>
       <Scroll>
-}
         {/* Emergency banner */}
         <div onClick={()=>{resolveCountryIfNeeded();goto('emergency');}} style={{background:'linear-gradient(135deg,#2A0000,#1A0000)',border:'1px solid rgba(214,59,47,0.3)',borderRadius:18,padding:16,display:'flex',alignItems:'center',gap:14,marginBottom:22,cursor:'pointer',animation:'fadeIn .4s ease'}}>
           <span style={{width:8,height:8,background:C.r,borderRadius:'50%',flexShrink:0,animation:'blink 1.2s infinite'}}/>
