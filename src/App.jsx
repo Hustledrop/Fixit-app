@@ -702,9 +702,9 @@ export default function App() {
         if (usage && !usage.allowed) { setFreeRepairActive(false); setFreeRepairDone(true); return; }
       }
     }
-    // For preset taps OR text-only runs: clear any stale photo state
-    // Only keep photo if user has a visible photo AND no override text
-    if (override || (!photo && photoB64)) clearPhoto();
+    // Clear stale photoB64 only when the visible photo preview is gone.
+    // Do NOT clear when override is set — retries must re-send the original image.
+    if (!photo && photoB64) clearPhoto();
     // ALWAYS clear old parts search state — never reuse from a previous diagnosis
     setPResults(null);
     setVInput('');
@@ -726,7 +726,7 @@ export default function App() {
     setRestoredResult(null); // clear any restored history result
     aiReset(); // clear stale vehicle badge / previous result before navigating
     goto('result');
-    await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: effectiveCat, lang, countryName: cd.name, cc, userProfile: profile });
+    await diagnose({ problem: prob, photoB64, photoMime, category: effectiveCat, lang, countryName: cd.name, cc, userProfile: profile });
   }
 
   // ── Shared validator for diagnosis history entries ──────────────────────
