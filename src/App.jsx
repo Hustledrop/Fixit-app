@@ -394,7 +394,27 @@ export default function App() {
       // Attach the active category so part-chip handlers can read it from `r._category`
       // instead of relying on curFix, which may not reflect the motorcycle category
       // when the user typed a motorcycle problem without selecting a motorcycle category tab.
-      if (!aiResult._category) aiResult._category = diagCategoryRef.current || curFix;
+      // Primary source: AI-returned _detectedCategory (language-neutral enum, set server-side)
+      // This is the fix for image-only diagnosis where prob='' and keyword detection fails.
+      if (aiResult._detectedCategory) {
+        aiResult._category = aiResult._detectedCategory;
+      } else if (!aiResult._category) {
+        // Fallback 1: diagCategoryRef captures effectiveCat from text diagnosis
+        aiResult._category = diagCategoryRef.current || curFix;
+        // Fallback 2: re-detect from AI result text (handles image-only + old history entries)
+        if (aiResult._category === 'home') {
+          const resultText = [
+            aiResult.diagnosis    || '',
+            aiResult.proTip       || '',
+            (aiResult.partsNeeded || []).join(' '),
+            (aiResult.causes      || []).join(' '),
+            (aiResult.steps       || []).map(s => (s.description || '') + ' ' + (s.title || '')).join(' '),
+            problemRef.current    || '',
+          ].join(' ').trim();
+          const detected = resultText ? detectCategoryFromText(resultText) : null;
+          if (detected) aiResult._category = detected;
+        }
+      }
       saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
     }
   }, [aiResult]); // eslint-disable-line
@@ -531,7 +551,12 @@ export default function App() {
     // Tech / devices
     if (/\b(wifi|wi-fi|wlan|router|laptop|computer|smartphone|handy|drucker|printer|bluetooth|gaming|playstation|xbox)\b/.test(t)) return 'tech';
     // Car — makes, models, and automotive part terms
-    if (/\b(kfz|fahrzeug|ölwechsel|kühlwasser|getriebe|kupplung|bremse|bremsbelag|auspuff|abgas|dpf|agr|egr|turbo|diesel|benzin|petrol|starter|lichtmaschine|alternator|batterie|battery|radiator|thermostat|zahnriemen|timing.?belt)\b/.test(t)) return 'car';
+    if (/\b(kfz|fahrzeug|kühlwasser|getriebe|kupplung|bremse|bremsbelag|auspuff|abgas|dpf|agr|egr|turbo|diesel|benzin|petrol|starter|lichtmaschine|alternator|batterie|battery|radiator|thermostat|zahnriemen|timing.?belt)\b/.test(t)) return 'car';
+    if (/öl(?:wechsel|wanne|pumpe|filter|kühler)|ölstandanzei/.test(t)) return 'car';
+    // Automotive compound nouns common in image diagnosis — prefix match (no trailing \b)
+    if (/\b(thermostat|motorblock|zylinderko|zylinder|kolben|nockenwelle|kurbelwelle|kurbelgeh|einspritz|kraftstoff|lenkgetriebe|lenk|bremsscheibe|bremssattel|stossdämpf|spurstange|achse|gelenk|antriebswelle|kupplung|schaltgetriebe|automatikgetriebe|vergaser|drosselklapp|ansaugkrümmer|abgaskrümmer|krümmer|luft(?:filter|mas|kühler)|wasser(?:pumpe|kühler)|öl(?:kühler|filter|pumpe|wanne)|servo|hydraulik|abs\b|esp\b|airbag|sicherheitsgurt|fensterheber|scheibenwisch|klimakompressor|kompressor.*auto|condenser.*auto)/.test(t)) return 'car';
+    // English automotive compound terms
+    if (/\b(thermostat.?hous|cylinder.?head|engine.?block|crankshaft|camshaft|piston|valve.?cover|oil.?pan|fuel.?pump|water.?pump|brake.?disc|brake.?caliper|shock.?absorb|control.?arm|tie.?rod|drive.?shaft|intake.?manifold|exhaust.?manifold|throttle.?body|turbocharger|intercooler|radiator.?hose|timing.?chain|head.?gasket|spark.?plug.?boot|ignition.?coil)/.test(t)) return 'car';
     if (/\b(vw|volkswagen|golf|polo|passat|tiguan|touareg|caddy|transporter|t-roc|t-cross|arteon|audi|a[1-9]\b|q[1-9]\b|tt\b|r8\b|mercedes|benz|bmw|serie|3er|5er|7er|x[1-9]\b|ford|focus|fiesta|mondeo|kuga|puma|ranger|transit|seat|ibiza|leon|ateca|tarraco|arona|citroen|citroën|c[1-9]\b|berlingo|fiat|500|panda|tipo|punto|opel|corsa|astra|insignia|mokka|zafira|renault|clio|megane|scenic|kadjar|duster|peugeot|208|308|508|3008|5008|skoda|octavia|fabia|superb|kodiaq|karoq|hyundai|tucson|santa|kona|ioniq|kia|sportage|sorento|stinger|ceed|toyota|corolla|camry|rav4|yaris|aygo|highlander|honda|civic|accord|cr-v|hr-v|jazz|fr-v|mazda|cx-[0-9]|mx-[0-9]|mazda[0-9]|subaru|impreza|forester|outback|nissan|qashqai|juke|leaf|micra|note|volvo|v[0-9]{2}|xc[0-9]{2}|s[0-9]{2}|porsche|cayenne|macan|panamera|911|glühkerze|glow.?plug|einspritz|injektor|injector|zylinder|cylinder|kolben|piston|nockenwelle|camshaft|kurbelwelle|crankshaft|ölpumpe)\b/.test(t)) return 'car';
     // Garden
     if (/\b(rasenmäher|lawn.?mow|garten|garden|kettensäge|chainsaw|freischneider)\b/.test(t)) return 'garden';
@@ -2517,11 +2542,14 @@ export default function App() {
                 <button onClick={()=>{
                   // effectiveCat is derived from r._category (set at save/restore time),
                   // falling back to curFix only for old entries. Never depends on stale curFix.
-                  const cat=effectiveCat==='car'?'car':effectiveCat==='motorcycle'?'moto':effectiveCat==='moto'?'moto':effectiveCat==='bike'?'moto':effectiveCat==='tech'?'tech':effectiveCat==='appliances'?'appliances':effectiveCat==='garden'?'garden':effectiveCat==='pets'?'pets':'home';
+                  // Read r._category at click time (same as chip handler) to get the
+                  // post-useEffect corrected category — not the stale render-time closure.
+                  const _btnCat = (r && r._category) ? r._category : curFix;
+                  const cat=_btnCat==='car'?'car':_btnCat==='motorcycle'?'moto':_btnCat==='moto'?'moto':_btnCat==='bike'?'moto':_btnCat==='tech'?'tech':_btnCat==='appliances'?'appliances':_btnCat==='garden'?'garden':_btnCat==='pets'?'pets':'home';
                   setVType(cat);
                   // Build query from CURRENT diagnosis — never reuse old parts search
                   const detectedVehicle = r._vehicleCtx;
-                  const diagQuery = buildPartsQueryFromDiagnosis(r, problemRef.current, effectiveCat, detectedVehicle);
+                  const diagQuery = buildPartsQueryFromDiagnosis(r, problemRef.current, _btnCat, detectedVehicle);
                   // Build the vehicle label string for the vInput field
                   const vehicleLabel = detectedVehicle
                     ? [detectedVehicle.make, detectedVehicle.model, detectedVehicle.engine, detectedVehicle.year].filter(Boolean).join(' ')

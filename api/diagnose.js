@@ -451,7 +451,7 @@ module.exports = async function handler(req, res) {
         `partsNeeded: 2–4 SHORT buyable search terms, 2–5 words each.${marketLangName && marketLangName !== lang2 ? ` CRITICAL: write partsNeeded search terms in ${marketLangName} (the user's country market language, NOT the UI language ${lang2}). This ensures store search URLs work correctly. For example, a user with German UI in Italy needs Italian search terms.` : ''} GOOD: ["Geberit Spülkasten Dichtung","Universal WC Flapper 63mm"]. BAD: ["Ablaufventil passend zum Modell"]. No sentences. No "passend für".`,
       ]),
       `estimatedCost: realistic DIY parts cost only, in the currency of ${countryName}. Format: "€5–15". timeEstimate: realistic hands-on time.`,
-      `Category: ${cat}. Problem: ${prob || 'analyse the image and diagnose the issue'}`,
+      `Category: ${cat}. Problem: ${prob || 'analyse the image and diagnose the issue'}. IMPORTANT: set the JSON \"category\" field to exactly one of: home|car|motorcycle|tech|appliances|garden|bike|pets — choose based on what is shown/described, not the input language. For any automotive/vehicle part or repair: \"car\". For motorbike/scooter/moped: \"motorcycle\". For home appliances: \"appliances\". For electronic devices/computers/phones: \"tech\". For garden/outdoor power tools: \"garden\". For bicycles/e-bikes: \"bike\". For pet health: \"pets\". Default: \"home\".`,
       ...(userProfile ? [
         userProfile.vehicles?.length ? `User vehicles: ${userProfile.vehicles.map(v => [v.year, v.make, v.model, v.engine].filter(Boolean).join(' ')).join(', ')}` : '',
         userProfile.home            ? `Home: ${[userProfile.home.type, userProfile.home.age, userProfile.home.country || countryName].filter(Boolean).join(', ')}` : '',
@@ -459,7 +459,7 @@ module.exports = async function handler(req, res) {
       ].filter(Boolean) : []),
       isHardStop ? `NOTE: This matches a HARD STOP safety category. Set callPro:true and warningLevel:"danger" regardless.` : '',
       `Output ONLY the JSON object below, nothing else:`,
-      `{"confidence":85,"status":"","difficulty":"","timeEstimate":"","estimatedCost":"","warningLevel":"low","diagnosis":"","causes":[],"safetyWarning":"","callPro":false,"proReason":"","steps":[{"title":"","description":"","imageQuery":"","emoji":"🔧","tip":""}],"tools":[],"partsNeeded":[],"proTip":"","proSearchQuery":""}`,
+      `{"confidence":85,"status":"","difficulty":"","timeEstimate":"","estimatedCost":"","warningLevel":"low","diagnosis":"","causes":[],"safetyWarning":"","callPro":false,"proReason":"","steps":[{"title":"","description":"","imageQuery":"","emoji":"🔧","tip":""}],"tools":[],"partsNeeded":[],"proTip":"","proSearchQuery":"","category":"home"}`,
     ].filter(Boolean).join('\n'),
   });
 
@@ -654,6 +654,13 @@ module.exports = async function handler(req, res) {
   // The durable record is in profiles.free_trial_completed_at (server writes it above).
   if (freeTrialJustCompleted) parsed._freeTrialJustCompleted = true;
   if (vehicleCtx) parsed._vehicleCtx = vehicleCtx;
+  // Attach AI-determined internal category (language-neutral enum)
+  // Valid values: home|car|motorcycle|tech|appliances|garden|bike|pets
+  const VALID_CATS = new Set(['home','car','motorcycle','tech','appliances','garden','bike','pets']);
+  if (parsed.category && VALID_CATS.has(parsed.category)) {
+    parsed._detectedCategory = parsed.category;
+  }
+  delete parsed.category; // remove from public payload (internal routing only)
 
   console.log('[FixIt] RETURNING_RESPONSE dur=%dms conf=%s vehicle=%s userId=%s isPro=%s',
     Date.now()-t0, parsed.confidence, vehicleCtx ? vehicleCtx.make+' '+(vehicleCtx.model||'') : 'none', userId, isPro);
