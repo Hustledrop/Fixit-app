@@ -133,7 +133,11 @@ function catTerms(cat, lang) {
     fixedQ:    de?'Hat das geholfen?':fr?'Cela a-t-il résolu?':es?'¿Se resolvió?':it?'Il problema è risolto?':mk?'Дали се поправи?':(sr||hr)?'Da li je popravljeno?':'Did this fix it?',
     fixedY:    de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí, solucionado!':it?'✅ Sì, risolto!':mk?'✅ Да, поправено!':(sr||hr)?'✅ Da, popravljeno!':lang==='tr'?'✅ Evet, çözüldü!':lang==='pl'?'✅ Tak, naprawione!':'✅ Yes, fixed!',
     fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':it?'❌ Ancora rotto':mk?'❌ Сè уште дефектно':(sr||hr)?'❌ Još uvek pokvareno':lang==='tr'?'❌ Hâlâ bozuk':lang==='pl'?'❌ Nadal zepsute':'❌ Still broken',
-    proBtn:    de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':mk?'Најди стручњак':(sr||hr)?'Nađi stručnjaka':lang==='tr'?'Usta bul':lang==='pl'?'Znajdź fachowca':'Find Professional',
+    proBtn:    (isCar)?(de?'Autowerkstatt finden':fr?'Trouver un garage':es?'Buscar taller':it?'Trova officina':mk?'Најди автосервис':(sr||hr)?'Nađi auto servis':lang==='tr'?'Araba tamircisi bul':lang==='pl'?'Znajdź warsztat':'Find Auto Repair'):
+             (cat==='motorcycle'||cat==='moto')?(de?'Motorradwerkstatt finden':fr?'Trouver un atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':mk?'Најди мото сервис':(sr||hr)?'Nađi moto servis':lang==='tr'?'Motosiklet servisi bul':lang==='pl'?'Znajdź serwis moto':'Find Moto Repair'):
+             (isTech)?(de?'Elektronik-Reparatur finden':fr?'Trouver réparation électronique':es?'Buscar reparación electrónica':it?'Trova riparazione elettronica':mk?'Најди електронски сервис':(sr||hr)?'Nađi servis elektronike':lang==='tr'?'Elektronik tamircisi bul':lang==='pl'?'Znajdź serwis elektroniczny':'Find Electronics Repair'):
+             (cat==='appliances')?(de?'Gerätereparatur finden':fr?'Trouver réparateur électroménager':es?'Buscar reparación electrodomésticos':it?'Trova riparatore elettrodomestici':mk?'Најди сервис за апарати':(sr||hr)?'Nađi servis aparata':lang==='tr'?'Ev aletleri tamircisi bul':lang==='pl'?'Znajdź serwis AGD':'Find Appliance Repair'):
+             de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':mk?'Најди стручњак':(sr||hr)?'Nađi stručnjaka':lang==='tr'?'Usta bul':lang==='pl'?'Znajdź fachowca':'Find Professional',
     partsBtn:  cat==='car'?(de?'Autoteile finden':fr?'Trouver des pièces auto':it?'Trova ricambi auto':es?'Buscar repuestos':lang==='pl'?'Znajdź części do auta':mk?'Барај авто делови':(sr||hr)?'Traži auto dijelove':lang==='tr'?'Araba parçası bul':'Find Auto Parts'):
              cat==='motorcycle'||cat==='moto'?(de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts'):
              cat==='tech'?(de?'Ersatzteile finden':lang==='tr'?'Yedek parça bul':lang==='pl'?'Znajdź części zamienne':'Find Spare Parts'):
@@ -2399,18 +2403,19 @@ export default function App() {
       q = q.replace(/\s*[–—].*$/, '').trim();
       // If still too long (>40 chars), use category default
       if (q.length > 40) {
+        const isFR=lang==='fr',isIT=lang==='it',isMK=lang==='mk',isSR=lang==='sr'||lang==='hr',isTR=lang==='tr',isPL=lang==='pl',isES=lang==='es';
         const defaults = {
-          car:        isDE?'Autowerkstatt':'car repair shop',
-          motorcycle: isDE?'Motorradwerkstatt':'motorcycle repair',
-          moto:       isDE?'Motorradwerkstatt':'motorcycle repair',
-          bike:       isDE?'Fahrradwerkstatt':'bike repair shop',
-          tech:       isDE?'Elektronik Reparatur':'electronics repair',
-          appliances: isDE?'Gerätereparatur':'appliance repair',
-          home:       isDE?'Handwerker':'handyman',
-          garden:     isDE?'Gärtner Gartencenter':'garden center',
-          pets:       isDE?'Tierarzt':'veterinarian',
+          car:        isDE?'Autowerkstatt':isFR?'Garage automobile':isIT?'Officina auto':isES?'Taller mecánico':isMK?'Автосервис':isSR?'Auto servis':isTR?'Araba tamircisi':isPL?'Warsztat samochodowy':'car repair shop',
+          motorcycle: isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
+          moto:       isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
+          bike:       isDE?'Fahrradwerkstatt':isFR?'Atelier vélo':isIT?'Officina bici':isES?'Taller de bicicletas':isMK?'Сервис за велосипеди':isSR?'Servis bicikla':isTR?'Bisiklet tamircisi':isPL?'Serwis rowerowy':'bike repair shop',
+          tech:       isDE?'Elektronik Reparatur':isFR?'Réparation électronique':isIT?'Riparazione elettronica':isES?'Reparación electrónica':isMK?'Електронски сервис':isSR?'Servis elektronike':isTR?'Elektronik tamircisi':isPL?'Serwis elektroniczny':'electronics repair',
+          appliances: isDE?'Hausgeräte Reparatur':isFR?'Réparation électroménager':isIT?'Riparazione elettrodomestici':isES?'Reparación electrodomésticos':isMK?'Сервис за апарати':isSR?'Servis aparata':isTR?'Ev aletleri tamircisi':isPL?'Serwis AGD':'appliance repair',
+          home:       isDE?'Handwerker':isFR?'Artisan':isIT?'Artigiano':isES?'Técnico del hogar':isMK?'Мајстор':isSR?'Majstor':isTR?'Usta':isPL?'Fachowiec':'handyman',
+          garden:     isDE?'Gärtner Gartencenter':isFR?'Jardinerie':isIT?'Centro giardinaggio':isES?'Centro de jardinería':isMK?'Градинарство':isSR?'Vrtni centar':isTR?'Bahçe merkezi':isPL?'Centrum ogrodnicze':'garden center',
+          pets:       isDE?'Tierarzt':isFR?'Vétérinaire':isIT?'Veterinario':isES?'Veterinario':isMK?'Ветеринар':isSR?'Veterinar':isTR?'Veteriner':isPL?'Weterynarz':'veterinarian',
         };
-        q = defaults[cat] || (isDE?'Fachmann':'repair service');
+        q = defaults[cat] || (isDE?'Fachmann':isFR?'Professionnel':isES?'Profesional':isMK?'Стручњак':isSR?'Stručnjak':'repair service');
       }
       return q;
     }
