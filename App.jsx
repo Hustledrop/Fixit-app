@@ -77,6 +77,7 @@ function catTerms(cat, lang) {
   const isPet    = cat === 'pets';
   const isGarden = cat === 'garden';
   const isBike   = cat === 'bike';
+  const isMoto   = cat === 'motorcycle' || cat === 'moto';
   const isCar    = cat === 'car';
   const isTech   = cat === 'tech';
   // Everything else (home, appliances) = repair
@@ -108,6 +109,20 @@ function catTerms(cat, lang) {
     partsBtn:  de?'Gartenprodukte suchen':lang==='tr'?'Bahçe ürünleri bul':lang==='pl'?'Znajdź produkty ogrodowe':'Find Garden Products',
     loading:   de?['Gartenproblem wird analysiert…','Ursache wird ermittelt…','Pflegeschritte werden erstellt…','Gartenprodukte werden gesucht…']:
                ['Analyzing garden problem…','Identifying the cause…','Preparing care steps…','Finding garden products…'],
+  };
+  if (isMoto) return {
+    tools:     de?'Benötigte Teile & Werkzeug':fr?'Pièces et outils nécessaires':es?'Piezas y herramientas':mk?'Потребни делови и алати':(sr||hr)?'Potrebni delovi i alati':'Parts & Tools Needed',
+    parts:     de?'Motorradteile':fr?'Pièces moto':es?'Repuestos moto':it?'Ricambi moto':mk?'Делови за мотор':(sr||hr)?'Delovi za motor':'Motorcycle Parts',
+    steps:     de?'Reparaturschritte':fr?'Étapes de réparation':es?'Pasos de reparación':mk?'Чекори за поправка':(sr||hr)?'Koraci popravke':'Repair Steps',
+    fixedQ:    de?'Wurde das Problem behoben?':fr?'Problème résolu?':es?'¿Se resolvió?':mk?'Дали се реши проблемот?':(sr||hr)?'Da li je problem rešen?':'Was the problem fixed?',
+    fixedY:    de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí!':mk?'✅ Да!':(sr||hr)?'✅ Da, popravljeno!':'✅ Yes, fixed!',
+    fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':mk?'❌ Сè уште':(sr||hr)?'❌ Još nije':'❌ Not fixed yet',
+    proBtn:    de?'Motorradwerkstatt finden':fr?'Trouver atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':mk?'Најди мото сервис':(sr||hr)?'Nađi moto servis':lang==='tr'?'Motosiklet servisi bul':lang==='pl'?'Znajdź serwis moto':'Find Moto Repair',
+    partsBtn:  de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts',
+    loading:   de?['Motorradproblem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile werden gesucht…']:
+               mk?['Анализа на проблемот…','Откривање на причината…','Подготовка на чекорите…','Барање делови…']:
+               (sr||hr)?['Analiza problema…','Otkrivanje uzroka…','Priprema koraka…','Traženje delova…']:
+               ['Analyzing motorcycle issue…','Identifying the cause…','Preparing repair steps…','Finding parts…'],
   };
   if (isBike) {
     const tr = lang==='tr', pl = lang==='pl';
@@ -2395,31 +2410,21 @@ export default function App() {
     const ci  = 170, off = ci-(ci*pct/100);
     // Normalize AI-generated proSearchQuery to short, local-intent friendly term
     function normalizeProSearch(raw, cat, isDE) {
-      if (!raw) return isDE ? 'Werkstatt in der Nähe' : 'repair service near me';
-      let q = raw.trim();
-      // Strip "oder X" alternatives
-      q = q.replace(/\s+(?:oder|or)\s+.*/i, '');
-      // Strip "in meiner Nähe" / "near me" if AI added it (we add it via Google Maps)
-      q = q.replace(/\s+in\s+meiner\s+Nähe/gi, '').replace(/\s+near\s+me/gi, '').trim();
-      // Strip trailing filler
-      q = q.replace(/\s*[–—].*$/, '').trim();
-      // If still too long (>40 chars), use category default
-      if (q.length > 40) {
-        const isFR=lang==='fr',isIT=lang==='it',isMK=lang==='mk',isSR=lang==='sr'||lang==='hr',isTR=lang==='tr',isPL=lang==='pl',isES=lang==='es';
-        const defaults = {
-          car:        isDE?'Autowerkstatt':isFR?'Garage automobile':isIT?'Officina auto':isES?'Taller mecánico':isMK?'Автосервис':isSR?'Auto servis':isTR?'Araba tamircisi':isPL?'Warsztat samochodowy':'car repair shop',
-          motorcycle: isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
-          moto:       isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
-          bike:       isDE?'Fahrradwerkstatt':isFR?'Atelier vélo':isIT?'Officina bici':isES?'Taller de bicicletas':isMK?'Сервис за велосипеди':isSR?'Servis bicikla':isTR?'Bisiklet tamircisi':isPL?'Serwis rowerowy':'bike repair shop',
-          tech:       isDE?'Elektronik Reparatur':isFR?'Réparation électronique':isIT?'Riparazione elettronica':isES?'Reparación electrónica':isMK?'Електронски сервис':isSR?'Servis elektronike':isTR?'Elektronik tamircisi':isPL?'Serwis elektroniczny':'electronics repair',
-          appliances: isDE?'Hausgeräte Reparatur':isFR?'Réparation électroménager':isIT?'Riparazione elettrodomestici':isES?'Reparación electrodomésticos':isMK?'Сервис за апарати':isSR?'Servis aparata':isTR?'Ev aletleri tamircisi':isPL?'Serwis AGD':'appliance repair',
-          home:       isDE?'Handwerker':isFR?'Artisan':isIT?'Artigiano':isES?'Técnico del hogar':isMK?'Мајстор':isSR?'Majstor':isTR?'Usta':isPL?'Fachowiec':'handyman',
-          garden:     isDE?'Gärtner Gartencenter':isFR?'Jardinerie':isIT?'Centro giardinaggio':isES?'Centro de jardinería':isMK?'Градинарство':isSR?'Vrtni centar':isTR?'Bahçe merkezi':isPL?'Centrum ogrodnicze':'garden center',
-          pets:       isDE?'Tierarzt':isFR?'Vétérinaire':isIT?'Veterinario':isES?'Veterinario':isMK?'Ветеринар':isSR?'Veterinar':isTR?'Veteriner':isPL?'Weterynarz':'veterinarian',
-        };
-        q = defaults[cat] || (isDE?'Fachmann':isFR?'Professionnel':isES?'Profesional':isMK?'Стручњак':isSR?'Stručnjak':'repair service');
-      }
-      return q;
+      // Always use category-derived service name — AI proSearchQuery is unreliable
+      // and language-inconsistent. Category is the single source of truth.
+      const isFR=lang==='fr',isIT=lang==='it',isMK=lang==='mk',isSR=lang==='sr'||lang==='hr',isTR=lang==='tr',isPL=lang==='pl',isES=lang==='es';
+      const defaults = {
+        car:        isDE?'Autowerkstatt':isFR?'Garage automobile':isIT?'Officina auto':isES?'Taller mecánico':isMK?'Автосервис':isSR?'Auto servis':isTR?'Araba tamircisi':isPL?'Warsztat samochodowy':'car repair shop',
+        motorcycle: isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
+        moto:       isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
+        bike:       isDE?'Fahrradwerkstatt':isFR?'Atelier vélo':isIT?'Officina bici':isES?'Taller de bicicletas':isMK?'Сервис за велосипеди':isSR?'Servis bicikla':isTR?'Bisiklet tamircisi':isPL?'Serwis rowerowy':'bike repair shop',
+        tech:       isDE?'Elektronik Reparatur':isFR?'Réparation électronique':isIT?'Riparazione elettronica':isES?'Reparación electrónica':isMK?'Електронски сервис':isSR?'Servis elektronike':isTR?'Elektronik tamircisi':isPL?'Serwis elektroniczny':'electronics repair',
+        appliances: isDE?'Hausgeräte Reparatur':isFR?'Réparation électroménager':isIT?'Riparazione elettrodomestici':isES?'Reparación electrodomésticos':isMK?'Сервис за апарати':isSR?'Servis aparata':isTR?'Ev aletleri tamircisi':isPL?'Serwis AGD':'appliance repair',
+        home:       isDE?'Handwerker':isFR?'Artisan':isIT?'Artigiano':isES?'Técnico del hogar':isMK?'Мајстор':isSR?'Majstor':isTR?'Usta':isPL?'Fachowiec':'handyman',
+        garden:     isDE?'Gärtner Gartencenter':isFR?'Jardinerie':isIT?'Centro giardinaggio':isES?'Centro de jardinería':isMK?'Градинарство':isSR?'Vrtni centar':isTR?'Bahçe merkezi':isPL?'Centrum ogrodnicze':'garden center',
+        pets:       isDE?'Tierarzt':isFR?'Vétérinaire':isIT?'Veterinario':isES?'Veterinario':isMK?'Ветеринар':isSR?'Veterinar':isTR?'Veteriner':isPL?'Weterynarz':'veterinarian',
+      };
+      return defaults[cat] || (isDE?'Fachmann':isFR?'Professionnel':isES?'Profesional':isMK?'Стручњак':isSR?'Stručnjak':'repair service');
     }
     const isDE = lang === 'de';
     const ct  = catTerms(effectiveCat, lang);  // category from saved entry, not stale curFix
