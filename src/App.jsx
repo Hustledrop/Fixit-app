@@ -2414,22 +2414,25 @@ export default function App() {
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
     // Normalize AI-generated proSearchQuery to short, local-intent friendly term
-    function normalizeProSearch(raw, cat, isDE) {
-      // Always use category-derived service name — AI proSearchQuery is unreliable
-      // and language-inconsistent. Category is the single source of truth.
-      const isFR=lang==='fr',isIT=lang==='it',isMK=lang==='mk',isSR=lang==='sr'||lang==='hr',isTR=lang==='tr',isPL=lang==='pl',isES=lang==='es';
+    function normalizeProSearch(raw, cat, _unused) {
+      // Use GPS country language for search terms so Maps finds local services.
+      // UI language (lang) is intentionally NOT used here — a Macedonian UI in Germany
+      // must search "Autowerkstatt" (German) not "Avtoservis" (Macedonian).
+      const ml = getMarketLang(cc); // cc = GPS country code from location state
+      const mDE=ml==='de',mFR=ml==='fr',mIT=ml==='it',mES=ml==='es',
+            mPL=ml==='pl',mTR=ml==='tr',mMK=ml==='mk',mSR=ml==='sr'||ml==='hr';
       const defaults = {
-        car:        isDE?'Autowerkstatt':isFR?'Garage automobile':isIT?'Officina auto':isES?'Taller mecánico':isMK?'Автосервис':isSR?'Auto servis':isTR?'Araba tamircisi':isPL?'Warsztat samochodowy':'car repair shop',
-        motorcycle: isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
-        moto:       isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
-        bike:       isDE?'Fahrradwerkstatt':isFR?'Atelier vélo':isIT?'Officina bici':isES?'Taller de bicicletas':isMK?'Сервис за велосипеди':isSR?'Servis bicikla':isTR?'Bisiklet tamircisi':isPL?'Serwis rowerowy':'bike repair shop',
-        tech:       isDE?'Elektronik Reparatur':isFR?'Réparation électronique':isIT?'Riparazione elettronica':isES?'Reparación electrónica':isMK?'Електронски сервис':isSR?'Servis elektronike':isTR?'Elektronik tamircisi':isPL?'Serwis elektroniczny':'electronics repair',
-        appliances: isDE?'Hausgeräte Reparatur':isFR?'Réparation électroménager':isIT?'Riparazione elettrodomestici':isES?'Reparación electrodomésticos':isMK?'Сервис за апарати':isSR?'Servis aparata':isTR?'Ev aletleri tamircisi':isPL?'Serwis AGD':'appliance repair',
-        home:       isDE?'Handwerker':isFR?'Artisan':isIT?'Artigiano':isES?'Técnico del hogar':isMK?'Мајстор':isSR?'Majstor':isTR?'Usta':isPL?'Fachowiec':'handyman',
-        garden:     isDE?'Gärtner Gartencenter':isFR?'Jardinerie':isIT?'Centro giardinaggio':isES?'Centro de jardinería':isMK?'Градинарство':isSR?'Vrtni centar':isTR?'Bahçe merkezi':isPL?'Centrum ogrodnicze':'garden center',
-        pets:       isDE?'Tierarzt':isFR?'Vétérinaire':isIT?'Veterinario':isES?'Veterinario':isMK?'Ветеринар':isSR?'Veterinar':isTR?'Veteriner':isPL?'Weterynarz':'veterinarian',
+        car:        mDE?'Autowerkstatt':mFR?'Garage automobile':mIT?'Officina auto':mES?'Taller mecánico':mMK?'Автосервис':mSR?'Auto servis':mTR?'Araba tamircisi':mPL?'Warsztat samochodowy':'car repair shop',
+        motorcycle: mDE?'Motorradwerkstatt':mFR?'Atelier moto':mIT?'Officina moto':mES?'Taller de motos':mMK?'Сервис за мотори':mSR?'Servis motocikla':mTR?'Motosiklet servisi':mPL?'Serwis motocyklowy':'motorcycle repair',
+        moto:       mDE?'Motorradwerkstatt':mFR?'Atelier moto':mIT?'Officina moto':mES?'Taller de motos':mMK?'Сервис за мотори':mSR?'Servis motocikla':mTR?'Motosiklet servisi':mPL?'Serwis motocyklowy':'motorcycle repair',
+        bike:       mDE?'Fahrradwerkstatt':mFR?'Atelier vélo':mIT?'Officina bici':mES?'Taller de bicicletas':mMK?'Сервис за велосипеди':mSR?'Servis bicikla':mTR?'Bisiklet tamircisi':mPL?'Serwis rowerowy':'bike repair shop',
+        tech:       mDE?'Elektronik Reparatur':mFR?'Réparation électronique':mIT?'Riparazione elettronica':mES?'Reparación electrónica':mMK?'Електронски сервис':mSR?'Servis elektronike':mTR?'Elektronik tamircisi':mPL?'Serwis elektroniczny':'electronics repair',
+        appliances: mDE?'Hausgeräte Reparatur':mFR?'Réparation électroménager':mIT?'Riparazione elettrodomestici':mES?'Reparación electrodomésticos':mMK?'Сервис за апарати':mSR?'Servis aparata':mTR?'Ev aletleri tamircisi':mPL?'Serwis AGD':'appliance repair',
+        home:       mDE?'Handwerker':mFR?'Artisan':mIT?'Artigiano':mES?'Técnico del hogar':mMK?'Мајстор':mSR?'Majstor':mTR?'Usta':mPL?'Fachowiec':'handyman',
+        garden:     mDE?'Gärtner Gartencenter':mFR?'Jardinerie':mIT?'Centro giardinaggio':mES?'Centro de jardinería':mMK?'Градинарство':mSR?'Vrtni centar':mTR?'Bahçe merkezi':mPL?'Centrum ogrodnicze':'garden center',
+        pets:       mDE?'Tierarzt':mFR?'Vétérinaire':mIT?'Veterinario':mES?'Veterinario':mMK?'Ветеринар':mSR?'Veterinar':mTR?'Veteriner':mPL?'Weterynarz':'veterinarian',
       };
-      return defaults[cat] || (isDE?'Fachmann':isFR?'Professionnel':isES?'Profesional':isMK?'Стручњак':isSR?'Stručnjak':'repair service');
+      return defaults[cat] || (mDE?'Fachmann':mFR?'Professionnel':mES?'Profesional':mMK?'Стручњак':mSR?'Stručnjak':'repair service');
     }
     const isDE = lang === 'de';
     const ct  = catTerms(effectiveCat, lang);  // category from saved entry, not stale curFix
