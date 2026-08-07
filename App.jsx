@@ -1414,13 +1414,14 @@ export default function App() {
   //   • Non-blocking — never delays the UI
   useEffect(() => {
     if (!user || !AUTH_AVAILABLE) return;
-    // Clear previous user's history from state immediately, BEFORE the async fetch.
-    // This prevents briefly showing the wrong user's entries.
-    setDiagHistory([]);
+    // Load this user's local entries immediately (synchronous, no flash of empty)
+    // then update with merged cloud+local once Supabase responds.
+    const _localImmediate = (LS.get(historyKey(user.id)) || []).filter(isValidDiagEntry);
+    setDiagHistory(_localImmediate);
     (async () => {
       try {
         // Step 1: read this user's local history (safe — scoped key)
-        const localEntries = (LS.get(historyKey(user.id)) || []).filter(isValidDiagEntry);
+        const localEntries = _localImmediate;
 
         // Step 2: fetch cloud entries (ordered newest-first, up to 100)
         let cloudEntries = [];
@@ -2387,7 +2388,8 @@ export default function App() {
     // r._category is set by useEffect (fresh) or restoredResult._category (history).
     // Falls back to curFix only when _category is absent (old history entries).
     // Never defaults to 'home' unless the entry itself is categorised as 'home'.
-    const effectiveCat = (r && r._category) ? r._category : curFix;
+    // r._category is set by useEffect AFTER paint — use diagCategoryRef as bridge for fresh results
+    const effectiveCat = (r && r._category) ? r._category : (diagCategoryRef.current || curFix);
     const pct = r?.confidence||0;
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
