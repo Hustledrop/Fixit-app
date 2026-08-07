@@ -209,7 +209,7 @@ function extractVehicleFromText(text) {
   const MODEL_PATTERNS = {
     VW:[/GOLF\s*([1-9]|I{1,3}V?|PLUS|GTI|R|VARIANT|ALLTRACK)?/,/PASSAT\s*(B[3-9]|CC)?/,/POLO\s*([1-9])?/,/TIGUAN\s*([12])?/,/TOUAREG/,/T-ROC/,/CADDY/,/TRANSPORTER\s*(T[4-7])?/,/SHARAN/,/PHAETON/,/ARTEON/,/ID\.?[3-9]/],
     BMW:[/([1-9])ER\s*(?:SERIE)?/,/X([1-9])/,/([1-9][0-9]{2}[IDMS]?)\s*(?:E|F|G|I)\d{1,2}/,/M([2-9])/,/([3-9]20|[1-9][0-9]{2})[IDS]/],
-    MERCEDES:[/\b([ABCEGLS])-?(?:KLASSE|CLASS)?\s*(?:W\d{3})?/,/\b([ABCEGLS])[0-9]{3}/,/GLC|GLE|GLA|GLB|CLA|CLK|SLK|AMG/,/SPRINTER/,/VITO/],
+    MERCEDES:[/\b([ABCEGLS])(?:-?(?:KLASSE|CLASS)|\d{2,3}(?:[A-Z](?:DI?|Si?)?)?)/,/GLC|GLE|GLA|GLB|CLA|CLK|SLK|AMG/,/SPRINTER/,/VITO/],
     AUDI:[/A([1-9])/,/Q([1-9])/,/TT/,/R8/,/E-TRON/,/RS\s*[1-9]/,/S[1-9]/,/([A-Z][1-9])\s*(?:B[4-9]|C[5-9])?/],
     FORD:[/FIESTA/,/FOCUS/,/MONDEO/,/PUMA/,/KUGA/,/MUSTANG/,/TRANSIT/,/RANGER/,/GALAXY/,/S-MAX/,/C-MAX/],
     OPEL:[/ASTRA\s*([A-J])?/,/CORSA\s*([A-F])?/,/INSIGNIA\s*([AB])?/,/MOKKA/,/ZAFIRA/,/VECTRA/,/MERIVA/],
@@ -222,6 +222,13 @@ function extractVehicleFromText(text) {
     CITROEN:[/C[1-9]/,/BERLINGO/,/JUMPY/,/DS[1-9]/],
     HYUNDAI:[/I[1-9]0/,/TUCSON/,/SANTA FE/,/IONIQ/,/KONA/,/I20|I30|I40/],
     KIA:[/RIO/,/CEE'?D/,/SPORTAGE/,/SORENTO/,/STINGER/,/PICANTO/,/NIRO/],
+    FIAT:[/SEICENTO/,/PUNTO/,/BRAVO/,/BRAVA/,/STILO/,/TIPO/,/500(?!\d)/,/PANDA/,/DOBLO/,/DUCATO/,/CROMA/,/GRANDE PUNTO/,/FIORINO/,/QUBO/,/SPIDER/],
+    SUZUKI:[/SWIFT/,/VITARA/,/JIMNY/,/BALENO/,/SX4/,/ALTO/],
+    NISSAN:[/QASHQAI/,/JUKE/,/MICRA/,/NOTE/,/LEAF/,/X-TRAIL/,/NAVARA/,/PRIMERA/],
+    MAZDA:[/CX-[0-9]/,/([2-9])(?=\s|$)/,/MX-[0-9]/,/[36](?=\s|$)/],
+    VOLVO:[/V[0-9]{2}/,/S[0-9]{2}/,/XC[0-9]{2}/,/C[0-9]{2}/],
+    SUBARU:[/IMPREZA/,/FORESTER/,/OUTBACK/,/LEGACY/,/XV/,/WRX/],
+    MITSUBISHI:[/OUTLANDER/,/ASX/,/PAJERO/,/CARISMA/,/GALANT/,/LANCER/,/ECLIPSE/],
   };
   let model = null;
   if (MODEL_PATTERNS[make]) {

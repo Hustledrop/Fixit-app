@@ -77,6 +77,7 @@ function catTerms(cat, lang) {
   const isPet    = cat === 'pets';
   const isGarden = cat === 'garden';
   const isBike   = cat === 'bike';
+  const isMoto   = cat === 'motorcycle' || cat === 'moto';
   const isCar    = cat === 'car';
   const isTech   = cat === 'tech';
   // Everything else (home, appliances) = repair
@@ -109,6 +110,20 @@ function catTerms(cat, lang) {
     loading:   de?['Gartenproblem wird analysiert…','Ursache wird ermittelt…','Pflegeschritte werden erstellt…','Gartenprodukte werden gesucht…']:
                ['Analyzing garden problem…','Identifying the cause…','Preparing care steps…','Finding garden products…'],
   };
+  if (isMoto) return {
+    tools:     de?'Benötigte Teile & Werkzeug':fr?'Pièces et outils nécessaires':es?'Piezas y herramientas':mk?'Потребни делови и алати':(sr||hr)?'Potrebni delovi i alati':'Parts & Tools Needed',
+    parts:     de?'Motorradteile':fr?'Pièces moto':es?'Repuestos moto':it?'Ricambi moto':mk?'Делови за мотор':(sr||hr)?'Delovi za motor':'Motorcycle Parts',
+    steps:     de?'Reparaturschritte':fr?'Étapes de réparation':es?'Pasos de reparación':mk?'Чекори за поправка':(sr||hr)?'Koraci popravke':'Repair Steps',
+    fixedQ:    de?'Wurde das Problem behoben?':fr?'Problème résolu?':es?'¿Se resolvió?':mk?'Дали се реши проблемот?':(sr||hr)?'Da li je problem rešen?':'Was the problem fixed?',
+    fixedY:    de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí!':mk?'✅ Да!':(sr||hr)?'✅ Da, popravljeno!':'✅ Yes, fixed!',
+    fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':mk?'❌ Сè уште':(sr||hr)?'❌ Još nije':'❌ Not fixed yet',
+    proBtn:    de?'Motorradwerkstatt finden':fr?'Trouver atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':mk?'Најди мото сервис':(sr||hr)?'Nađi moto servis':lang==='tr'?'Motosiklet servisi bul':lang==='pl'?'Znajdź serwis moto':'Find Moto Repair',
+    partsBtn:  de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts',
+    loading:   de?['Motorradproblem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile werden gesucht…']:
+               mk?['Анализа на проблемот…','Откривање на причината…','Подготовка на чекорите…','Барање делови…']:
+               (sr||hr)?['Analiza problema…','Otkrivanje uzroka…','Priprema koraka…','Traženje delova…']:
+               ['Analyzing motorcycle issue…','Identifying the cause…','Preparing repair steps…','Finding parts…'],
+  };
   if (isBike) {
     const tr = lang==='tr', pl = lang==='pl';
     return {
@@ -133,7 +148,11 @@ function catTerms(cat, lang) {
     fixedQ:    de?'Hat das geholfen?':fr?'Cela a-t-il résolu?':es?'¿Se resolvió?':it?'Il problema è risolto?':mk?'Дали се поправи?':(sr||hr)?'Da li je popravljeno?':'Did this fix it?',
     fixedY:    de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí, solucionado!':it?'✅ Sì, risolto!':mk?'✅ Да, поправено!':(sr||hr)?'✅ Da, popravljeno!':lang==='tr'?'✅ Evet, çözüldü!':lang==='pl'?'✅ Tak, naprawione!':'✅ Yes, fixed!',
     fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':it?'❌ Ancora rotto':mk?'❌ Сè уште дефектно':(sr||hr)?'❌ Još uvek pokvareno':lang==='tr'?'❌ Hâlâ bozuk':lang==='pl'?'❌ Nadal zepsute':'❌ Still broken',
-    proBtn:    de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':mk?'Најди стручњак':(sr||hr)?'Nađi stručnjaka':lang==='tr'?'Usta bul':lang==='pl'?'Znajdź fachowca':'Find Professional',
+    proBtn:    (isCar)?(de?'Autowerkstatt finden':fr?'Trouver un garage':es?'Buscar taller':it?'Trova officina':mk?'Најди автосервис':(sr||hr)?'Nađi auto servis':lang==='tr'?'Araba tamircisi bul':lang==='pl'?'Znajdź warsztat':'Find Auto Repair'):
+             (cat==='motorcycle'||cat==='moto')?(de?'Motorradwerkstatt finden':fr?'Trouver un atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':mk?'Најди мото сервис':(sr||hr)?'Nađi moto servis':lang==='tr'?'Motosiklet servisi bul':lang==='pl'?'Znajdź serwis moto':'Find Moto Repair'):
+             (isTech)?(de?'Elektronik-Reparatur finden':fr?'Trouver réparation électronique':es?'Buscar reparación electrónica':it?'Trova riparazione elettronica':mk?'Најди електронски сервис':(sr||hr)?'Nađi servis elektronike':lang==='tr'?'Elektronik tamircisi bul':lang==='pl'?'Znajdź serwis elektroniczny':'Find Electronics Repair'):
+             (cat==='appliances')?(de?'Gerätereparatur finden':fr?'Trouver réparateur électroménager':es?'Buscar reparación electrodomésticos':it?'Trova riparatore elettrodomestici':mk?'Најди сервис за апарати':(sr||hr)?'Nađi servis aparata':lang==='tr'?'Ev aletleri tamircisi bul':lang==='pl'?'Znajdź serwis AGD':'Find Appliance Repair'):
+             de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':mk?'Најди стручњак':(sr||hr)?'Nađi stručnjaka':lang==='tr'?'Usta bul':lang==='pl'?'Znajdź fachowca':'Find Professional',
     partsBtn:  cat==='car'?(de?'Autoteile finden':fr?'Trouver des pièces auto':it?'Trova ricambi auto':es?'Buscar repuestos':lang==='pl'?'Znajdź części do auta':mk?'Барај авто делови':(sr||hr)?'Traži auto dijelove':lang==='tr'?'Araba parçası bul':'Find Auto Parts'):
              cat==='motorcycle'||cat==='moto'?(de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts'):
              cat==='tech'?(de?'Ersatzteile finden':lang==='tr'?'Yedek parça bul':lang==='pl'?'Znajdź części zamienne':'Find Spare Parts'):
@@ -225,6 +244,7 @@ export default function App() {
 
   // ── diagnosisRunId: unique per submit, carried through to save guard ───
   const diagRunIdRef   = useRef(null);   // set on each new submission
+  const [diagCategory, setDiagCategory] = useState(null);
   const savedRunIdsRef = useRef(new Set()); // prevents double-save per run
   const [nearbyBump,  setNearbyBump]  = useState(0); // increment to force nearby refresh
   const [nearbyForce, setNearbyForce] = useState(false); // true = bypass 30min cache
@@ -415,6 +435,7 @@ export default function App() {
           if (detected) aiResult._category = detected;
         }
       }
+      if (aiResult._category) setDiagCategory(aiResult._category);
       saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
     }
   }, [aiResult]); // eslint-disable-line
@@ -723,6 +744,7 @@ export default function App() {
       ? (detectCategoryFromText(prob) || 'home')
       : curFix;
     diagCategoryRef.current = effectiveCat;
+    console.log('[FIXIT-DEBUG] runAI: prob='+JSON.stringify(prob.slice(0,40))+' curFix='+curFix+' effectiveCat='+effectiveCat+' diagCategoryRef='+diagCategoryRef.current);
     setPrevScr('fix-now');
     setFeedback(null);
     // Generate a new runId for this submission; prevents double-save from
@@ -730,6 +752,7 @@ export default function App() {
     diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
     // Store image for this run so History Retry can resend the same photo
     setRestoredResult(null); // clear any restored history result
+    setDiagCategory(null); // reset so previous category doesn't show before new result arrives
     aiReset(); // clear stale vehicle badge / previous result before navigating
     goto('result');
     await diagnose({ problem: prob, photoB64, photoMime, category: effectiveCat, lang, countryName: cd.name, cc, userProfile: profile });
@@ -1410,13 +1433,14 @@ export default function App() {
   //   • Non-blocking — never delays the UI
   useEffect(() => {
     if (!user || !AUTH_AVAILABLE) return;
-    // Clear previous user's history from state immediately, BEFORE the async fetch.
-    // This prevents briefly showing the wrong user's entries.
-    setDiagHistory([]);
+    // Load this user's local entries immediately (synchronous, no flash of empty)
+    // then update with merged cloud+local once Supabase responds.
+    const _localImmediate = (LS.get(historyKey(user.id)) || []).filter(isValidDiagEntry);
+    setDiagHistory(_localImmediate);
     (async () => {
       try {
         // Step 1: read this user's local history (safe — scoped key)
-        const localEntries = (LS.get(historyKey(user.id)) || []).filter(isValidDiagEntry);
+        const localEntries = _localImmediate;
 
         // Step 2: fetch cloud entries (ordered newest-first, up to 100)
         let cloudEntries = [];
@@ -2383,38 +2407,33 @@ export default function App() {
     // r._category is set by useEffect (fresh) or restoredResult._category (history).
     // Falls back to curFix only when _category is absent (old history entries).
     // Never defaults to 'home' unless the entry itself is categorised as 'home'.
-    const effectiveCat = (r && r._category) ? r._category : curFix;
+    // r._category is set by useEffect AFTER paint — use diagCategoryRef as bridge for fresh results
+    const effectiveCat = (r && r._category) ? r._category : (diagCategory || diagCategoryRef.current || curFix);
+    console.log('[FIXIT-DEBUG] result screen: r._category='+(r&&r._category)+' diagCategoryRef='+diagCategoryRef.current+' diagCategory='+diagCategory+' curFix='+curFix+' effectiveCat='+effectiveCat+' lang='+lang);
     const pct = r?.confidence||0;
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
     // Normalize AI-generated proSearchQuery to short, local-intent friendly term
     function normalizeProSearch(raw, cat, isDE) {
-      if (!raw) return isDE ? 'Werkstatt in der Nähe' : 'repair service near me';
-      let q = raw.trim();
-      // Strip "oder X" alternatives
-      q = q.replace(/\s+(?:oder|or)\s+.*/i, '');
-      // Strip "in meiner Nähe" / "near me" if AI added it (we add it via Google Maps)
-      q = q.replace(/\s+in\s+meiner\s+Nähe/gi, '').replace(/\s+near\s+me/gi, '').trim();
-      // Strip trailing filler
-      q = q.replace(/\s*[–—].*$/, '').trim();
-      // If still too long (>40 chars), use category default
-      if (q.length > 40) {
-        const defaults = {
-          car: isDE?'Autowerkstatt':'car repair shop',
-          bike: isDE?'Fahrradwerkstatt':'bike repair shop',
-          tech: isDE?'Elektronik Reparatur':'electronics repair',
-          appliances: isDE?'Gerätereparatur':'appliance repair',
-          home: isDE?'Handwerker Klempner':'handyman plumber',
-          garden: isDE?'Gärtner Gartencenter':'garden center',
-          pets: isDE?'Tierarzt':'veterinarian',
-        };
-        q = defaults[cat] || (isDE?'Fachmann':'repair service');
-      }
-      return q;
+      // Always use category-derived service name — AI proSearchQuery is unreliable
+      // and language-inconsistent. Category is the single source of truth.
+      const isFR=lang==='fr',isIT=lang==='it',isMK=lang==='mk',isSR=lang==='sr'||lang==='hr',isTR=lang==='tr',isPL=lang==='pl',isES=lang==='es';
+      const defaults = {
+        car:        isDE?'Autowerkstatt':isFR?'Garage automobile':isIT?'Officina auto':isES?'Taller mecánico':isMK?'Автосервис':isSR?'Auto servis':isTR?'Araba tamircisi':isPL?'Warsztat samochodowy':'car repair shop',
+        motorcycle: isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
+        moto:       isDE?'Motorradwerkstatt':isFR?'Atelier moto':isIT?'Officina moto':isES?'Taller de motos':isMK?'Сервис за мотори':isSR?'Servis motocikla':isTR?'Motosiklet servisi':isPL?'Serwis motocyklowy':'motorcycle repair',
+        bike:       isDE?'Fahrradwerkstatt':isFR?'Atelier vélo':isIT?'Officina bici':isES?'Taller de bicicletas':isMK?'Сервис за велосипеди':isSR?'Servis bicikla':isTR?'Bisiklet tamircisi':isPL?'Serwis rowerowy':'bike repair shop',
+        tech:       isDE?'Elektronik Reparatur':isFR?'Réparation électronique':isIT?'Riparazione elettronica':isES?'Reparación electrónica':isMK?'Електронски сервис':isSR?'Servis elektronike':isTR?'Elektronik tamircisi':isPL?'Serwis elektroniczny':'electronics repair',
+        appliances: isDE?'Hausgeräte Reparatur':isFR?'Réparation électroménager':isIT?'Riparazione elettrodomestici':isES?'Reparación electrodomésticos':isMK?'Сервис за апарати':isSR?'Servis aparata':isTR?'Ev aletleri tamircisi':isPL?'Serwis AGD':'appliance repair',
+        home:       isDE?'Handwerker':isFR?'Artisan':isIT?'Artigiano':isES?'Técnico del hogar':isMK?'Мајстор':isSR?'Majstor':isTR?'Usta':isPL?'Fachowiec':'handyman',
+        garden:     isDE?'Gärtner Gartencenter':isFR?'Jardinerie':isIT?'Centro giardinaggio':isES?'Centro de jardinería':isMK?'Градинарство':isSR?'Vrtni centar':isTR?'Bahçe merkezi':isPL?'Centrum ogrodnicze':'garden center',
+        pets:       isDE?'Tierarzt':isFR?'Vétérinaire':isIT?'Veterinario':isES?'Veterinario':isMK?'Ветеринар':isSR?'Veterinar':isTR?'Veteriner':isPL?'Weterynarz':'veterinarian',
+      };
+      return defaults[cat] || (isDE?'Fachmann':isFR?'Professionnel':isES?'Profesional':isMK?'Стручњак':isSR?'Stručnjak':'repair service');
     }
     const isDE = lang === 'de';
-    const proQ = normalizeProSearch(r?.proSearchQuery, curFix, isDE)||`${curFix} repair service`;
     const ct  = catTerms(effectiveCat, lang);  // category from saved entry, not stale curFix
+    const proQ = normalizeProSearch(r?.proSearchQuery, effectiveCat, isDE)||`${effectiveCat} repair service`;
 
 
 
@@ -2481,7 +2500,7 @@ export default function App() {
 
                 <button onClick={()=>{ const el=document.getElementById('fixit-problem-input'); if(el&&el.value.trim()) problemRef.current=el.value.trim(); runAI(savedProb||problemRef.current); }} style={s.btn}>{t('tryAgain')}</button>
                 <div style={{height:10}}/>
-                <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
+                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
             );
           })()}
@@ -2632,13 +2651,13 @@ export default function App() {
             {feedback === 'broken' && <div style={{...s.card,background:'rgba(214,59,47,0.06)',borderColor:'rgba(214,59,47,0.25)',textAlign:'center'}}>
               <div style={{fontSize:'1.5rem',marginBottom:8}}>🔧</div>
               <div style={{fontSize:'0.9rem',fontWeight:700,marginBottom:12}}>{lang==='de'?'Noch nicht behoben?':lang==='tr'?'Henüz düzeltilmedi mi?':lang==='pl'?'Jeszcze nie naprawione?':'Not fixed yet?'}</div>
-              <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
+              <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
             </div>}
             {r.callPro ? (
               <div style={{...s.card,background:'rgba(214,59,47,0.06)',borderColor:'rgba(214,59,47,0.25)'}}>
                 <div style={{fontSize:'0.62rem',fontWeight:700,color:C.r,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{t('proRequired')}</div>
                 <div style={{fontSize:'0.86rem',lineHeight:1.65,marginBottom:12}}>{r.proReason}</div>
-                <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
+                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
               </div>
             ) : (
               <div style={{display:'flex',gap:10}}>
@@ -2666,7 +2685,7 @@ export default function App() {
                   setPResults({ q: diagQuery, vehicle: vehicleLabel, hsnModel: '', searchQ: fullSearchQ, isHSN: false, category: cat, fromDiagnosis: true, vehicleCtx: detectedVehicle });
                   if (!user) { setAuthScreen('login'); } else if (isPro || freeRepairActive) { goto('parts'); } else if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
                 }} style={s.btn}>{ct.partsBtn}</button>
-                <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
+                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
             )}
           </div>}
@@ -3033,7 +3052,7 @@ export default function App() {
         <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <BackBtn/>
           <div style={{fontSize:'1.35rem',fontWeight:800,letterSpacing:'-0.02em',marginBottom:4}}>
-            {vType==='car'?t('partsTitleCar'):vType==='bike'?t('partsTitleBike'):vType==='tech'?t('partsTitleTech'):vType==='appliances'?t('partsTitleAppl'):vType==='garden'?t('partsTitleGarden'):vType==='pets'?t('partsTitlePets'):t('partsTitleHome')}
+            {(()=>{const _ptk=vType==='car'?'partsTitleCar':vType==='moto'?'partsTitleMoto':vType==='bike'?'partsTitleBike':vType==='tech'?'partsTitleTech':vType==='appliances'?'partsTitleAppl':vType==='garden'?'partsTitleGarden':vType==='pets'?'partsTitlePets':'partsTitleHome';console.log('[FIXIT-DEBUG] Parts title: vType='+vType+' key='+_ptk);return t(_ptk);})()}
           </div>
           <div style={{fontSize:'0.82rem',color:C.m}}>{t('partsSubtitle')}</div>
         </div>

@@ -143,6 +143,7 @@ T.en = {
   // Parts screen i18n
   partsTitleCar:"Find Auto Parts",
   partsTitleBike:"Find Bike Parts",
+  partsTitleMoto:"Find Moto Parts",
   partsTitleTech:"Electronics & Parts",
   partsTitleAppl:"Appliance Parts",
   partsTitleGarden:"Find Garden Supplies",
@@ -348,6 +349,7 @@ T.de = {
   // Parts screen i18n
   partsTitleCar:"Auto-Teile finden",
   partsTitleBike:"Fahrrad-Teile finden",
+  partsTitleMoto:"Motorrad-Teile finden",
   partsTitleTech:"Elektronik & Zubehör",
   partsTitleAppl:"Geräte-Ersatzteile",
   partsTitleGarden:"Gartenbedarf finden",
@@ -551,6 +553,7 @@ T.fr = {
   // Parts screen i18n
   partsTitleCar:"Trouver des pièces auto",
   partsTitleBike:"Trouver des pièces vélo",
+  partsTitleMoto:"Trouver des pièces moto",
   partsTitleTech:"Électronique & Pièces",
   partsTitleAppl:"Pièces électroménager",
   partsTitleGarden:"Trouver du matériel jardin",
@@ -753,6 +756,7 @@ T.es = {
   // Parts screen i18n
   partsTitleCar:"Encontrar piezas de coche",
   partsTitleBike:"Encontrar piezas de bici",
+  partsTitleMoto:"Encontrar piezas de moto",
   partsTitleTech:"Electrónica y Piezas",
   partsTitleAppl:"Recambios electrodomésticos",
   partsTitleGarden:"Encontrar artículos jardín",
@@ -955,6 +959,7 @@ T.it = {
   // Parts screen i18n
   partsTitleCar:"Trova ricambi auto",
   partsTitleBike:"Trova ricambi bici",
+  partsTitleMoto:"Trova ricambi moto",
   partsTitleTech:"Elettronica & Ricambi",
   partsTitleAppl:"Ricambi elettrodomestici",
   partsTitleGarden:"Trova articoli giardino",
@@ -1157,6 +1162,7 @@ T.pl = {
   // Parts screen i18n
   partsTitleCar:"Znajdź części do auta",
   partsTitleBike:"Znajdź części do roweru",
+  partsTitleMoto:"Znajdź części motocyklowe",
   partsTitleTech:"Elektronika & Akcesoria",
   partsTitleAppl:"Części do AGD",
   partsTitleGarden:"Znajdź artykuły ogrodowe",
@@ -1359,6 +1365,7 @@ T.sr = {
   // Parts screen i18n
   partsTitleCar:"Pronađi delove za auto",
   partsTitleBike:"Pronađi delove za bicikl",
+  partsTitleMoto:"Pronađi delove za motor",
   partsTitleTech:"Elektronika i delovi",
   partsTitleAppl:"Delovi za uređaje",
   partsTitleGarden:"Pronađi vrtne potrepštine",
@@ -1561,6 +1568,7 @@ T.hr = {
   // Parts screen i18n
   partsTitleCar:"Pronađi dijelove za auto",
   partsTitleBike:"Pronađi dijelove za bicikl",
+  partsTitleMoto:"Pronađi dijelove za motor",
   partsTitleTech:"Elektronika i dijelovi",
   partsTitleAppl:"Dijelovi za uređaje",
   partsTitleGarden:"Pronađi vrtne potrepštine",
@@ -1763,6 +1771,7 @@ T.mk = {
   // Parts screen i18n
   partsTitleCar:"Најди авто делови",
   partsTitleBike:"Најди велосипедски делови",
+  partsTitleMoto:"Најди мото делови",
   partsTitleTech:"Електроника и делови",
   partsTitleAppl:"Делови за апарати",
   partsTitleGarden:"Најди градински потреби",
@@ -1965,6 +1974,7 @@ T.tr = {
   // Parts screen i18n
   partsTitleCar:"Araba Parçası Bul",
   partsTitleBike:"Bisiklet Parçası Bul",
+  partsTitleMoto:"Motor Parçası Bul",
   partsTitleTech:"Elektronik & Aksesuar",
   partsTitleAppl:"Cihaz Yedek Parçaları",
   partsTitleGarden:"Bahçe Malzemesi Bul",
