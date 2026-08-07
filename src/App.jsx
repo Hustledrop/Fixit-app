@@ -629,6 +629,11 @@ export default function App() {
         setPhoto(outUrl);
         setPhotoB64(outB64);
         setPhotoMime('image/jpeg'); // always JPEG after canvas compression
+        // Clear stale problem text so image-only diagnosis sends prob='' to the server.
+        // Without this, extractVehicleFromText(oldText) produces a badge from the previous run.
+        problemRef.current = '';
+        const _ta = document.getElementById('fixit-problem-input');
+        if (_ta) _ta.value = '';
       };
       img.onerror = () => {
         showToast(lang === 'de'
@@ -723,6 +728,7 @@ export default function App() {
     // Generate a new runId for this submission; prevents double-save from
     // React StrictMode double-effects and rapid resubmits/retries
     diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+    // Store image for this run so History Retry can resend the same photo
     setRestoredResult(null); // clear any restored history result
     aiReset(); // clear stale vehicle badge / previous result before navigating
     goto('result');
@@ -840,6 +846,7 @@ export default function App() {
       date:          new Date().toISOString(),
       cc,
       fixed:         null,
+       // flag: original diagnosis included an image
     };
 
     // ── Validate the entry before saving ─────────────────────────────────
@@ -2133,6 +2140,7 @@ export default function App() {
                  problemRef.current = h.problem;
                  setCurFix(h.category || 'home');
                  diagCategoryRef.current = h.category || 'home';
+                 aiReset();
                  goto('result');
                }}>
             <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
@@ -2141,19 +2149,7 @@ export default function App() {
               {dateStr && <span style={{fontSize:'0.65rem',color:C.m}}>{dateStr}</span>}
               {h.fixed===true  && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
               {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
-              <button onClick={e=>{
-                e.stopPropagation(); // don't also trigger the view onClick
-                // Retry: generate a new runId so this is a fresh diagnosis run
-                diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
-                setRestoredResult(null);
-                problemRef.current = h.problem;
-                setCurFix(h.category || 'home');
-                diagCategoryRef.current = h.category || 'home';
-                goto('result');
-                diagnose({problem:h.problem,category:h.category||'home',lang,countryName:cd.name,cc});
-              }} style={{marginLeft:'auto',background:C.o,border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:'0.65rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {lang==='de'?'Erneut':lang==='tr'?'Tekrar':lang==='pl'?'Ponów':lang==='mk'?'Повтори':t('retryBtn')||'↻ Retry'}
-              </button>
+
             </div>
           </div>
         );
