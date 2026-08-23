@@ -1489,8 +1489,9 @@ export default function App() {
   // Falls back to the store's `u(q)` URL (Google site-search) if resolution fails.
   function openStore(st, query) {
     if (!st.resolve) {
-      // No resolution needed (Amazon, eBay, etc.) — open directly.
-      window.open(st.u(query), '_blank', 'noopener,noreferrer');
+      // No resolution needed (Amazon, eBay, etc.) — open via translateAndOpen
+      // so the query is translated to the market language before building the URL.
+      translateAndOpen(st.u, query);
       return;
     }
 
