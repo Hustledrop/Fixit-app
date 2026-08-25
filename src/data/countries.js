@@ -728,6 +728,13 @@ const CC_TO_MARKET_LANG = {
   HR:'hr',
   MK:'mk',  // North Macedonia — users search in Macedonian
   TR:'tr',
+  // Extended market coverage
+  SE:'sv', NO:'no', DK:'da', FI:'fi',
+  NL:'nl',
+  PT:'pt', BR:'pt-br',  // separate: European vs Brazilian Portuguese
+  GR:'el',
+  CZ:'cs', SK:'sk',     // separate: Czech vs Slovak
+  HU:'hu', RO:'ro', BG:'bg',
 };
 
 export function getMarketLang(cc) {

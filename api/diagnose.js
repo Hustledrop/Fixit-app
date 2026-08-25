@@ -385,9 +385,14 @@ module.exports = async function handler(req, res) {
     IT:'Italian',SM:'Italian',VA:'Italian',
     ES:'Spanish',MX:'Spanish',AR:'Spanish',CL:'Spanish',CO:'Spanish',
     PL:'Polish',HR:'Croatian',RS:'Serbian',TR:'Turkish',
-    MK:'Macedonian',  // North Macedonia — users search in Macedonian
+    MK:'Macedonian',  // North Macedonia
     SE:'Swedish',NO:'Norwegian',DK:'Danish',FI:'Finnish',
-    NL:'Dutch',PT:'Portuguese',GR:'Greek',CZ:'Czech',SK:'Czech',
+    NL:'Dutch',
+    PT:'PortugueseEU',  // European Portuguese — "reparação", "telemóvel"
+    BR:'PortugueseBR',  // Brazilian Portuguese — "conserto", "celular"
+    GR:'Greek',
+    CZ:'Czech',
+    SK:'Slovak',        // separate from Czech — natural SK terms differ
     HU:'Hungarian',RO:'Romanian',BG:'Bulgarian',
   };
   const cc2 = String(countryCode || '').toUpperCase().trim();
@@ -682,39 +687,39 @@ module.exports = async function handler(req, res) {
       // Device keyword → [English, German, French, Italian, Spanish, Polish, Serbian/HR, Macedonian, Turkish]
       const DEVICE_MAP = [
         [/wash.*mach|waschmasch|machine.*laver|lave.linge|lavatrice|lavadora|pralka|veš.*mašin|машина за перење|çamaşır/i,
-          ['washing machine repair','Waschmaschinen Reparatur','réparation lave-linge','riparazione lavatrice','reparación lavadora','naprawa pralki','popravka veš mašine','поправка машина за перење','çamaşır makinesi tamiri']],
+          ['washing machine repair','Waschmaschinen Reparatur','réparation lave-linge','riparazione lavatrice','reparación lavadora','naprawa pralki','popravka veš mašine','поправка машина за перење','çamaşır makinesi tamiri','tvättmaskin reparation','vaskemaskin reparasjon','vaskemaskine reparation','pesukone huolto','wasmachine reparatie','reparação máquina de lavar','conserto máquina de lavar','επισκευή πλυντηρίου','oprava pračky','oprava práčky','mosógép javítás','reparație mașină de spălat','ремонт на пералня']],
         [/dishwash|geschirrspül|lave.vaisselle|lavastoviglie|lavavajillas|zmywarka|mašina za suđe|машина за садови|bulaşık/i,
-          ['dishwasher repair','Geschirrspüler Reparatur','réparation lave-vaisselle','riparazione lavastoviglie','reparación lavavajillas','naprawa zmywarki','popravka mašine za suđe','поправка машина за садови','bulaşık makinesi tamiri']],
+          ['dishwasher repair','Geschirrspüler Reparatur','réparation lave-vaisselle','riparazione lavastoviglie','reparación lavavajillas','naprawa zmywarki','popravka mašine za suđe','поправка машина за садови','bulaşık makinesi tamiri','diskmaskin reparation','oppvaskmaskin reparasjon','opvaskemaskine reparation','astianpesukone huolto','vaatwasser reparatie','reparação máquina de lavar loiça','conserto lava-louças','επισκευή πλυντηρίου πιάτων','oprava myčky nádobí','oprava umývačky riadu','mosogatógép javítás','reparație mașină de spălat vase','ремонт на съдомиялна']],
         [/fridge|refrigerat|kühlschrank|réfrigérat|frigorif|lodówka|frižider|ладилник|buzdolabı/i,
-          ['refrigerator repair','Kühlschrank Reparatur','réparation réfrigérateur','riparazione frigorifero','reparación frigorífico','naprawa lodówki','popravka frižidera','поправка ладилник','buzdolabı tamiri']],
+          ['refrigerator repair','Kühlschrank Reparatur','réparation réfrigérateur','riparazione frigorifero','reparación frigorífico','naprawa lodówki','popravka frižidera','поправка ладилник','buzdolabı tamiri','kylskåp reparation','kjøleskap reparasjon','køleskab reparation','jääkaappi huolto','koelkast reparatie','reparação frigorífico','conserto geladeira','επισκευή ψυγείου','oprava ledničky','oprava chladničky','hűtőszekrény javítás','reparație frigider','ремонт на хладилник']],
         [/freezer|gefriersch|congélat|congelat|congelad|zamrażark|zamrziv|замрзнув|dondurucu/i,
-          ['freezer repair','Gefriergerät Reparatur','réparation congélateur','riparazione congelatore','reparación congelador','naprawa zamrażarki','popravka zamrzivača','поправка замрзнувач','dondurucu tamiri']],
+          ['freezer repair','Gefriergerät Reparatur','réparation congélateur','riparazione congelatore','reparación congelador','naprawa zamrażarki','popravka zamrzivača','поправка замрзнувач','dondurucu tamiri','frys reparation','fryser reparasjon','fryser reparation','pakastin huolto','vriezer reparatie','reparação congelador','conserto freezer','επισκευή καταψύκτη','oprava mrazáku','oprava mrazničky','fagyasztó javítás','reparație congelator','ремонт на фризер']],
         [/oven|backofen|four|forno|horno|piekarnik|pečnica|рерна|fırın/i,
-          ['oven repair','Backofen Reparatur','réparation four','riparazione forno','reparación horno','naprawa piekarnika','popravka pećnice','поправка рерна','fırın tamiri']],
+          ['oven repair','Backofen Reparatur','réparation four','riparazione forno','reparación horno','naprawa piekarnika','popravka pećnice','поправка рерна','fırın tamiri','ugn reparation','stekeovn reparasjon','ovn reparation','uunin huolto','oven reparatie','reparação forno','conserto forno','επισκευή φούρνου','oprava trouby','oprava rúry','sütő javítás','reparație cuptor','ремонт на фурна']],
         [/cooker|herd|cuisinière|cucina|cocina|kuchenk|šporet|шпорет|ocak/i,
-          ['cooker repair','Herd Reparatur','réparation cuisinière','riparazione cucina','reparación cocina','naprawa kuchenki','popravka šporeta','поправка шпорет','ocak tamiri']],
+          ['cooker repair','Herd Reparatur','réparation cuisinière','riparazione cucina','reparación cocina','naprawa kuchenki','popravka šporeta','поправка шпорет','ocak tamiri','spis reparation','komfyr reparasjon','komfur reparation','liesi huolto','fornuis reparatie','reparação fogão','conserto fogão','επισκευή κουζίνας','oprava sporáku','oprava sporáka','tűzhely javítás','reparație aragaz','ремонт на котлон']],
         [/dryer|trockner|sèche.linge|asciugat|secadora|suszark|sušilica|сушилница|kurutma/i,
-          ['dryer repair','Wäschetrockner Reparatur','réparation sèche-linge','riparazione asciugatrice','reparación secadora','naprawa suszarki','popravka sušilice','поправка сушилница','kurutucu tamiri']],
+          ['dryer repair','Wäschetrockner Reparatur','réparation sèche-linge','riparazione asciugatrice','reparación secadora','naprawa suszarki','popravka sušilice','поправка сушилница','kurutucu tamiri','torktumlare reparation','tørketrommel reparasjon','tørretumbler reparation','kuivausrumpu huolto','droger reparatie','reparação máquina de secar','conserto secadora','επισκευή στεγνωτηρίου','oprava sušičky','oprava sušičky bielizne','szárítógép javítás','reparație uscător rufe','ремонт на сушилня']],
         [/air.?cond|klimaanlag|climatiseur|condizionat|aire.acond|klimatyza|klima|клима|klima/i,
-          ['air conditioning repair','Klimaanlage Reparatur','réparation climatiseur','riparazione condizionatore','reparación aire acondicionado','naprawa klimatyzacji','popravka klime','поправка клима','klima tamiri']],
+          ['air conditioning repair','Klimaanlage Reparatur','réparation climatiseur','riparazione condizionatore','reparación aire acondicionado','naprawa klimatyzacji','popravka klime','поправка клима','klima tamiri','luftkonditionering reparation','aircondition reparasjon','aircondition reparation','ilmastointi huolto','airconditioning reparatie','reparação ar condicionado','conserto ar condicionado','επισκευή κλιματιστικού','oprava klimatizace','oprava klimatizácie','légkondicionáló javítás','reparație aer condiționat','ремонт на климатик']],
         [/boiler|heizung|chaudière|caldaia|caldera|kocioł|bojler|бојлер|kazan/i,
-          ['boiler repair','Heizung Reparatur','réparation chaudière','riparazione caldaia','reparación caldera','naprawa kotła','popravka bojlera','поправка бојлер','kazan tamiri']],
+          ['boiler repair','Heizung Reparatur','réparation chaudière','riparazione caldaia','reparación caldera','naprawa kotła','popravka bojlera','поправка бојлер','kazan tamiri','värmepanna reparation','varmtvannsbereder reparasjon','varmtvandsbeholder reparation','kattila huolto','cv-ketel reparatie','reparação caldeira','conserto aquecedor','επισκευή λέβητα','oprava kotle','oprava kotla','kazán javítás','reparație centrală termică','ремонт на бойлер']],
         [/vacuum|staubsaug|aspirateur|aspirapolvere|aspiradora|odkurzacz|usisivač|правосмукал|elektrikli süpürge/i,
-          ['vacuum cleaner repair','Staubsauger Reparatur','réparation aspirateur','riparazione aspirapolvere','reparación aspiradora','naprawa odkurzacza','popravka usisivača','поправка правосмукалка','elektrikli süpürge tamiri']],
+          ['vacuum cleaner repair','Staubsauger Reparatur','réparation aspirateur','riparazione aspirapolvere','reparación aspiradora','naprawa odkurzacza','popravka usisivača','поправка правосмукалка','elektrikli süpürge tamiri','dammsugare reparation','støvsuger reparasjon','støvsuger reparation','pölynimuri huolto','stofzuiger reparatie','reparação aspirador','conserto aspirador','επισκευή ηλεκτρικής σκούπας','oprava vysavače','oprava vysávača','porszívó javítás','reparație aspirator','ремонт на прахосмукачка']],
         [/laptop|notebook/i,
-          ['laptop repair','Laptop Reparatur','réparation ordinateur portable','riparazione notebook','reparación portátil','naprawa laptopa','popravka laptopa','поправка лаптоп','laptop tamiri']],
+          ['laptop repair','Laptop Reparatur','réparation ordinateur portable','riparazione notebook','reparación portátil','naprawa laptopa','popravka laptopa','поправка лаптоп','laptop tamiri','laptop reparation','laptop reparasjon','laptop reparation','kannettava tietokone huolto','laptop reparatie','reparação computador portátil','conserto notebook','επισκευή laptop','oprava notebooku','oprava notebooku','laptop javítás','reparație laptop','ремонт на лаптоп']],
         [/computer|desktop|pc/i,
-          ['computer repair','Computer Reparatur','réparation ordinateur','riparazione computer','reparación ordenador','naprawa komputera','popravka računara','поправка компјутер','bilgisayar tamiri']],
+          ['computer repair','Computer Reparatur','réparation ordinateur','riparazione computer','reparación ordenador','naprawa komputera','popravka računara','поправка компјутер','bilgisayar tamiri','dator reparation','datamaskin reparasjon','computer reparation','tietokone huolto','computer reparatie','reparação computador','assistência técnica computador','επισκευή υπολογιστή','oprava počítače','oprava počítača','számítógép javítás','reparație calculator','ремонт на компютър']],
         [/phone|smartphone|iphone|handy|téléphone|telefono|móvil|telefon/i,
-          ['phone repair','Handy Reparatur','réparation téléphone','riparazione telefono','reparación móvil','naprawa telefonu','popravka telefona','поправка телефон','telefon tamiri']],
+          ['phone repair','Handy Reparatur','réparation téléphone','riparazione telefono','reparación móvil','naprawa telefonu','popravka telefona','поправка телефон','telefon tamiri','mobiltelefon reparation','mobil reparasjon','mobiltelefon reparation','puhelin huolto','telefoon reparatie','reparação telemóvel','conserto celular','επισκευή κινητού τηλεφώνου','oprava telefonu','oprava telefónu','telefon javítás','reparație telefon','ремонт на телефон']],
         [/tablet|ipad/i,
-          ['tablet repair','Tablet Reparatur','réparation tablette','riparazione tablet','reparación tableta','naprawa tabletu','popravka tableta','поправка таблет','tablet tamiri']],
+          ['tablet repair','Tablet Reparatur','réparation tablette','riparazione tablet','reparación tableta','naprawa tabletu','popravka tableta','поправка таблет','tablet tamiri','surfplatta reparation','nettbrett reparasjon','tablet reparation','tabletti huolto','tablet reparatie','reparação tablet','conserto tablet','επισκευή tablet','oprava tabletu','oprava tabletu','táblagép javítás','reparație tabletă','ремонт на таблет']],
         [/tv|television|fernseh|télévision|televisione|televisión|telewizor|televizor|телевизор|televizyon/i,
-          ['TV repair','Fernseher Reparatur','réparation télévision','riparazione televisore','reparación televisión','naprawa telewizora','popravka televizora','поправка телевизор','TV tamiri']],
+          ['TV repair','Fernseher Reparatur','réparation télévision','riparazione televisore','reparación televisión','naprawa telewizora','popravka televizora','поправка телевизор','TV tamiri','TV reparation','TV reparasjon','TV reparation','televisio huolto','TV reparatie','reparação televisão','conserto televisão','επισκευή τηλεόρασης','oprava televizoru','oprava televízora','TV javítás','reparație televizor','ремонт на телевизор']],
         [/bicycle|fahrrad|vélo|bicicletta|bicicleta|rower|bicikl|велосипед|bisiklet/i,
-          ['bicycle repair','Fahrrad Reparatur','réparation vélo','riparazione bici','reparación bicicleta','naprawa roweru','popravka bicikla','поправка велосипед','bisiklet tamiri']],
+          ['bicycle repair','Fahrrad Reparatur','réparation vélo','riparazione bici','reparación bicicleta','naprawa roweru','popravka bicikla','поправка велосипед','bisiklet tamiri','cykel reparation','sykkel reparasjon','cykel reparation','polkupyörä huolto','fiets reparatie','reparação bicicleta','conserto bicicleta','επισκευή ποδηλάτου','oprava kola','oprava bicykla','kerékpár javítás','reparație bicicletă','ремонт на велосипед']],
       ];
-      const LI = {'German':1,'French':2,'Italian':3,'Spanish':4,'Polish':5,'Serbian':6,'Croatian':6,'Macedonian':7,'Turkish':8};
+      const LI = {'German':1,'French':2,'Italian':3,'Spanish':4,'Polish':5,'Serbian':6,'Croatian':6,'Macedonian':7,'Turkish':8,'Swedish':9,'Norwegian':10,'Danish':11,'Finnish':12,'Dutch':13,'PortugueseEU':14,'PortugueseBR':15,'Greek':16,'Czech':17,'Slovak':18,'Hungarian':19,'Romanian':20,'Bulgarian':21};
       const li = LI[ml] || 0; // 0 = English
       const diagText = [
         parsed.diagnosis||'',
@@ -723,8 +728,7 @@ module.exports = async function handler(req, res) {
         (parsed.causes||[]).join(' '),
         (parsed.steps||[]).map(s=>(s.title||'')+' '+(s.description||'')).join(' '),
       ].join(' ');
-      console.log('[FixIt] PRO_SEARCH_OVERRIDE ml=%s existingQ=%s diagText100=%s',
-        ml, existingQ, diagText.slice(0,100));
+
       for (const [pattern, terms] of DEVICE_MAP) {
         if (pattern.test(diagText)) {
           parsed.proSearchQuery = terms[li] || terms[0];

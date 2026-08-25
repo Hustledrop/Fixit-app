@@ -744,7 +744,6 @@ export default function App() {
       ? (detectCategoryFromText(prob) || 'home')
       : curFix;
     diagCategoryRef.current = effectiveCat;
-    console.log('[FIXIT-DEBUG] runAI: prob='+JSON.stringify(prob.slice(0,40))+' curFix='+curFix+' effectiveCat='+effectiveCat+' diagCategoryRef='+diagCategoryRef.current);
     setPrevScr('fix-now');
     setFeedback(null);
     // Generate a new runId for this submission; prevents double-save from
@@ -2410,39 +2409,36 @@ export default function App() {
     // Never defaults to 'home' unless the entry itself is categorised as 'home'.
     // r._category is set by useEffect AFTER paint — use diagCategoryRef as bridge for fresh results
     const effectiveCat = (r && r._category) ? r._category : (diagCategory || diagCategoryRef.current || curFix);
-    console.log('[FIXIT-DEBUG] result screen: r._category='+(r&&r._category)+' diagCategoryRef='+diagCategoryRef.current+' diagCategory='+diagCategory+' curFix='+curFix+' effectiveCat='+effectiveCat+' lang='+lang+' r.proSearchQuery='+(r&&r.proSearchQuery));
     const pct = r?.confidence||0;
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
     // Normalize AI-generated proSearchQuery to short, local-intent friendly term
     function normalizeProSearch(raw, cat, _unused) {
-      // Use GPS country language for search terms so Maps finds local services.
-      // UI language (lang) is intentionally NOT used here — a Macedonian UI in Germany
-      // must search "Autowerkstatt" (German) not "Avtoservis" (Macedonian).
-      const ml = getMarketLang(cc); // cc = GPS country code from location state
-      const mDE=ml==='de',mFR=ml==='fr',mIT=ml==='it',mES=ml==='es',
-            mPL=ml==='pl',mTR=ml==='tr',mMK=ml==='mk',mSR=ml==='sr'||ml==='hr';
+      // Maps search uses GPS country language, not UI language.
+      const ml = getMarketLang(cc);
+      const mDE=ml==='de', mFR=ml==='fr', mIT=ml==='it', mES=ml==='es',
+            mPL=ml==='pl', mTR=ml==='tr', mMK=ml==='mk', mSR=ml==='sr'||ml==='hr',
+            mSV=ml==='sv', mNO=ml==='no', mDA=ml==='da', mFI=ml==='fi',
+            mNL=ml==='nl', mPT=ml==='pt', mPTBR=ml==='pt-br', mEL=ml==='el',
+            mCS=ml==='cs', mSK=ml==='sk', mHU=ml==='hu', mRO=ml==='ro', mBG=ml==='bg';
       const defaults = {
-        car:        mDE?'Autowerkstatt':mFR?'Garage automobile':mIT?'Officina auto':mES?'Taller mecánico':mMK?'Автосервис':mSR?'Auto servis':mTR?'Araba tamircisi':mPL?'Warsztat samochodowy':'car repair shop',
-        motorcycle: mDE?'Motorradwerkstatt':mFR?'Atelier moto':mIT?'Officina moto':mES?'Taller de motos':mMK?'Сервис за мотори':mSR?'Servis motocikla':mTR?'Motosiklet servisi':mPL?'Serwis motocyklowy':'motorcycle repair',
-        moto:       mDE?'Motorradwerkstatt':mFR?'Atelier moto':mIT?'Officina moto':mES?'Taller de motos':mMK?'Сервис за мотори':mSR?'Servis motocikla':mTR?'Motosiklet servisi':mPL?'Serwis motocyklowy':'motorcycle repair',
-        bike:       mDE?'Fahrradwerkstatt':mFR?'Atelier vélo':mIT?'Officina bici':mES?'Taller de bicicletas':mMK?'Сервис за велосипеди':mSR?'Servis bicikla':mTR?'Bisiklet tamircisi':mPL?'Serwis rowerowy':'bike repair shop',
-        tech:       mDE?'Elektronik Reparatur':mFR?'Réparation électronique':mIT?'Riparazione elettronica':mES?'Reparación electrónica':mMK?'Електронски сервис':mSR?'Servis elektronike':mTR?'Elektronik tamircisi':mPL?'Serwis elektroniczny':'electronics repair',
-        appliances: mDE?'Hausgeräte Reparatur':mFR?'Réparation électroménager':mIT?'Riparazione elettrodomestici':mES?'Reparación electrodomésticos':mMK?'Сервис за апарати':mSR?'Servis aparata':mTR?'Ev aletleri tamircisi':mPL?'Serwis AGD':'appliance repair',
-        home:       mDE?'Handwerker':mFR?'Artisan':mIT?'Artigiano':mES?'Técnico del hogar':mMK?'Мајстор':mSR?'Majstor':mTR?'Usta':mPL?'Fachowiec':'handyman',
-        garden:     mDE?'Gärtner Gartencenter':mFR?'Jardinerie':mIT?'Centro giardinaggio':mES?'Centro de jardinería':mMK?'Градинарство':mSR?'Vrtni centar':mTR?'Bahçe merkezi':mPL?'Centrum ogrodnicze':'garden center',
-        pets:       mDE?'Tierarzt':mFR?'Vétérinaire':mIT?'Veterinario':mES?'Veterinario':mMK?'Ветеринар':mSR?'Veterinar':mTR?'Veteriner':mPL?'Weterynarz':'veterinarian',
+        car:        mDE?'Autowerkstatt':mFR?'Garage automobile':mIT?'Officina auto':mES?'Taller mecánico':mMK?'Автосервис':mSR?'Auto servis':mTR?'Araba tamircisi':mPL?'Warsztat samochodowy':mSV?'bilverkstad':mNO?'bilverksted':mDA?'autoværksted':mFI?'autokorjaamo':mNL?'autogarage':mPT?'oficina de automóveis':mPTBR?'oficina mecânica':mEL?'συνεργείο αυτοκινήτων':mCS?'autoservis':mSK?'autoservis':mHU?'autószerelő':mRO?'service auto':mBG?'автосервиз':'car repair shop',
+        motorcycle: mDE?'Motorradwerkstatt':mFR?'Atelier moto':mIT?'Officina moto':mES?'Taller de motos':mMK?'Сервис за мотори':mSR?'Servis motocikla':mTR?'Motosiklet servisi':mPL?'Serwis motocyklowy':mSV?'motorcykel reparation':mNO?'motorsykkel reparasjon':mDA?'motorcykel reparation':mFI?'moottoripyörä huolto':mNL?'motorfiets reparatie':mPT?'reparação mota':mPTBR?'conserto moto':mEL?'επισκευή μοτοσικλέτας':mCS?'oprava motocyklu':mSK?'oprava motocykla':mHU?'motorkerékpár javítás':mRO?'reparație motocicletă':mBG?'ремонт на мотоциклет':'motorcycle repair',
+        moto:       mDE?'Motorradwerkstatt':mFR?'Atelier moto':mIT?'Officina moto':mES?'Taller de motos':mMK?'Сервис за мотори':mSR?'Servis motocikla':mTR?'Motosiklet servisi':mPL?'Serwis motocyklowy':mSV?'motorcykel reparation':mNO?'motorsykkel reparasjon':mDA?'motorcykel reparation':mFI?'moottoripyörä huolto':mNL?'motorfiets reparatie':mPT?'reparação mota':mPTBR?'conserto moto':mEL?'επισκευή μοτοσικλέτας':mCS?'oprava motocyklu':mSK?'oprava motocykla':mHU?'motorkerékpár javítás':mRO?'reparație motocicletă':mBG?'ремонт на мотоциклет':'motorcycle repair',
+        bike:       mDE?'Fahrradwerkstatt':mFR?'Atelier vélo':mIT?'Officina bici':mES?'Taller de bicicletas':mMK?'Сервис за велосипеди':mSR?'Servis bicikla':mTR?'Bisiklet tamircisi':mPL?'Serwis rowerowy':mSV?'cykel reparation':mNO?'sykkel reparasjon':mDA?'cykel reparation':mFI?'polkupyörä huolto':mNL?'fiets reparatie':mPT?'reparação bicicleta':mPTBR?'conserto bicicleta':mEL?'επισκευή ποδηλάτου':mCS?'oprava kola':mSK?'oprava bicykla':mHU?'kerékpár javítás':mRO?'reparație bicicletă':mBG?'ремонт на велосипед':'bike repair shop',
+        tech:       mDE?'Elektronik Reparatur':mFR?'Réparation électronique':mIT?'Riparazione elettronica':mES?'Reparación electrónica':mMK?'Електронски сервис':mSR?'Servis elektronike':mTR?'Elektronik tamircisi':mPL?'Serwis elektroniczny':mSV?'elektronik reparation':mNO?'elektronikk reparasjon':mDA?'elektronik reparation':mFI?'elektroniikka huolto':mNL?'elektronica reparatie':mPT?'reparação eletrónica':mPTBR?'assistência técnica eletrônica':mEL?'επισκευή ηλεκτρονικών':mCS?'oprava elektroniky':mSK?'oprava elektroniky':mHU?'elektronika javítás':mRO?'reparație electronică':mBG?'ремонт на електроника':'electronics repair',
+        appliances: mDE?'Hausgeräte Reparatur':mFR?'Réparation électroménager':mIT?'Riparazione elettrodomestici':mES?'Reparación electrodomésticos':mMK?'Сервис за апарати':mSR?'Servis aparata':mTR?'Ev aletleri tamircisi':mPL?'Serwis AGD':mSV?'hushållsapparater reparation':mNO?'hvitevarer reparasjon':mDA?'husholdningsapparater reparation':mFI?'kodinkoneet huolto':mNL?'huishoudapparaten reparatie':mPT?'reparação eletrodomésticos':mPTBR?'assistência técnica eletrodomésticos':mEL?'επισκευή οικιακών συσκευών':mCS?'oprava spotřebičů':mSK?'oprava spotrebičov':mHU?'háztartási gép javítás':mRO?'reparație electrocasnice':mBG?'ремонт на домакински уреди':'appliance repair',
+        home:       mDE?'Handwerker':mFR?'Artisan':mIT?'Artigiano':mES?'Técnico del hogar':mMK?'Мајстор':mSR?'Majstor':mTR?'Usta':mPL?'Fachowiec':mSV?'hantverkare':mNO?'håndverker':mDA?'håndværker':mFI?'käsityöläinen':mNL?'klusjesman':mPT?'técnico doméstico':mPTBR?'técnico doméstico':mEL?'τεχνίτης':mCS?'řemeslník':mSK?'remeselník':mHU?'kézműves':mRO?'meșteșugar':mBG?'майстор':'handyman',
+        garden:     mDE?'Gärtner Gartencenter':mFR?'Jardinerie':mIT?'Centro giardinaggio':mES?'Centro de jardinería':mMK?'Градинарство':mSR?'Vrtni centar':mTR?'Bahçe merkezi':mPL?'Centrum ogrodnicze':mSV?'trädgård service':mNO?'hageservice':mDA?'haveservice':mFI?'puutarhapalvelu':mNL?'tuincentrum':mPT?'jardim serviço':mPTBR?'jardinagem serviço':mEL?'κηπουρός':mCS?'zahradní centrum':mSK?'záhradné centrum':mHU?'kertészet':mRO?'centru grădinărit':mBG?'градинарство':'garden center',
+        pets:       mDE?'Tierarzt':mFR?'Vétérinaire':mIT?'Veterinario':mES?'Veterinario':mMK?'Ветеринар':mSR?'Veterinar':mTR?'Veteriner':mPL?'Weterynarz':mSV?'veterinär':mNO?'veterinær':mDA?'dyrlæge':mFI?'eläinlääkäri':mNL?'dierenarts':mPT?'veterinário':mPTBR?'veterinário':mEL?'κτηνίατρος':mCS?'veterinář':mSK?'veterinár':mHU?'állatorvos':mRO?'veterinar':mBG?'ветеринар':'veterinarian',
       };
-      // Use AI's proSearchQuery when it is concise (device-specific, e.g. "Waschmaschinen Reparatur")
-      // Fall back to category default when absent, empty, or too long (> 40 chars = likely garbage)
-      const categoryDefault = defaults[cat] || (mDE?'Fachmann':mFR?'Professionnel':mES?'Profesional':mMK?'Стручњак':mSR?'Stručnjak':'repair service');
+      const categoryDefault = defaults[cat] || (mDE?'Fachmann':mFR?'Professionnel':mES?'Profesional':mMK?'Стручњак':mSR?'Stručnjak':mSV?'hantverkare':mNO?'håndverker':mNL?'reparatie':mPT?'serviço reparação':mPTBR?'assistência técnica':mEL?'επισκευή':mCS?'oprava':mSK?'oprava':mHU?'javítás':mRO?'reparație':mBG?'ремонт':'repair service');
       if (!raw || !raw.trim() || raw.trim().length > 40) return categoryDefault;
       return raw.trim();
     }
     const isDE = lang === 'de';
     const ct  = catTerms(effectiveCat, lang);  // category from saved entry, not stale curFix
     const proQ = normalizeProSearch(r?.proSearchQuery, effectiveCat, isDE)||`${effectiveCat} repair service`;
-    console.log('[FIXIT-DEBUG] proQ computed: r.proSearchQuery='+(r&&r.proSearchQuery)+' effectiveCat='+effectiveCat+' proQ='+proQ);
 
 
 
@@ -2509,7 +2505,7 @@ export default function App() {
 
                 <button onClick={()=>{ const el=document.getElementById('fixit-problem-input'); if(el&&el.value.trim()) problemRef.current=el.value.trim(); runAI(savedProb||problemRef.current); }} style={s.btn}>{t('tryAgain')}</button>
                 <div style={{height:10}}/>
-                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
+                <button onClick={()=>{window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
             );
           })()}
@@ -2660,13 +2656,13 @@ export default function App() {
             {feedback === 'broken' && <div style={{...s.card,background:'rgba(214,59,47,0.06)',borderColor:'rgba(214,59,47,0.25)',textAlign:'center'}}>
               <div style={{fontSize:'1.5rem',marginBottom:8}}>🔧</div>
               <div style={{fontSize:'0.9rem',fontWeight:700,marginBottom:12}}>{lang==='de'?'Noch nicht behoben?':lang==='tr'?'Henüz düzeltilmedi mi?':lang==='pl'?'Jeszcze nie naprawione?':'Not fixed yet?'}</div>
-              <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
+              <button onClick={()=>{window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
             </div>}
             {r.callPro ? (
               <div style={{...s.card,background:'rgba(214,59,47,0.06)',borderColor:'rgba(214,59,47,0.25)'}}>
                 <div style={{fontSize:'0.62rem',fontWeight:700,color:C.r,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{t('proRequired')}</div>
                 <div style={{fontSize:'0.86rem',lineHeight:1.65,marginBottom:12}}>{r.proReason}</div>
-                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
+                <button onClick={()=>{window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
               </div>
             ) : (
               <div style={{display:'flex',gap:10}}>
@@ -2694,7 +2690,7 @@ export default function App() {
                   setPResults({ q: diagQuery, vehicle: vehicleLabel, hsnModel: '', searchQ: fullSearchQ, isHSN: false, category: cat, fromDiagnosis: true, vehicleCtx: detectedVehicle });
                   if (!user) { setAuthScreen('login'); } else if (isPro || freeRepairActive) { goto('parts'); } else if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
                 }} style={s.btn}>{ct.partsBtn}</button>
-                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
+                <button onClick={()=>{window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
             )}
           </div>}
@@ -3061,7 +3057,7 @@ export default function App() {
         <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <BackBtn/>
           <div style={{fontSize:'1.35rem',fontWeight:800,letterSpacing:'-0.02em',marginBottom:4}}>
-            {(()=>{const _ptk=vType==='car'?'partsTitleCar':vType==='moto'?'partsTitleMoto':vType==='bike'?'partsTitleBike':vType==='tech'?'partsTitleTech':vType==='appliances'?'partsTitleAppl':vType==='garden'?'partsTitleGarden':vType==='pets'?'partsTitlePets':'partsTitleHome';console.log('[FIXIT-DEBUG] Parts title: vType='+vType+' key='+_ptk);return t(_ptk);})()}
+            {(vType==='car'?t('partsTitleCar'):vType==='moto'?t('partsTitleMoto'):vType==='bike'?t('partsTitleBike'):vType==='tech'?t('partsTitleTech'):vType==='appliances'?t('partsTitleAppl'):vType==='garden'?t('partsTitleGarden'):vType==='pets'?t('partsTitlePets'):t('partsTitleHome'))}
           </div>
           <div style={{fontSize:'0.82rem',color:C.m}}>{t('partsSubtitle')}</div>
         </div>
