@@ -2410,7 +2410,7 @@ export default function App() {
     // Never defaults to 'home' unless the entry itself is categorised as 'home'.
     // r._category is set by useEffect AFTER paint — use diagCategoryRef as bridge for fresh results
     const effectiveCat = (r && r._category) ? r._category : (diagCategory || diagCategoryRef.current || curFix);
-    console.log('[FIXIT-DEBUG] result screen: r._category='+(r&&r._category)+' diagCategoryRef='+diagCategoryRef.current+' diagCategory='+diagCategory+' curFix='+curFix+' effectiveCat='+effectiveCat+' lang='+lang);
+    console.log('[FIXIT-DEBUG] result screen: r._category='+(r&&r._category)+' diagCategoryRef='+diagCategoryRef.current+' diagCategory='+diagCategory+' curFix='+curFix+' effectiveCat='+effectiveCat+' lang='+lang+' r.proSearchQuery='+(r&&r.proSearchQuery));
     const pct = r?.confidence||0;
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
@@ -2433,11 +2433,16 @@ export default function App() {
         garden:     mDE?'Gärtner Gartencenter':mFR?'Jardinerie':mIT?'Centro giardinaggio':mES?'Centro de jardinería':mMK?'Градинарство':mSR?'Vrtni centar':mTR?'Bahçe merkezi':mPL?'Centrum ogrodnicze':'garden center',
         pets:       mDE?'Tierarzt':mFR?'Vétérinaire':mIT?'Veterinario':mES?'Veterinario':mMK?'Ветеринар':mSR?'Veterinar':mTR?'Veteriner':mPL?'Weterynarz':'veterinarian',
       };
-      return defaults[cat] || (mDE?'Fachmann':mFR?'Professionnel':mES?'Profesional':mMK?'Стручњак':mSR?'Stručnjak':'repair service');
+      // Use AI's proSearchQuery when it is concise (device-specific, e.g. "Waschmaschinen Reparatur")
+      // Fall back to category default when absent, empty, or too long (> 40 chars = likely garbage)
+      const categoryDefault = defaults[cat] || (mDE?'Fachmann':mFR?'Professionnel':mES?'Profesional':mMK?'Стручњак':mSR?'Stručnjak':'repair service');
+      if (!raw || !raw.trim() || raw.trim().length > 40) return categoryDefault;
+      return raw.trim();
     }
     const isDE = lang === 'de';
     const ct  = catTerms(effectiveCat, lang);  // category from saved entry, not stale curFix
     const proQ = normalizeProSearch(r?.proSearchQuery, effectiveCat, isDE)||`${effectiveCat} repair service`;
+    console.log('[FIXIT-DEBUG] proQ computed: r.proSearchQuery='+(r&&r.proSearchQuery)+' effectiveCat='+effectiveCat+' proQ='+proQ);
 
 
 

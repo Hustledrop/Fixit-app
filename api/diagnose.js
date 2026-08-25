@@ -457,6 +457,7 @@ module.exports = async function handler(req, res) {
       ] : [
         `partsNeeded: 2–4 SHORT buyable search terms, 2–5 words each. Write in ${lang2} (the UI/display language). Include brand names where helpful. No sentences.`,
       ]),
+      `proSearchQuery: a concise local-service Maps search term for the SPECIFIC device/item diagnosed, in ${marketLangName || lang2}. Must be device-specific, not generic category. Examples: "Waschmaschinen Reparatur" (not "Hausgeräte Reparatur"), "Spülmaschinen Reparatur", "Kühlschrank Reparatur", "laptop repair", "iPhone repair", "washing machine repair". 2–5 words max. No city name.`,
       `estimatedCost: realistic DIY parts cost only, in the currency of ${countryName}. Format: "€5–15". timeEstimate: realistic hands-on time.`,
       `Category: ${cat}. Problem: ${prob || 'analyse the image and diagnose the issue'}. IMPORTANT: set the JSON \"category\" field to exactly one of: home|car|motorcycle|tech|appliances|garden|bike|pets — choose based on what is shown/described, not the input language. For any automotive/vehicle part or repair: \"car\". For motorbike/scooter/moped: \"motorcycle\". For home appliances: \"appliances\". For electronic devices/computers/phones: \"tech\". For garden/outdoor power tools: \"garden\". For bicycles/e-bikes: \"bike\". For pet health: \"pets\". Default: \"home\".`,
       ...(userProfile ? [
@@ -661,6 +662,79 @@ module.exports = async function handler(req, res) {
   // The durable record is in profiles.free_trial_completed_at (server writes it above).
   if (freeTrialJustCompleted) parsed._freeTrialJustCompleted = true;
   if (vehicleCtx) parsed._vehicleCtx = vehicleCtx;
+
+  // ── Ensure proSearchQuery is device-specific, not generic ────────────────
+  // The AI often returns empty or generic proSearchQuery despite instructions.
+  // Build it server-side from the diagnosis text when AI value is missing/generic.
+  {
+    const ml = marketLangName; // e.g. 'German', 'English', 'French', …
+    // Generic category-level terms the AI sometimes returns — these are not specific enough
+    const GENERIC = new Set([
+      'hausgeräte reparatur','appliance repair','réparation électroménager',
+      'riparazione elettrodomestici','reparación electrodomésticos','naprawa agd',
+      'servis aparata','сервис за апарати','ev aletleri tamircisi',
+      'fachmann','repair service','professionnel','stručnjak',
+      'kfz werkstatt','autowerkstatt','motorradwerkstatt','elektronik reparatur',
+    ]);
+    const existingQ = (parsed.proSearchQuery || '').trim().toLowerCase();
+    const needsOverride = !existingQ || existingQ.length > 40 || GENERIC.has(existingQ);
+    if (needsOverride) {
+      // Device keyword → [English, German, French, Italian, Spanish, Polish, Serbian/HR, Macedonian, Turkish]
+      const DEVICE_MAP = [
+        [/wash.*mach|waschmasch|machine.*laver|lave.linge|lavatrice|lavadora|pralka|veš.*mašin|машина за перење|çamaşır/i,
+          ['washing machine repair','Waschmaschinen Reparatur','réparation lave-linge','riparazione lavatrice','reparación lavadora','naprawa pralki','popravka veš mašine','поправка машина за перење','çamaşır makinesi tamiri']],
+        [/dishwash|geschirrspül|lave.vaisselle|lavastoviglie|lavavajillas|zmywarka|mašina za suđe|машина за садови|bulaşık/i,
+          ['dishwasher repair','Geschirrspüler Reparatur','réparation lave-vaisselle','riparazione lavastoviglie','reparación lavavajillas','naprawa zmywarki','popravka mašine za suđe','поправка машина за садови','bulaşık makinesi tamiri']],
+        [/fridge|refrigerat|kühlschrank|réfrigérat|frigorif|lodówka|frižider|ладилник|buzdolabı/i,
+          ['refrigerator repair','Kühlschrank Reparatur','réparation réfrigérateur','riparazione frigorifero','reparación frigorífico','naprawa lodówki','popravka frižidera','поправка ладилник','buzdolabı tamiri']],
+        [/freezer|gefriersch|congélat|congelat|congelad|zamrażark|zamrziv|замрзнув|dondurucu/i,
+          ['freezer repair','Gefriergerät Reparatur','réparation congélateur','riparazione congelatore','reparación congelador','naprawa zamrażarki','popravka zamrzivača','поправка замрзнувач','dondurucu tamiri']],
+        [/oven|backofen|four|forno|horno|piekarnik|pečnica|рерна|fırın/i,
+          ['oven repair','Backofen Reparatur','réparation four','riparazione forno','reparación horno','naprawa piekarnika','popravka pećnice','поправка рерна','fırın tamiri']],
+        [/cooker|herd|cuisinière|cucina|cocina|kuchenk|šporet|шпорет|ocak/i,
+          ['cooker repair','Herd Reparatur','réparation cuisinière','riparazione cucina','reparación cocina','naprawa kuchenki','popravka šporeta','поправка шпорет','ocak tamiri']],
+        [/dryer|trockner|sèche.linge|asciugat|secadora|suszark|sušilica|сушилница|kurutma/i,
+          ['dryer repair','Wäschetrockner Reparatur','réparation sèche-linge','riparazione asciugatrice','reparación secadora','naprawa suszarki','popravka sušilice','поправка сушилница','kurutucu tamiri']],
+        [/air.?cond|klimaanlag|climatiseur|condizionat|aire.acond|klimatyza|klima|клима|klima/i,
+          ['air conditioning repair','Klimaanlage Reparatur','réparation climatiseur','riparazione condizionatore','reparación aire acondicionado','naprawa klimatyzacji','popravka klime','поправка клима','klima tamiri']],
+        [/boiler|heizung|chaudière|caldaia|caldera|kocioł|bojler|бојлер|kazan/i,
+          ['boiler repair','Heizung Reparatur','réparation chaudière','riparazione caldaia','reparación caldera','naprawa kotła','popravka bojlera','поправка бојлер','kazan tamiri']],
+        [/vacuum|staubsaug|aspirateur|aspirapolvere|aspiradora|odkurzacz|usisivač|правосмукал|elektrikli süpürge/i,
+          ['vacuum cleaner repair','Staubsauger Reparatur','réparation aspirateur','riparazione aspirapolvere','reparación aspiradora','naprawa odkurzacza','popravka usisivača','поправка правосмукалка','elektrikli süpürge tamiri']],
+        [/laptop|notebook/i,
+          ['laptop repair','Laptop Reparatur','réparation ordinateur portable','riparazione notebook','reparación portátil','naprawa laptopa','popravka laptopa','поправка лаптоп','laptop tamiri']],
+        [/computer|desktop|pc/i,
+          ['computer repair','Computer Reparatur','réparation ordinateur','riparazione computer','reparación ordenador','naprawa komputera','popravka računara','поправка компјутер','bilgisayar tamiri']],
+        [/phone|smartphone|iphone|handy|téléphone|telefono|móvil|telefon/i,
+          ['phone repair','Handy Reparatur','réparation téléphone','riparazione telefono','reparación móvil','naprawa telefonu','popravka telefona','поправка телефон','telefon tamiri']],
+        [/tablet|ipad/i,
+          ['tablet repair','Tablet Reparatur','réparation tablette','riparazione tablet','reparación tableta','naprawa tabletu','popravka tableta','поправка таблет','tablet tamiri']],
+        [/tv|television|fernseh|télévision|televisione|televisión|telewizor|televizor|телевизор|televizyon/i,
+          ['TV repair','Fernseher Reparatur','réparation télévision','riparazione televisore','reparación televisión','naprawa telewizora','popravka televizora','поправка телевизор','TV tamiri']],
+        [/bicycle|fahrrad|vélo|bicicletta|bicicleta|rower|bicikl|велосипед|bisiklet/i,
+          ['bicycle repair','Fahrrad Reparatur','réparation vélo','riparazione bici','reparación bicicleta','naprawa roweru','popravka bicikla','поправка велосипед','bisiklet tamiri']],
+      ];
+      const LI = {'German':1,'French':2,'Italian':3,'Spanish':4,'Polish':5,'Serbian':6,'Croatian':6,'Macedonian':7,'Turkish':8};
+      const li = LI[ml] || 0; // 0 = English
+      const diagText = [
+        parsed.diagnosis||'',
+        parsed.proTip||'',
+        prob,
+        (parsed.causes||[]).join(' '),
+        (parsed.steps||[]).map(s=>(s.title||'')+' '+(s.description||'')).join(' '),
+      ].join(' ');
+      console.log('[FixIt] PRO_SEARCH_OVERRIDE ml=%s existingQ=%s diagText100=%s',
+        ml, existingQ, diagText.slice(0,100));
+      for (const [pattern, terms] of DEVICE_MAP) {
+        if (pattern.test(diagText)) {
+          parsed.proSearchQuery = terms[li] || terms[0];
+          break;
+        }
+      }
+      // If no device matched, keep whatever AI returned (could be useful) or leave empty
+    }
+  }
+
   // Attach AI-determined internal category (language-neutral enum)
   // Valid values: home|car|motorcycle|tech|appliances|garden|bike|pets
   const VALID_CATS = new Set(['home','car','motorcycle','tech','appliances','garden','bike','pets']);
