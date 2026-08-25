@@ -1,18 +1,29 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { LANGS, tx } from './data/lang.js';
-import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch } from './data/countries.js';
+import { LANGS, tx, getStatusLabel, getDiffLabel } from './data/lang.js';
+import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch, getMarketLang, queryNeedsTranslation, getEmergencySearchQuery, getCountryName } from './data/countries.js';
 import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
 import { getQP } from './data/quickproblems.js';
 import { useLocation } from './hooks/useLocation.js';
 import { useAI } from './hooks/useAI.js';
 import { useNearby, MAP_CATS } from './hooks/useNearby.js';
+import { PrivacyPage, TermsPage, ImpressumPage } from './components/LegalPages.jsx';
+import LEGAL from './config/legal.js'; // triggers build-time warning if required fields are empty
 import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './components/UI.jsx';
+import { useAuth } from './useAuth.js';
+import { getAccessToken, resetPasswordForEmail, updatePassword } from './auth.js';
+import { AUTH_AVAILABLE, checkUsage, incrementUsage, restoreProStatus, sb as getSbClient } from './auth.js';
 
 // ── localStorage helpers (prefixed fixit_) ────────────────────────────────────
 const LS = {
   get: k => { try { return JSON.parse(localStorage.getItem('fixit_'+k)); } catch { return null; } },
   set: (k,v) => { try { localStorage.setItem('fixit_'+k, JSON.stringify(v)); } catch {} },
 };
+// Returns the localStorage key for diagnosis history scoped to the current user.
+// Logged-in users get 'fixit_history:<uid>' — completely isolated per account.
+// Unauthenticated sessions use 'fixit_history:guest' — never merged into any account.
+function historyKey(uid) {
+  return uid ? 'history:' + uid : 'history:guest';
+}
 // Session storage for tab-return persistence (cleared when browser closes)
 const SS = {
   get: k => { try { return JSON.parse(sessionStorage.getItem('fixit_'+k)); } catch { return null; } },
@@ -66,6 +77,7 @@ function catTerms(cat, lang) {
   const isPet    = cat === 'pets';
   const isGarden = cat === 'garden';
   const isBike   = cat === 'bike';
+  const isMoto   = cat === 'motorcycle' || cat === 'moto';
   const isCar    = cat === 'car';
   const isTech   = cat === 'tech';
   // Everything else (home, appliances) = repair
@@ -98,6 +110,20 @@ function catTerms(cat, lang) {
     loading:   de?['Gartenproblem wird analysiert…','Ursache wird ermittelt…','Pflegeschritte werden erstellt…','Gartenprodukte werden gesucht…']:
                ['Analyzing garden problem…','Identifying the cause…','Preparing care steps…','Finding garden products…'],
   };
+  if (isMoto) return {
+    tools:     de?'Benötigte Teile & Werkzeug':fr?'Pièces et outils nécessaires':es?'Piezas y herramientas':mk?'Потребни делови и алати':(sr||hr)?'Potrebni delovi i alati':'Parts & Tools Needed',
+    parts:     de?'Motorradteile':fr?'Pièces moto':es?'Repuestos moto':it?'Ricambi moto':mk?'Делови за мотор':(sr||hr)?'Delovi za motor':'Motorcycle Parts',
+    steps:     de?'Reparaturschritte':fr?'Étapes de réparation':es?'Pasos de reparación':mk?'Чекори за поправка':(sr||hr)?'Koraci popravke':'Repair Steps',
+    fixedQ:    de?'Wurde das Problem behoben?':fr?'Problème résolu?':es?'¿Se resolvió?':mk?'Дали се реши проблемот?':(sr||hr)?'Da li je problem rešen?':'Was the problem fixed?',
+    fixedY:    de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí!':mk?'✅ Да!':(sr||hr)?'✅ Da, popravljeno!':'✅ Yes, fixed!',
+    fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':mk?'❌ Сè уште':(sr||hr)?'❌ Još nije':'❌ Not fixed yet',
+    proBtn:    de?'Motorradwerkstatt finden':fr?'Trouver atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':mk?'Најди мото сервис':(sr||hr)?'Nađi moto servis':lang==='tr'?'Motosiklet servisi bul':lang==='pl'?'Znajdź serwis moto':'Find Moto Repair',
+    partsBtn:  de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts',
+    loading:   de?['Motorradproblem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile werden gesucht…']:
+               mk?['Анализа на проблемот…','Откривање на причината…','Подготовка на чекорите…','Барање делови…']:
+               (sr||hr)?['Analiza problema…','Otkrivanje uzroka…','Priprema koraka…','Traženje delova…']:
+               ['Analyzing motorcycle issue…','Identifying the cause…','Preparing repair steps…','Finding parts…'],
+  };
   if (isBike) {
     const tr = lang==='tr', pl = lang==='pl';
     return {
@@ -122,11 +148,16 @@ function catTerms(cat, lang) {
     fixedQ:    de?'Hat das geholfen?':fr?'Cela a-t-il résolu?':es?'¿Se resolvió?':it?'Il problema è risolto?':mk?'Дали се поправи?':(sr||hr)?'Da li je popravljeno?':'Did this fix it?',
     fixedY:    de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí, solucionado!':it?'✅ Sì, risolto!':mk?'✅ Да, поправено!':(sr||hr)?'✅ Da, popravljeno!':lang==='tr'?'✅ Evet, çözüldü!':lang==='pl'?'✅ Tak, naprawione!':'✅ Yes, fixed!',
     fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':it?'❌ Ancora rotto':mk?'❌ Сè уште дефектно':(sr||hr)?'❌ Još uvek pokvareno':lang==='tr'?'❌ Hâlâ bozuk':lang==='pl'?'❌ Nadal zepsute':'❌ Still broken',
-    proBtn:    de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':mk?'Најди стручњак':(sr||hr)?'Nađi stručnjaka':lang==='tr'?'Usta bul':lang==='pl'?'Znajdź fachowca':'Find Professional',
-    partsBtn:  cat==='car'?(de?'Autoteile finden':lang==='tr'?'Araba parçası bul':lang==='pl'?'Znajdź części do auta':'Find Auto Parts'):
+    proBtn:    (isCar)?(de?'Autowerkstatt finden':fr?'Trouver un garage':es?'Buscar taller':it?'Trova officina':mk?'Најди автосервис':(sr||hr)?'Nađi auto servis':lang==='tr'?'Araba tamircisi bul':lang==='pl'?'Znajdź warsztat':'Find Auto Repair'):
+             (cat==='motorcycle'||cat==='moto')?(de?'Motorradwerkstatt finden':fr?'Trouver un atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':mk?'Најди мото сервис':(sr||hr)?'Nađi moto servis':lang==='tr'?'Motosiklet servisi bul':lang==='pl'?'Znajdź serwis moto':'Find Moto Repair'):
+             (isTech)?(de?'Elektronik-Reparatur finden':fr?'Trouver réparation électronique':es?'Buscar reparación electrónica':it?'Trova riparazione elettronica':mk?'Најди електронски сервис':(sr||hr)?'Nađi servis elektronike':lang==='tr'?'Elektronik tamircisi bul':lang==='pl'?'Znajdź serwis elektroniczny':'Find Electronics Repair'):
+             (cat==='appliances')?(de?'Gerätereparatur finden':fr?'Trouver réparateur électroménager':es?'Buscar reparación electrodomésticos':it?'Trova riparatore elettrodomestici':mk?'Најди сервис за апарати':(sr||hr)?'Nađi servis aparata':lang==='tr'?'Ev aletleri tamircisi bul':lang==='pl'?'Znajdź serwis AGD':'Find Appliance Repair'):
+             de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':mk?'Најди стручњак':(sr||hr)?'Nađi stručnjaka':lang==='tr'?'Usta bul':lang==='pl'?'Znajdź fachowca':'Find Professional',
+    partsBtn:  cat==='car'?(de?'Autoteile finden':fr?'Trouver des pièces auto':it?'Trova ricambi auto':es?'Buscar repuestos':lang==='pl'?'Znajdź części do auta':mk?'Барај авто делови':(sr||hr)?'Traži auto dijelove':lang==='tr'?'Araba parçası bul':'Find Auto Parts'):
+             cat==='motorcycle'||cat==='moto'?(de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts'):
              cat==='tech'?(de?'Ersatzteile finden':lang==='tr'?'Yedek parça bul':lang==='pl'?'Znajdź części zamienne':'Find Spare Parts'):
              cat==='appliances'?(de?'Ersatzteile finden':lang==='tr'?'Yedek parça bul':lang==='pl'?'Znajdź części zamienne':'Find Spare Parts'):
-               (de?'Teile finden':'Find Parts'),
+               (de?'Teile finden':fr?'Trouver les pièces':es?'Buscar piezas':it?'Trovare parti':mk?'Барај делови':(sr||hr)?'Traži dijelove':lang==='tr'?'Parça bul':lang==='pl'?'Znajdź części':'Find Parts'),
     loading:   de?['Problem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile und Werkzeuge werden gesucht…']:
                fr?['Analyse du problème…','Identification de la cause…','Préparation des étapes…','Recherche des pièces…']:
                es?['Analizando tu problema…','Identificando la causa…','Preparando los pasos…','Buscando repuestos…']:
@@ -151,6 +182,9 @@ const CSS = `
 `;
 
 export default function App() {
+  // Version marker — confirms which bundle the phone is running
+  // Change BUILD_ID here forces cache-busted re-evaluation
+  console.log('[FixIt] BUILD 2026-08-04T14:00Z loaded');
   const [lang, setLang]           = useState(() => SS.get('lang') || 'en');
   const [selLang, setSelLang]     = useState('en');
   const [showLP, setShowLP]       = useState(false);
@@ -166,13 +200,54 @@ export default function App() {
   const [pResults, setPResults]   = useState(null);
   const [hsnModel, setHsnModel]     = useState(''); // extra model field when HSN/TSN entered
   const [mapCat, setMapCat]       = useState('garage');
+  // ── Auth / paywall state ──────────────────────────────────────────────────
+  const [freeLimitHit,      setFreeLimitHit]      = useState(false); // paywall overlay
+  const [freeRepairActive,  setFreeRepairActive]  = useState(false); // unlocks parts+nearby during free session
+  // Cache of AI-translated part queries: Map<original, translated>
+  // Avoids repeat API calls when the user clicks multiple store links for the same query.
+  const translatedQueryCache = useRef({});
+  const [freeRepairDone,    setFreeRepairDone]    = useState(false); // celebration screen after free trial ends
+  const [showInstallModal,  setShowInstallModal]  = useState(false); // iOS install instructions
+  const [authScreen,    setAuthScreen]    = useState(null);  // null|'login'|'signup'|'account'
+  const [authEmail,     setAuthEmail]     = useState('');
+  const [authPwd,       setAuthPwd]       = useState('');
+  const [authErr,       setAuthErr]       = useState('');
+  const [authBusy,      setAuthBusy]      = useState(false);
+  const [resetPwd,      setResetPwd]      = useState('');
+  const [resetConfirm,  setResetConfirm]  = useState('');
+  const [resetSent,     setResetSent]     = useState(false);
+  const [checkoutBusy,  setCheckoutBusy]  = useState(false);
+  const [portalBusy,    setPortalBusy]    = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [legalPage,     setLegalPage]     = useState(null); // 'privacy' | 'terms' | null
+  const [paywallSource, setPaywallSource] = useState('diagnosis'); // 'diagnosis' | 'nearby' | 'parts'
+  const [deleteBusy,    setDeleteBusy]    = useState(false);
   const [emrgKey, setEmrgKey]     = useState(null);
   const [aiMsgIdx, setAiMsgIdx]   = useState(0);
   const [feedback, setFeedback]   = useState(null); // null | 'fixed' | 'broken'
   const [toast, setToast]         = useState(null);
-  const [history, setHistory]     = useState(() => LS.get('history') || []);
-  const [showHistory, setShowHistory] = useState(false);
-  const [nearbyBump, setNearbyBump]   = useState(0); // increment to force nearby refresh
+  // ── Navigation stack (in-memory only — never persisted) ──────────────────
+  const [navStack, setNavStack]       = useState([]);
+
+  // ── Diagnosis history (persisted in fixit_history) ─────────────────────
+  // Loaded once on mount with migration: removes corrupted string entries
+  // (screen-name strings that were previously mixed in via the same state variable)
+  const [diagHistory, setDiagHistory] = useState(() => {
+    // On first render user is unknown — read the guest key only.
+    // The login useEffect will swap to the user-scoped key once auth resolves.
+    const raw = LS.get(historyKey(null)) || [];
+    const cleaned = raw.filter(isValidDiagEntry);
+    return cleaned;
+  });
+
+  const [restoredResult, setRestoredResult] = useState(null); // set when viewing a history entry
+
+  // ── diagnosisRunId: unique per submit, carried through to save guard ───
+  const diagRunIdRef   = useRef(null);   // set on each new submission
+  const [diagCategory, setDiagCategory] = useState(null);
+  const savedRunIdsRef = useRef(new Set()); // prevents double-save per run
+  const [nearbyBump,  setNearbyBump]  = useState(0); // increment to force nearby refresh
+  const [nearbyForce, setNearbyForce] = useState(false); // true = bypass 30min cache
   const [isOnline, setIsOnline]   = useState(navigator.onLine);
   const [showPWA, setShowPWA]     = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -184,13 +259,22 @@ export default function App() {
   const aiMsgTimer = useRef(null);
   const pwaPrompt  = useRef(null);
 
-  const { lat, lng, city, country, locStatus, requestLocation, getCC } = useLocation();
+  const { lat, lng, city, country, geocodeErr, locStatus, requestLocation, resolveCountryIfNeeded, getCC } = useLocation();
   const { result: aiResult, loading: aiLoading, error: aiError, diagnose, reset: aiReset } = useAI();
-  const { bizs, loading: bizLoading, error: bizError, fetchBiz } = useNearby();
+  const { bizs, loading: bizLoading, error: bizError, stale: bizStale, fallback: bizFallback, fetchBiz } = useNearby();
+  const { user, profile: authProfile, isPro, authLoading, authEvent, login, signup, logout, refreshProfile } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
-  const cc  = getCC(lang);
-  const cd  = getCountry(cc);
+  // cc: used for Nearby, Parts, Maps URLs — language-informed country
+  const cc  = smartCC(country, lang);
+
+  // ccGPS: raw GPS country only — NEVER uses language as a fallback
+  // Used exclusively by the Emergency screen so language changes never alter
+  // which country's emergency services are displayed.
+  const ccGPS = (country && country !== 'DEFAULT') ? country : 'DEFAULT';
+  const cdGPS = getCountry(ccGPS);   // country data for Emergency screen
+  const cd    = getCountry(cc);      // country data for everything else
+
   const mu  = useCallback(q => mapsUrlFor(q, lat, lng, cc, lang), [lat, lng, cc, lang]);
 
   // Boot
@@ -267,13 +351,18 @@ export default function App() {
     return () => clearInterval(aiMsgTimer.current);
   }, [aiLoading, lang]);
 
-  // Nearby fetch: triggered by nearbyBump (incremented by goto+category change+refresh),
-  // also by GPS arrival. nearbyBump guarantees re-fetch even if screen hasn't changed.
+  // Nearby fetch: triggered by nearbyBump (incremented by goto+category change+refresh).
+  // Safety guard: never fetch unless the user is authenticated AND Pro.
+  // goto() already prevents non-Pro users from reaching screen='nearby',
+  // but this defence-in-depth check ensures no API call fires even if state
+  // becomes inconsistent (e.g. Pro subscription lapsed between renders).
   useEffect(() => {
-    if (screen === 'nearby' && lat && lng) {
-      fetchBiz(mapCat, lat, lng);
+    if (screen === 'nearby' && lat && lng && user && (isPro || freeRepairActive)) {
+      fetchBiz(mapCat, lat, lng, nearbyForce, city, country);
+      if (nearbyForce) setNearbyForce(false);
     }
-  }, [nearbyBump, mapCat, lat, lng]); // mapCat in deps ensures chip + reset both trigger
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nearbyBump, mapCat]);
 
   // Persist key UI state so returning from external store tab restores correctly
   useEffect(() => {
@@ -317,26 +406,85 @@ export default function App() {
   }, []); // eslint-disable-line
 
   // Save to history when AI result arrives (top-level, legal)
+  // diagRunIdRef.current is set by handleSubmit before calling diagnose()
+  // so each diagnosis run has a unique ID that prevents double-saves
   useEffect(() => {
-    if (aiResult) saveToHistory(aiResult, problemRef.current);
+    console.log('[FixIt] saveHistory useEffect fired', { hasResult: !!aiResult, runId: diagRunIdRef.current });
+    if (aiResult) {
+      // Attach the active category so part-chip handlers can read it from `r._category`
+      // instead of relying on curFix, which may not reflect the motorcycle category
+      // when the user typed a motorcycle problem without selecting a motorcycle category tab.
+      // Primary source: AI-returned _detectedCategory (language-neutral enum, set server-side)
+      // This is the fix for image-only diagnosis where prob='' and keyword detection fails.
+      if (aiResult._detectedCategory) {
+        aiResult._category = aiResult._detectedCategory;
+      } else if (!aiResult._category) {
+        // Fallback 1: diagCategoryRef captures effectiveCat from text diagnosis
+        aiResult._category = diagCategoryRef.current || curFix;
+        // Fallback 2: re-detect from AI result text (handles image-only + old history entries)
+        if (aiResult._category === 'home') {
+          const resultText = [
+            aiResult.diagnosis    || '',
+            aiResult.proTip       || '',
+            (aiResult.partsNeeded || []).join(' '),
+            (aiResult.causes      || []).join(' '),
+            (aiResult.steps       || []).map(s => (s.description || '') + ' ' + (s.title || '')).join(' '),
+            problemRef.current    || '',
+          ].join(' ').trim();
+          const detected = resultText ? detectCategoryFromText(resultText) : null;
+          if (detected) aiResult._category = detected;
+        }
+      }
+      if (aiResult._category) setDiagCategory(aiResult._category);
+      saveToHistory(aiResult, problemRef.current, diagRunIdRef.current);
+    }
   }, [aiResult]); // eslint-disable-line
 
   function goto(s) {
-    // Push current screen to history before navigating (skip transient screens)
+    // ── Auth / entitlement gate — runs BEFORE setScreen ──────────────────────
+    // Nearby and Parts require an authenticated Pro user.
+    // Check auth first so the screen never changes and no API is ever called.
+    if (s === 'nearby' || s === 'parts') {
+      if (!user) {
+        // Guest: show sign-in / create-account modal
+        setAuthScreen('login');
+        return;
+      }
+      if (!isPro && !freeRepairActive) {
+        const alreadyUsed = authProfile?.free_trial_completed_at;
+        if (alreadyUsed) { setFreeRepairDone(true); }
+        else { setPaywallSource(s === 'nearby' ? 'nearby' : 'parts'); setFreeLimitHit(true); }
+        return;
+      }
+    }
+    // ── Navigation ───────────────────────────────────────────────────────────
     const skip = ['splash','splash-r','onboarding','loc-ask'];
     if (!skip.includes(screen) && screen !== s) {
-      setHistory(h => [...h.slice(-19), screen]); // keep last 20 screens
+      setNavStack(h => [...h.slice(-19), screen]);
     }
     setScreen(s);
     if (s === 'nearby') {
-      setMapCat('garage');
+      // Set the default nearby category based on the current repair category.
+      // This ensures motorcycle repairs show moto shops, home repairs show
+      // hardware stores, etc. — not always 'garage' (car repair).
+      const nearbyDefault = (
+        curFix === 'car'                              ? 'garage'   :
+        curFix === 'motorcycle' || curFix === 'bike'  ? 'moto'     :
+        curFix === 'home'                             ? 'hardware' :
+        curFix === 'appliances'                       ? 'hardware' :
+        curFix === 'garden'                           ? 'hardware' :
+        curFix === 'tech'                             ? 'it'       :
+        curFix === 'pets'                             ? 'vet'      :
+                                                        'garage'
+      );
+      setMapCat(nearbyDefault);
       setNearbyBump(b => b + 1);
     }
     if (s !== 'result') setFeedback(null);
   }
 
   function goBack() {
-    setHistory(h => {
+    setNavStack(h => {
       if (h.length === 0) { setScreen('home'); return h; }
       const prev = h[h.length - 1];
       setScreen(prev);
@@ -346,7 +494,7 @@ export default function App() {
 
   // Back button — always shows when history has entries (or when forced via onPress)
   const BackBtn = ({ onPress } = {}) => {
-    const canGoBack = history.length > 0 || !!onPress;
+    const canGoBack = navStack.length > 0 || !!onPress;
     if (!canGoBack) return null;
     return (
       <button onClick={onPress || goBack} style={{
@@ -385,25 +533,137 @@ export default function App() {
 
   function handlePhoto(e) {
     const f = e.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = ev => {
-      const dataUrl = ev.target.result;
-      const b64 = dataUrl.split(',')[1];
-      const realMime = detectMime(b64);
 
-      if (!realMime) {
-        // HEIC, TIFF, BMP or other unsupported format
-        showToast(lang === 'de'
-          ? '⚠️ Bildformat nicht unterstützt. Bitte JPG, PNG oder WebP verwenden.'
-          : '⚠️ Image format not supported. Please upload JPG, PNG or WebP.');
+    // Client-side resize + compress before upload.
+    // Vercel body limit is 4.5 MB. iPhone photos can be 12+ MB raw.
+    // We target ≤2.5 MB binary (~3.3 MB base64) so the full JSON request stays under 4.5 MB.
+    const MAX_BYTES = 2.5 * 1024 * 1024;
+    const MAX_DIM   = 1920; // longest side cap — sufficient for AI vision analysis
+
+    // Read EXIF orientation tag from a JPEG's binary (first 64 KB is enough).
+    // Needed for browsers that don't auto-rotate on canvas drawImage (older Safari/WebKit).
+    function getExifOrientation(b64str) {
+      try {
+        const bin = atob(b64str.slice(0, 87380));
+        if (bin.charCodeAt(0) !== 0xFF || bin.charCodeAt(1) !== 0xD8) return 1;
+        let i = 2;
+        while (i < bin.length - 1) {
+          if (bin.charCodeAt(i) !== 0xFF) break;
+          const marker = bin.charCodeAt(i + 1);
+          const len    = (bin.charCodeAt(i + 2) << 8) | bin.charCodeAt(i + 3);
+          if (marker === 0xE1) {
+            const exif  = bin.slice(i + 4, i + 4 + len);
+            const isLE  = exif[6] === 'I';
+            const rd16  = (o) => isLE ? (exif.charCodeAt(o) | (exif.charCodeAt(o+1) << 8))
+                                      : ((exif.charCodeAt(o) << 8) | exif.charCodeAt(o+1));
+            const ifd   = 6 + rd16(10);
+            const count = rd16(ifd);
+            for (let j = 0; j < count; j++) {
+              const off = ifd + 2 + j * 12;
+              if (rd16(off) === 0x0112) return rd16(off + 8);
+            }
+          }
+          if (marker === 0xDA) break;
+          i += 2 + len;
+        }
+      } catch (_) {}
+      return 1;
+    }
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target.result;
+      const b64     = dataUrl.split(',')[1];
+      const rawMime = detectMime(b64);
+
+      if (!rawMime) {
+        showToast(
+          lang === 'de' ? '⚠️ Bildformat nicht unterstützt. Bitte JPG, PNG oder WebP verwenden.'
+        : lang === 'fr' ? '⚠️ Format non supporté. Utilisez JPG, PNG ou WebP.'
+        : lang === 'it' ? '⚠️ Formato non supportato. Usa JPG, PNG o WebP.'
+        : lang === 'es' ? '⚠️ Formato no compatible. Usa JPG, PNG o WebP.'
+        : lang === 'pl' ? '⚠️ Format nieobsługiwany. Użyj JPG, PNG lub WebP.'
+        : lang === 'mk' ? '⚠️ Форматот не е поддржан. Користете JPG, PNG или WebP.'
+        : (lang==='sr'||lang==='hr') ? '⚠️ Format nije podržan. Koristite JPG, PNG ili WebP.'
+        : '⚠️ Image format not supported. Please upload JPG, PNG or WebP.');
         return;
       }
 
-      setPhoto(dataUrl);
-      setPhotoB64(b64);
-      setPhotoMime(realMime); // always use detected MIME, not browser's f.type
+      const img = new Image();
+      img.onload = () => {
+        const orientation = rawMime === 'image/jpeg' ? getExifOrientation(b64) : 1;
+        const swap = orientation >= 5; // 90° or 270° rotation needed
+        const srcW = img.naturalWidth;
+        const srcH = img.naturalHeight;
+
+        // Canvas output dimensions (post-rotation)
+        let outW = swap ? srcH : srcW;
+        let outH = swap ? srcW : srcH;
+        if (outW > MAX_DIM || outH > MAX_DIM) {
+          const scale = Math.min(MAX_DIM / outW, MAX_DIM / outH);
+          outW = Math.round(outW * scale);
+          outH = Math.round(outH * scale);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = outW;
+        canvas.height = outH;
+        const ctx = canvas.getContext('2d');
+
+        // Apply EXIF rotation so the image is visually upright
+        ctx.save();
+        if      (orientation === 2) ctx.transform(-1,  0,  0,  1, outW,    0);
+        else if (orientation === 3) ctx.transform(-1,  0,  0, -1, outW, outH);
+        else if (orientation === 4) ctx.transform( 1,  0,  0, -1,    0, outH);
+        else if (orientation === 5) ctx.transform( 0,  1,  1,  0,    0,    0);
+        else if (orientation === 6) ctx.transform( 0,  1, -1,  0, outH,    0);
+        else if (orientation === 7) ctx.transform( 0, -1, -1,  0, outH, outW);
+        else if (orientation === 8) ctx.transform( 0, -1,  1,  0,    0, outW);
+        // orientation===1: no transform needed
+        ctx.drawImage(img,
+          0, 0, srcW, srcH,             // source rect
+          0, 0, swap ? outH : outW, swap ? outW : outH  // dest rect (pre-swap logical size)
+        );
+        ctx.restore();
+
+        // Encode to JPEG, reducing quality until under MAX_BYTES
+        let quality = 0.85;
+        let outUrl  = canvas.toDataURL('image/jpeg', quality);
+        let outB64  = outUrl.split(',')[1];
+        while (outB64.length * 0.75 > MAX_BYTES && quality > 0.3) {
+          quality -= 0.1;
+          outUrl   = canvas.toDataURL('image/jpeg', quality);
+          outB64   = outUrl.split(',')[1];
+        }
+
+        if (outB64.length * 0.75 > MAX_BYTES) {
+          showToast(
+            lang === 'de' ? '⚠️ Bild zu groß. Bitte kleineres Bild verwenden.'
+          : lang === 'fr' ? '⚠️ Image trop grande. Utilisez une image plus petite.'
+          : lang === 'it' ? '⚠️ Immagine troppo grande. Usa un\'immagine più piccola.'
+          : lang === 'es' ? '⚠️ Imagen demasiado grande. Usa una imagen más pequeña.'
+          : lang === 'pl' ? '⚠️ Obraz za duży. Użyj mniejszego obrazu.'
+          : '⚠️ Image too large to process. Please use a smaller image.');
+          return;
+        }
+
+        setPhoto(outUrl);
+        setPhotoB64(outB64);
+        setPhotoMime('image/jpeg'); // always JPEG after canvas compression
+        // Clear stale problem text so image-only diagnosis sends prob='' to the server.
+        // Without this, extractVehicleFromText(oldText) produces a badge from the previous run.
+        problemRef.current = '';
+        const _ta = document.getElementById('fixit-problem-input');
+        if (_ta) _ta.value = '';
+      };
+      img.onerror = () => {
+        showToast(lang === 'de'
+          ? '⚠️ Bild konnte nicht geladen werden.'
+          : '⚠️ Could not load image.');
+      };
+      img.src = dataUrl;
     };
-    r.readAsDataURL(f);
+    reader.readAsDataURL(f);
   }
 
   function showToast(msg) {
@@ -411,71 +671,266 @@ export default function App() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  async function runAI(override) {
+  // Detects diagnosis category from free-text when curFix==='home' (NavBar Fix entry).
+  // Returns a valid category string or null (caller keeps 'home').
+  function detectCategoryFromText(text) {
+    if (!text) return null;
+    const t = text.toLowerCase();
+    // Motorcycle / scooter — checked first (shares brand names with cars)
+    if (/\baprilia|vespa|piaggio|gilera|malaguti|kymco|sym\b/.test(t)) return 'motorcycle';
+    if (/\b(motocro|enduro|scooter|moped|mofa|motorrad|motorbike|motorcycle|atv|quad|pit.?bike|dirt.?bike)\b/.test(t)) return 'motorcycle';
+    if (/\b(ktm|husqvarna|sherco|ducati|triumph|harley|gasgas)\b/.test(t)) return 'motorcycle';
+    if (/\b(z[uü]ndkerze|spark.?plug|vergaser|carburet|hauptd[uü]se|main.?jet|nema.?iskra|iskra|kettenöl|ölfilter.*motor|luftfilter.*motor)\b/.test(t)) return 'motorcycle';
+    // Tech / devices
+    if (/\b(wifi|wi-fi|wlan|router|laptop|computer|smartphone|handy|drucker|printer|bluetooth|gaming|playstation|xbox)\b/.test(t)) return 'tech';
+    // Car — makes, models, and automotive part terms
+    if (/\b(kfz|fahrzeug|kühlwasser|getriebe|kupplung|bremse|bremsbelag|auspuff|abgas|dpf|agr|egr|turbo|diesel|benzin|petrol|starter|lichtmaschine|alternator|batterie|battery|radiator|thermostat|zahnriemen|timing.?belt)\b/.test(t)) return 'car';
+    if (/öl(?:wechsel|wanne|pumpe|filter|kühler)|ölstandanzei/.test(t)) return 'car';
+    // Automotive compound nouns common in image diagnosis — prefix match (no trailing \b)
+    if (/\b(thermostat|motorblock|zylinderko|zylinder|kolben|nockenwelle|kurbelwelle|kurbelgeh|einspritz|kraftstoff|lenkgetriebe|lenk|bremsscheibe|bremssattel|stossdämpf|spurstange|achse|gelenk|antriebswelle|kupplung|schaltgetriebe|automatikgetriebe|vergaser|drosselklapp|ansaugkrümmer|abgaskrümmer|krümmer|luft(?:filter|mas|kühler)|wasser(?:pumpe|kühler)|öl(?:kühler|filter|pumpe|wanne)|servo|hydraulik|abs\b|esp\b|airbag|sicherheitsgurt|fensterheber|scheibenwisch|klimakompressor|kompressor.*auto|condenser.*auto)/.test(t)) return 'car';
+    // English automotive compound terms
+    if (/\b(thermostat.?hous|cylinder.?head|engine.?block|crankshaft|camshaft|piston|valve.?cover|oil.?pan|fuel.?pump|water.?pump|brake.?disc|brake.?caliper|shock.?absorb|control.?arm|tie.?rod|drive.?shaft|intake.?manifold|exhaust.?manifold|throttle.?body|turbocharger|intercooler|radiator.?hose|timing.?chain|head.?gasket|spark.?plug.?boot|ignition.?coil)/.test(t)) return 'car';
+    if (/\b(vw|volkswagen|golf|polo|passat|tiguan|touareg|caddy|transporter|t-roc|t-cross|arteon|audi|a[1-9]\b|q[1-9]\b|tt\b|r8\b|mercedes|benz|bmw|serie|3er|5er|7er|x[1-9]\b|ford|focus|fiesta|mondeo|kuga|puma|ranger|transit|seat|ibiza|leon|ateca|tarraco|arona|citroen|citroën|c[1-9]\b|berlingo|fiat|500|panda|tipo|punto|opel|corsa|astra|insignia|mokka|zafira|renault|clio|megane|scenic|kadjar|duster|peugeot|208|308|508|3008|5008|skoda|octavia|fabia|superb|kodiaq|karoq|hyundai|tucson|santa|kona|ioniq|kia|sportage|sorento|stinger|ceed|toyota|corolla|camry|rav4|yaris|aygo|highlander|honda|civic|accord|cr-v|hr-v|jazz|fr-v|mazda|cx-[0-9]|mx-[0-9]|mazda[0-9]|subaru|impreza|forester|outback|nissan|qashqai|juke|leaf|micra|note|volvo|v[0-9]{2}|xc[0-9]{2}|s[0-9]{2}|porsche|cayenne|macan|panamera|911|glühkerze|glow.?plug|einspritz|injektor|injector|zylinder|cylinder|kolben|piston|nockenwelle|camshaft|kurbelwelle|crankshaft|ölpumpe)\b/.test(t)) return 'car';
+    // Garden
+    if (/\b(rasenmäher|lawn.?mow|garten|garden|kettensäge|chainsaw|freischneider)\b/.test(t)) return 'garden';
+    // Appliances
+    if (/\b(waschmaschine|washing.?machine|kühlschrank|fridge|geschirrspüler|dishwasher|mikrowelle|microwave|staubsauger|vacuum|boiler|heizung)\b/.test(t)) return 'appliances';
+    // Bicycle
+    if (/\b(fahrrad|bicycle|ebike|e-bike|pedelec|mountainbike)\b/.test(t)) return 'bike';
+    // Pets
+    if (/\b(hund|dog|katze|cat|haustier|tierarzt)\b/.test(t)) return 'pets';
+    return null;
+  }
+
+    async function runAI(override) {
     // Read textarea DOM directly as fallback — catches any onChange race conditions
     if (!override) {
       const el = document.getElementById('fixit-problem-input');
       if (el && el.value.trim()) problemRef.current = el.value.trim();
     }
     const prob = override ?? problemRef.current;
-    if (!prob && !photoB64) { showToast(t('descProblem')); return; } // toast, never alert
-    // For preset taps OR text-only runs: clear any stale photo state
-    // Only keep photo if user has a visible photo AND no override text
-    if (override || (!photo && photoB64)) clearPhoto();
+    if (!prob && !photoB64) { showToast(t('descProblem')); return; }
+
+    // ── Free limit check ─────────────────────────────────────────────────────
+    // Emergency keywords always bypass the limit
+    const EMERGENCY_BYPASS = /gas\s*(leak|geruch)|gasleitung|live\s*(wire|cable)|240v|230v|stromschlag|sicherungskasten|tragende\s+wand|asbestos|asbest|notfall|emergency/i;
+    const isEmergency = EMERGENCY_BYPASS.test(prob);
+
+    if (!isEmergency) {
+      if (!user) {
+        // Guest: require authentication — never show usage/paywall messaging to guests
+        setAuthScreen('login');
+        return;
+      }
+      if (!isPro && AUTH_AVAILABLE) {
+        // Authenticated free user: check Supabase usage (server is authoritative)
+        const usage = await checkUsage(user.id);
+        if (usage && !usage.allowed) { setFreeRepairActive(false); setFreeRepairDone(true); return; }
+      }
+    }
+    // Clear stale photoB64 only when the visible photo preview is gone.
+    // Do NOT clear when override is set — retries must re-send the original image.
+    if (!photo && photoB64) clearPhoto();
     // ALWAYS clear old parts search state — never reuse from a previous diagnosis
     setPResults(null);
     setVInput('');
     setPInput('');
     setHsnModel('');
-    diagCategoryRef.current = curFix;
+    // When curFix is 'home' (user arrived via NavBar Fix without selecting a tile),
+    // detect the actual category from the problem text. This makes motorcycle, tech,
+    // car etc. diagnoses open the correct Parts tab automatically — same as when the
+    // user explicitly taps a category tile (which sets curFix before runAI).
+    const effectiveCat = (curFix === 'home' && prob)
+      ? (detectCategoryFromText(prob) || 'home')
+      : curFix;
+    diagCategoryRef.current = effectiveCat;
+    console.log('[FIXIT-DEBUG] runAI: prob='+JSON.stringify(prob.slice(0,40))+' curFix='+curFix+' effectiveCat='+effectiveCat+' diagCategoryRef='+diagCategoryRef.current);
     setPrevScr('fix-now');
     setFeedback(null);
+    // Generate a new runId for this submission; prevents double-save from
+    // React StrictMode double-effects and rapid resubmits/retries
+    diagRunIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+    // Store image for this run so History Retry can resend the same photo
+    setRestoredResult(null); // clear any restored history result
+    setDiagCategory(null); // reset so previous category doesn't show before new result arrives
+    aiReset(); // clear stale vehicle badge / previous result before navigating
     goto('result');
-    await diagnose({ problem: prob, photoB64: override ? null : photoB64, photoMime: override ? null : photoMime, category: curFix, lang, countryName: cd.name, userProfile: profile });
+    await diagnose({ problem: prob, photoB64, photoMime, category: effectiveCat, lang, countryName: cd.name, cc, userProfile: profile });
   }
 
-  function saveToHistory(result, prob) {
-    if (!result) return;
-    // Parse estimatedCost into a number for savings tracking
-    // Format: "€5–15", "£10–25", "$8" — extract midpoint
+  // ── Shared validator for diagnosis history entries ──────────────────────
+  // Used when loading from LS (migration) and before saving a new entry.
+  function isValidDiagEntry(h) {
+    if (!h || typeof h !== 'object' || Array.isArray(h)) return false;
+    const hasInput = (typeof h.problem === 'string' && h.problem.trim().length > 0)
+                  || h.problem === 'Photo diagnosis';
+    if (!hasInput) return false;
+    if (!h.diagnosis || typeof h.diagnosis !== 'string' || h.diagnosis.trim().length === 0) return false;
+    if (!h.date || typeof h.date !== 'string') return false;
+    const ts = new Date(h.date);
+    if (isNaN(ts.getTime())) return false;
+    if (h._error || h._fallback || h._loading) return false;
+    // Only reject exact-match placeholder strings that indicate a failed/loading state.
+    // Do NOT use startsWith — real AI diagnoses often begin with "Error code...",
+    // "Invalid sensor reading..." etc. which are legitimate diagnostic content.
+    const BAD_EXACT = new Set(['try again','timed out','error','invalid','undefined','loading','…']);
+    if (BAD_EXACT.has(h.diagnosis.toLowerCase().trim())) return false;
+    return true;
+  }
+
+  function saveToHistory(result, prob, runId) {
+    console.log('[FixIt] saveToHistory CALLED', {
+      hasResult: !!result,
+      runId,
+      diagnosis: result?.diagnosis?.slice(0,40),
+      problem: (prob || problemRef.current || '').slice(0,40),
+      savedRunIds: Array.from(savedRunIdsRef.current),
+    });
+    if (!result) { console.log('[FixIt] saveToHistory EXIT: no result'); return; }
+
+    // ── Run-ID dedup: one save per diagnosis run ──────────────────────────
+    // runId is set by handleSubmit before calling diagnose().
+    // We use crypto.randomUUID() to guarantee uniqueness even on fast double-clicks.
+    if (runId) {
+      if (savedRunIdsRef.current.has(runId)) {
+        console.log('[FixIt] saveToHistory EXIT: duplicate runId', runId);
+        return;
+      }
+      savedRunIdsRef.current.add(runId);
+    } else {
+      console.warn('[FixIt] saveToHistory: no runId — dedup skipped');
+    }
+
+    // ── Reject error/fallback results ────────────────────────────────────
+    if (result._fallback) { console.log('[FixIt] saveToHistory EXIT: _fallback'); return; }
+    if (result._error)    { console.log('[FixIt] saveToHistory EXIT: _error'); return; }
+    if (!result.diagnosis){ console.log('[FixIt] saveToHistory EXIT: no diagnosis'); return; }
+
+    const prob_ = prob || problemRef.current || 'Photo diagnosis';
+    if (!prob_?.trim() && prob_ !== 'Photo diagnosis') {
+      console.log('[FixIt] saveToHistory EXIT: empty problem', prob_);
+      return;
+    }
+
+    // ── Mark free diagnosis as used ──────────────────────────────────────
+    if (!result.callPro && !result._fallback) {
+      LS.set('free_diagnosis_used', true); // cosmetic cache only — server record is authoritative
+      if (user && AUTH_AVAILABLE && !isPro) {
+        incrementUsage(user.id).catch(() => {});
+        setFreeRepairActive(true); // immediate UI unlock for this session
+        // Refresh profile so authProfile.free_trial_completed_at is populated.
+        // The useEffect watching authProfile will confirm freeRepairActive on next render.
+        refreshProfile && refreshProfile();
+      }
+    }
+
+    // ── Parse estimatedCost midpoint for savings tracking ────────────────
     function parseSaving(costStr) {
       if (!costStr) return 0;
       const nums = (costStr.match(/[\d]+/g) || []).map(Number);
       if (nums.length === 0) return 0;
       if (nums.length === 1) return nums[0];
-      return Math.round((nums[0] + nums[nums.length-1]) / 2); // midpoint
+      return Math.round((nums[0] + nums[nums.length-1]) / 2);
     }
     const savedAmt = parseSaving(result.estimatedCost);
-    // NOTE: totalSaved is NOT incremented here.
-    // It is only incremented when the user confirms "Yes, fixed!" (handleFeedback).
-    // savedAmt is stored on the history entry so handleFeedback can use it.
 
+    // ── Build the complete entry (store full result for restore) ─────────
     const entry = {
-      id: Date.now(),
-      problem: prob || problemRef.current || 'Photo diagnosis',
-      diagnosis: result.diagnosis?.substring(0, 120),
-      confidence: result.confidence,
+      id:            Date.now(),
+      problem:       prob_,
+      // ── Complete AI result — every field rendered by the result screen ────
+      // Stored verbatim so history restore is pixel-identical to original result.
+      // No truncation except what the API already applied (diagnosis≤420, steps≤4).
+      // Base fields
+      diagnosis:     result.diagnosis     || '',
+      confidence:    result.confidence    ?? null,
+      status:        (result.status && result.status !== 'success') ? result.status : null,
+      difficulty:    result.difficulty    || '',
+      timeEstimate:  result.timeEstimate  || '',
       estimatedCost: result.estimatedCost || '',
+      warningLevel:  result.warningLevel  || '',
+      safetyWarning: result.safetyWarning || '',
+      // Causes (rendered as bullet list)
+      causes:        Array.isArray(result.causes)     ? result.causes.slice(0, 4)  : [],
+      // Repair steps (rendered as numbered cards with emoji + tip)
+      steps:         Array.isArray(result.steps)      ? result.steps.slice(0, 4)   : [],
+      // Tools and parts (rendered as pill tags / shopping links)
+      tools:         Array.isArray(result.tools)      ? result.tools               : [],
+      partsNeeded:   Array.isArray(result.partsNeeded)? result.partsNeeded         : [],
+      // Expert tip and pro-call reason
+      proTip:        result.proTip        || '',
+      proReason:     result.proReason     || '',
+      callPro:       result.callPro       ?? false,
+      proSearchQuery:result.proSearchQuery|| '',
+      // ── Metadata (not rendered, used for history management) ────────────
       savedAmt,
-      category: curFix,
-      date: new Date().toISOString(),
+      category:      result._category || curFix,
+      lang:          lang,
+      date:          new Date().toISOString(),
       cc,
-      fixed: null,
+      fixed:         null,
+       // flag: original diagnosis included an image
     };
-    const updated = [entry, ...(history || [])].slice(0, 20);
-    setHistory(updated);
-    LS.set('history', updated);
+
+    // ── Validate the entry before saving ─────────────────────────────────
+    if (!isValidDiagEntry(entry)) {
+      console.warn('[FixIt] saveToHistory EXIT: validation failed', {
+        problem: entry.problem?.slice(0,30),
+        diagnosis: entry.diagnosis?.slice(0,30),
+        date: entry.date,
+      });
+      return;
+    }
+    console.log('[FixIt] saveToHistory: validation PASSED, saving entry id', entry.id);
+
+    // ── Prepend to diagHistory (use functional update to avoid stale closure) ─
+    setDiagHistory(prev => {
+      const updated = [entry, ...prev].slice(0, 20);
+      // Write to user-scoped key — never to the global 'history' key
+      LS.set(historyKey(user?.id), updated);
+      return updated;
+    });
+
+    // ── Persist to Supabase via server-side API (non-blocking) ─────────
+    // Uses /api/save-diagnosis with service_role key — guaranteed to write
+    // regardless of client session state or RLS issues.
+    if (user && AUTH_AVAILABLE) {
+      (async () => {
+        try {
+          const token = await getAccessToken().catch(() => null);
+          if (!token) { console.warn('[FixIt] save-diagnosis: no token'); return; }
+          const resp = await fetch('/api/save-diagnosis', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ entry }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || data.error) {
+            console.error('[FixIt] save-diagnosis FAILED:', resp.status, data.error);
+          } else {
+            console.log('[FixIt] save-diagnosis OK id=', entry.id);
+          }
+        } catch (e) {
+          console.error('[FixIt] save-diagnosis threw:', e.message);
+        }
+      })();
+    }
   }
 
   function handleFeedback(val) {
     setFeedback(val);
-    const updated = (history || []).map((h, i) => i === 0 ? {...h, fixed: val === 'fixed'} : h);
-    setHistory(updated);
-    LS.set('history', updated);
+    setDiagHistory(prev => {
+      const updated = prev.map((h, i) => i === 0 ? {...h, fixed: val === 'fixed'} : h);
+      LS.set(historyKey(user?.id), updated);
+      return updated;
+    });
 
     // Only count savings when user CONFIRMS the repair worked
     if (val === 'fixed') {
-      const thisEntry = (history || [])[0];
+      const thisEntry = (diagHistory || [])[0];
       const amt = thisEntry?.savedAmt || 0;
       if (amt > 0) {
         const prev = LS.get('totalSaved') || 0;
@@ -490,76 +945,65 @@ export default function App() {
     const r = aiResult;
     if (!r) return;
 
-    // Build share text
-    const savedLine = r.estimatedCost ? (
-      lang==='de' ? `Mögliches Sparpotenzial: ca. ${r.estimatedCost}` :
-      lang==='tr' ? `Tahmini tasarruf: yaklaşık ${r.estimatedCost}` :
-      lang==='pl' ? `Potencjalne oszczędności: ok. ${r.estimatedCost}` :
-      `Estimated savings: approx. ${r.estimatedCost}`
-    ) : '';
-    const shareText = [
+    // Build shareable summary text (synchronous — must complete before any async call
+    // so navigator.share() is called within the user gesture window)
+    const savedLine = r.estimatedCost
+      ? (lang==='de' ? `Mögliches Sparpotenzial: ca. ${r.estimatedCost}`
+       : lang==='tr' ? `Tahmini tasarruf: yaklaşık ${r.estimatedCost}`
+       : lang==='pl' ? `Potencjalne oszczędności: ok. ${r.estimatedCost}`
+       : lang==='sr'||lang==='hr' ? `Procjena uštedine: oko ${r.estimatedCost}`
+       : lang==='mk' ? `Проценета заштеда: ок. ${r.estimatedCost}`
+       : `Estimated savings: approx. ${r.estimatedCost}`)
+      : '';
+
+    const headline =
       lang==='de' ? '🔧 Gerade selbst repariert mit FixIt!' :
       lang==='tr' ? '🔧 FixIt ile kendim tamir ettim!' :
       lang==='pl' ? '🔧 Sam naprawiłem z FixIt!' :
-      '🔧 Just fixed it myself with FixIt!',
+      lang==='fr' ? '🔧 Réparé moi-même avec FixIt !' :
+      lang==='es' ? '🔧 ¡Lo arreglé yo mismo con FixIt!' :
+      lang==='it' ? '🔧 Riparato da solo con FixIt!' :
+      lang==='sr'||lang==='hr' ? '🔧 Sam/a popravio/la uz FixIt!' :
+      lang==='mk' ? '🔧 Сам/а поправив со FixIt!' :
+      '🔧 Just fixed it myself with FixIt!';
+
+    const shareLines = [
+      headline,
       savedLine,
       r.status || '',
-      `fixit-app.vercel.app`,
-    ].filter(Boolean).join('\n');
+      'https://www.fixit-app.com',
+    ].filter(Boolean);
+    const shareText = shareLines.join('\n');
+    const shareUrl  = 'https://www.fixit-app.com';
 
-    // Try canvas share card first, fall back to text share
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1080; canvas.height = 1080;
-      const ctx = canvas.getContext('2d');
-      // Background
-      const grad = ctx.createLinearGradient(0, 0, 1080, 1080);
-      grad.addColorStop(0, '#1f0c00'); grad.addColorStop(1, '#0A0908');
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, 1080, 1080);
-      // Orange accent bar
-      ctx.fillStyle = '#E8521A'; ctx.fillRect(0, 0, 8, 1080);
-      // FIXIT logo
-      ctx.font = 'bold 80px system-ui'; ctx.fillStyle = '#ffffff';
-      ctx.fillText('FIX', 80, 130);
-      ctx.fillStyle = '#E8521A'; ctx.fillText('IT', 248, 130);
-      // Emoji + status
-      ctx.font = '120px system-ui'; ctx.fillText('🔧', 80, 320);
-      ctx.font = 'bold 56px system-ui'; ctx.fillStyle = '#4ade80';
-      ctx.fillText(lang==='de'?'Problem behoben!':lang==='tr'?'Problem çözüldü!':lang==='pl'?'Naprawione!':'Fixed it!', 80, 420);
-      // Problem
-      const prob = (problemRef.current || '').substring(0, 45);
-      ctx.font = '36px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText(prob, 80, 490);
-      // Savings
-      if (r.estimatedCost) {
-        ctx.font = 'bold 100px system-ui'; ctx.fillStyle = '#4ade80';
-        ctx.fillText(r.estimatedCost, 80, 640);
-        ctx.font = 'bold 36px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillText(lang==='de'?'Sparpotenzial (ca.)':lang==='tr'?'tahmini tasarruf':lang==='pl'?'potencjalne oszczędności':'est. savings', 80, 700);
+    // Path A: Web Share API (iPhone, Android Chrome — must be called synchronously
+    // within the user gesture; no await before this call)
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'FixIt', text: shareText, url: shareUrl });
+        return;
+      } catch (err) {
+        // User cancelled (AbortError) or API failed — fall through to clipboard
+        if (err?.name === 'AbortError') return; // user dismissed intentionally
+        console.warn('[FixIt] navigator.share failed:', err);
       }
-      // URL
-      ctx.font = '28px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fillText('fixit-app.vercel.app', 80, 1020);
+    }
 
-      canvas.toBlob(async blob => {
-        if (blob && navigator.share && navigator.canShare?.({ files: [new File([blob], 'fixit.png', {type:'image/png'})] })) {
-          await navigator.share({ files: [new File([blob], 'fixit.png', {type:'image/png'})], title: 'FixIt', text: shareText });
-        } else if (blob) {
-          // Download the image
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = 'fixit-repair.png';
-          a.click();
-          // Also try text share
-          if (navigator.share) await navigator.share({ title: 'FixIt', text: shareText, url: window.location.href });
-        } else if (navigator.share) {
-          await navigator.share({ title: 'FixIt', text: shareText, url: window.location.href });
-        }
-      }, 'image/png');
-    } catch (e) {
-      // Final fallback: copy to clipboard
-      try { await navigator.clipboard.writeText(shareText + '\n' + window.location.href); setToast('✅ Copied!'); }
-      catch (_) {}
+    // Path B: Clipboard fallback (desktop browsers, unsupported browsers)
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setToast(
+        lang==='de' ? '✅ In Zwischenablage kopiert!' :
+        lang==='tr' ? '✅ Panoya kopyalandı!' :
+        lang==='pl' ? '✅ Skopiowano do schowka!' :
+        lang==='fr' ? '✅ Copié dans le presse-papiers !' :
+        lang==='es' ? '✅ ¡Copiado al portapapeles!' :
+        lang==='it' ? '✅ Copiato negli appunti!' :
+        '✅ Copied to clipboard!'
+      );
+    } catch (_) {
+      // Clipboard also denied — last resort: show the text in a toast so user can copy manually
+      setToast('FixIt — ' + shareUrl);
     }
   }
 
@@ -764,9 +1208,836 @@ export default function App() {
     setPResults({ q: cleanPart, vehicle: vInput, hsnModel: hsnModel.trim(), searchQ, isHSN, category: vType });
   }
 
+  // ── Stripe checkout ────────────────────────────────────────────────────────
+  async function startCheckout(plan) {
+    if (!user) { setAuthScreen('signup'); return; }
+    setCheckoutBusy(true);
+    // Navigate the current tab to Stripe Checkout.
+    // We do NOT use window.open() because browsers block async popup redirections:
+    // window.open('','_blank') creates a blank popup synchronously, but then
+    // win.location.href after an await is silently blocked by Safari iOS and others.
+    // The popup stays blank and nothing happens — the confirmed root cause of the
+    // yearly checkout "does nothing" bug.
+    // Same-tab navigation (window.location.href) always works.
+    // Stripe redirects back to success_url / cancel_url after the user acts.
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        showToast(t('connectionError'));
+        return;
+      }
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        // Navigate the current tab — works on every browser, no popup required
+        window.location.href = data.url;
+      } else {
+        console.error('[checkout] no url returned:', data);
+        showToast(data.message || (lang==='de'?'Zahlung nicht verfügbar':'Payment unavailable'));
+      }
+    } catch (err) {
+      console.error('[checkout] error:', err);
+      showToast(t('connectionError'));
+    }
+    finally { setCheckoutBusy(false); }
+  }
+
+  // ── Stripe Customer Portal ──────────────────────────────────────────────────
+  async function openPortal() {
+    if (!user) return;
+    setPortalBusy(true);
+    // Open blank window synchronously (before await) to preserve the user-gesture
+    // context — async/await breaks it, causing popup blockers to block window.open.
+    const win = window.open('', '_blank');
+    try {
+      const res  = await fetch('/api/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        if (win && !win.closed) {
+          win.location.href = data.url;
+        } else {
+          // Popup was blocked — navigate same tab (Stripe return_url brings user back)
+          window.location.href = data.url;
+        }
+      } else {
+        if (win) win.close();
+        showToast(data.message || (t('portalUnavailable')));
+      }
+    } catch (_) {
+      if (win) win.close();
+      showToast(t('connectionError'));
+    } finally {
+      setPortalBusy(false);
+    }
+  }
+
+  // ── Delete account ────────────────────────────────────────────────────────
+  async function handleDeleteAccount() {
+    if (!user) return;
+    setDeleteBusy(true);
+    try {
+      // Get the access token BEFORE logout so the server can verify identity.
+      const token = await getAccessToken();
+      if (!token) { showToast(t('deleteError')); return; }
+
+      // Call the server-side endpoint which:
+      //   1. Verifies the JWT
+      //   2. Cancels any active Stripe subscription
+      //   3. Calls supabase.auth.admin.deleteUser() — requires service-role key
+      //   Supabase then cascades:
+      //     → profiles ON DELETE CASCADE (row deleted)
+      //     → usage    ON DELETE CASCADE (row deleted)
+      //     → payments ON DELETE SET NULL (anonymised; retained for legal compliance)
+      const res = await fetch('/api/delete-account', {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('[delete-account] server error:', res.status, data);
+        showToast(data.message || t('deleteError'));
+        return;
+      }
+
+      // Deletion succeeded — clear all local state and sign out cleanly.
+      // (The server already removed the auth.users row, so signOut is just cleanup.)
+      await logout();
+      setAuthScreen(null);
+      setDeleteConfirm(false);
+      setFreeLimitHit(false);
+      setScreen('home');
+      setNavStack([]);
+      LS.set('free_diagnosis_used', false);
+      showToast(t('accountDeleted'));
+
+    } catch (err) {
+      console.error('[delete-account] unexpected error:', err);
+      showToast(t('deleteError'));
+    } finally { setDeleteBusy(false); }
+  }
+
+  // ── Auth actions ──────────────────────────────────────────────────────────
+  async function handleAuthSubmit() {
+    if (!authEmail.trim() || !authPwd.trim()) {
+      setAuthErr(t('emailRequired'));
+      return;
+    }
+    setAuthBusy(true); setAuthErr('');
+    try {
+      if (authScreen === 'signup') {
+        await signup(authEmail.trim(), authPwd);
+      } else {
+        await login(authEmail.trim(), authPwd);
+        await refreshProfile();
+      }
+      if (authScreen === 'signup') {
+        // Show verification screen — do not let user proceed until confirmed
+        setAuthScreen('verify-email');
+        setAuthPwd(''); // clear password but keep email for display
+      } else {
+        await refreshProfile();
+        setAuthScreen(null); setAuthEmail(''); setAuthPwd('');
+      }
+    } catch (err) {
+      const msg = err.message || '';
+      setAuthErr(
+        msg.includes('Invalid login') ? (t('invalidCredentials')) :
+        msg.includes('already registered') ? (t('emailTaken')) :
+        msg.includes('auth_unavailable') ? (lang==='de'?'Supabase nicht konfiguriert — App läuft im Gastmodus.':'Supabase not configured — app runs in guest mode.') :
+        msg
+      );
+    } finally { setAuthBusy(false); }
+  }
+
+  async function handleForgotSubmit() {
+    if (!authEmail.trim()) { setAuthErr(lang==='de'?'Bitte E-Mail eingeben':'Please enter your email'); return; }
+    setAuthBusy(true); setAuthErr('');
+    try {
+      await resetPasswordForEmail(authEmail.trim());
+      // Always show success regardless of whether email exists — prevents enumeration
+      setResetSent(true);
+    } catch (err) {
+      const msg = err.message || '';
+      setAuthErr(
+        msg.includes('auth_unavailable') ? (lang==='de'?'Auth nicht verfügbar':'Auth unavailable') :
+        msg.includes('Invalid email') ? (lang==='de'?'Ungültige E-Mail-Adresse':'Invalid email address') :
+        lang==='de'?'Fehler beim Senden. Bitte erneut versuchen.':'Error sending link. Please try again.'
+      );
+    } finally { setAuthBusy(false); }
+  }
+
+  async function handleResetSubmit() {
+    if (!resetPwd || !resetConfirm) { setAuthErr(lang==='de'?'Bitte beide Felder ausfüllen':'Please fill in both fields'); return; }
+    if (resetPwd.length < 6) { setAuthErr(lang==='de'?'Passwort muss mindestens 6 Zeichen haben':'Password must be at least 6 characters'); return; }
+    if (resetPwd !== resetConfirm) { setAuthErr(t('passwordsNoMatch')); return; }
+    setAuthBusy(true); setAuthErr('');
+    try {
+      await updatePassword(resetPwd);
+      // Password updated successfully — clear the recovery session state,
+      // clear the inputs, and redirect to sign-in with a success toast.
+      setResetPwd(''); setResetConfirm('');
+      showToast(t('passwordUpdated'));
+      setAuthScreen('login');
+    } catch (err) {
+      const msg = err.message || '';
+      setAuthErr(
+        msg.includes('auth_unavailable')  ? (lang==='de'?'Auth nicht verfügbar':'Auth unavailable') :
+        msg.includes('Password should be') ? (lang==='de'?'Passwort muss mindestens 6 Zeichen haben':'Password must be at least 6 characters') :
+        lang==='de'?'Passwort konnte nicht aktualisiert werden. Bitte neu anfordern.':'Could not update password. Please request a new link.'
+      );
+    } finally { setAuthBusy(false); }
+  }
+
+  // ── React to Supabase auth events ─────────────────────────────────────────
+  // Detects PASSWORD_RECOVERY (fired when user arrives via reset email link)
+  // and switches to the reset-password screen immediately.
+  useEffect(() => {
+    if (authEvent === 'PASSWORD_RECOVERY') {
+      setAuthScreen('reset-password');
+    }
+  }, [authEvent]);
+
+  // ── Derive free trial state from Supabase profile (account-scoped) ──────────
+  useEffect(() => {
+    if (authProfile && !isPro) {
+      if (authProfile.free_trial_completed_at) {
+        setFreeRepairActive(true);
+      }
+    } else if (!authProfile) {
+      setFreeRepairActive(false);
+      setFreeRepairDone(false);
+    }
+  }, [authProfile, isPro]);
+
+  // ── Sync analysis history on login ─────────────────────────────────────────
+  // Triggered when user changes (null → logged-in, or account switch).
+  // Security rules:
+  //   • Reads ONLY from user-scoped localStorage key: history:<uid>
+  //   • NEVER reads from history:guest or the previous in-memory state
+  //     (state may still contain the previous user's entries if this is an
+  //     account switch without a page reload)
+  //   • Merges user-scoped local entries with Supabase cloud entries
+  //   • Deduplicates by entry.id; keeps newest 50 (UI shows latest 20)
+  //   • Non-blocking — never delays the UI
+  useEffect(() => {
+    if (!user || !AUTH_AVAILABLE) return;
+    // Load this user's local entries immediately (synchronous, no flash of empty)
+    // then update with merged cloud+local once Supabase responds.
+    const _localImmediate = (LS.get(historyKey(user.id)) || []).filter(isValidDiagEntry);
+    setDiagHistory(_localImmediate);
+    (async () => {
+      try {
+        // Step 1: read this user's local history (safe — scoped key)
+        const localEntries = _localImmediate;
+
+        // Step 2: fetch cloud entries (ordered newest-first, up to 100)
+        let cloudEntries = [];
+        const client = await getSbClient();
+        if (client) {
+          const { data, error } = await client
+            .from('diagnoses')
+            .select('entry, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(100);
+          if (error) {
+            console.error('[FixIt] diagnoses fetch FAILED:', error.code, error.message, '— check RLS policy');
+          } else {
+            cloudEntries = (data || []).map(r => r.entry).filter(isValidDiagEntry);
+            console.log('[FixIt] diagnoses fetch:', cloudEntries.length, 'valid entries for user', user.id.slice(0,8));
+          }
+        }
+
+        // Step 3: merge cloud + local, dedup by entry.id (cloud wins on conflict)
+        const seen = new Set();
+        const merged = [...cloudEntries, ...localEntries]
+          .filter(e => { if (!e?.id || seen.has(e.id)) return false; seen.add(e.id); return true; })
+          .slice(0, 50);
+
+        // Step 4: write merged list to user-scoped local key and update state
+        LS.set(historyKey(user.id), merged);
+        setDiagHistory(merged);
+        console.log('[FixIt] history synced:', merged.length, 'entries for user', user.id.slice(0,8));
+      } catch (e) {
+        // Sync failed — load local-only as fallback
+        console.warn('[FixIt] history sync failed (non-fatal):', e.message);
+        const localOnly = (LS.get(historyKey(user.id)) || []).filter(isValidDiagEntry);
+        setDiagHistory(localOnly);
+      }
+    })();
+  }, [user]); // eslint-disable-line
+
+  // ── Market-language query normalisation for Parts links ─────────────────────
+  // Called when a user clicks a store URL or Maps link in the Parts screen.
+  // If the query is already in the market language (or the market uses the same script),
+  // opens the URL immediately. If not, calls /api/translate-part once (result cached),
+  // then opens the translated URL.
+  // Opens a store link. For stores with a `resolve` property (Polo, Louis),
+  // attempts to find the direct product URL server-side first.
+  // Falls back to the store's `u(q)` URL (Google site-search) if resolution fails.
+  function openStore(st, query) {
+    if (!st.resolve) {
+      // No resolution needed (Amazon, eBay, etc.) — open via translateAndOpen
+      // so the query is translated to the market language before building the URL.
+      translateAndOpen(st.u, query);
+      return;
+    }
+
+    // ── Moto stores with resolve: property ──────────────────────────────────
+    // Flow:
+    //   1. Open a new tab immediately (popup policy; FixIt stays open).
+    //   2. Show a brief loading page so the user never sees a raw blank tab.
+    //   3. Try to resolve a direct product URL with a strict 1.5 s timeout.
+    //      - Hit  → navigate the tab to the exact product page.
+    //      - Miss → immediately navigate to the store's verified search URL
+    //               with the full query pre-entered (never homepage, never 404).
+    const tabWin = window.open('', '_blank');
+    if (tabWin) {
+      tabWin.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>...</title>' +
+        '<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;' +
+        'height:100vh;margin:0;background:#0f1117;color:#fff;font-size:1.1rem}' +
+        '</style></head><body><div>🔍 ' +
+        (lang === 'de' ? 'Wird geöffnet…' :
+         lang === 'fr' ? 'Ouverture…' :
+         lang === 'it' ? 'Apertura…' :
+         lang === 'pl' ? 'Otwieranie…' : 'Opening…') +
+        '</div></body></html>'
+      );
+    }
+
+    const searchFallback = st.u(query); // verified generic search URL — always works
+
+    (async () => {
+      let targetUrl = searchFallback; // default to search if resolve is slow or fails
+
+      try {
+        // 1.5 s hard timeout — resolver must respond within this window.
+        // If it can find a direct product URL that fast (cache hit), great.
+        // Otherwise the user gets the search page immediately — no long wait.
+        const ctrl    = new AbortController();
+        const timeout = setTimeout(() => ctrl.abort(), 1500);
+
+        let resp, data;
+        try {
+          resp = await fetch('/api/resolve-store-url', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ query, domain: st.resolve }),
+            signal:  ctrl.signal,
+          });
+          data = await resp.json().catch(() => ({}));
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        // Accept only a validated direct product URL on the correct domain.
+        if (resp && resp.ok && data && data.url) {
+          targetUrl = data.url; // direct product page
+          console.log('[FixIt] openStore resolved:', data.url, data.cached ? '(cache)' : '(live)');
+        } else {
+          console.log('[FixIt] openStore: no direct URL, using search fallback:', searchFallback);
+        }
+      } catch (err) {
+        // AbortError (timeout) or network error → fall through to search.
+        if (err.name !== 'AbortError') {
+          console.error('[FixIt] openStore error:', err.message);
+        } else {
+          console.log('[FixIt] openStore: resolver timeout, using search fallback');
+        }
+      }
+
+      // Navigate the already-open tab.
+      // tabWin.location.href works because we own the tab (opened without noopener).
+      if (tabWin && !tabWin.closed) {
+        tabWin.location.href = targetUrl;
+      }
+    })();
+  }
+
+  async function translateAndOpen(url_builder, query, targetUrl) {
+    // Fast path: UI language matches market language — open immediately, no translation needed.
+    if (!queryNeedsTranslation(query, cc, lang)) {
+      window.open(targetUrl || url_builder(query), '_blank', 'noopener,noreferrer');
+      return;
+    }
+    // Cache hit: this query was already translated this session.
+    if (translatedQueryCache.current[query]) {
+      const cached = translatedQueryCache.current[query];
+      const cacheUrl = targetUrl || url_builder(cached);
+      console.log('[FixIt] ═══ CACHE HIT — opening directly ═══',
+        {original: query, translated: cached, url: cacheUrl});
+      // On mobile, if window.open is blocked (returns null), fall back to
+      // navigating the current tab as a last resort.
+      const cacheWin = window.open(cacheUrl, '_blank', 'noopener,noreferrer');
+      if (!cacheWin) {
+        console.warn('[FixIt] window.open blocked (mobile). Navigating current tab.');
+        window.location.href = cacheUrl;
+      }
+      return;
+    }
+    // Translation needed.
+    // Open about:blank synchronously — browser popup policy requires window.open
+    // to be in the synchronous part of the click handler.
+    // We then use location.replace() on the SAME tab after translation completes.
+    // location.replace() sends the FixIt app URL as the HTTP Referer (not about:blank),
+    // which is why Polo Motorrad and Louis Motorrad serve the search correctly.
+    // (location.href navigation from about:blank sends an empty Referer, causing
+    // those sites to drop the query or redirect to their homepage.)
+    const pending = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    try {
+      const token = await getAccessToken().catch(() => null);
+      const resp = await fetch('/api/translate-part', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query,
+          queryLang:   lang,
+          countryCode: cc,
+          category:    vType || 'car',
+          vehicleCtx:  pResults?.vehicleCtx || null,
+        }),
+      });
+      const data = await resp.json();
+      const translated = data?.translated || query;
+      translatedQueryCache.current[query] = translated;
+      const finalUrl = targetUrl || url_builder(translated);
+      console.log('[FixIt] translateAndOpen',
+        {original: query, translated, finalUrl});
+      // Navigate the already-open tab with location.replace().
+      // replace() removes about:blank from history and sends the opener URL as Referer.
+      if (pending && !pending.closed) {
+        pending.location.replace(finalUrl);
+      } else if (!pending) {
+        // Popup was blocked by the browser (common on mobile).
+        // Translation is now cached — the next tap will hit the cache and open directly.
+        // As an immediate fallback, try window.open once more (succeeds if user gesture is fresh).
+        console.warn('[FixIt] translateAndOpen: popup blocked, trying direct open.');
+        const retry = window.open(finalUrl, '_blank', 'noopener,noreferrer');
+        if (!retry) window.location.href = finalUrl;
+      } else {
+        // pending.closed: user closed the tab while waiting.
+        console.warn('[FixIt] translateAndOpen: pending tab was closed before navigation');
+      }
+    } catch (err) {
+      console.error('[FixIt] translateAndOpen error:', err);
+      const fallbackUrl = targetUrl || url_builder(query);
+      if (pending && !pending.closed) {
+        pending.location.replace(fallbackUrl);
+      }
+    }
+  }
+
+  // ── Check Stripe redirect on app load ────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get('checkout');
+    const portal = params.get('portal');
+    if (portal === 'return') {
+      window.history.replaceState({}, '', '/');
+      // Refresh immediately, then retry at 2 s and 5 s.
+      // The Stripe webhook (which writes cancel_at) fires asynchronously after
+      // the portal redirect and may not have reached Supabase on the first read.
+      refreshProfile();
+      setTimeout(() => refreshProfile(), 2000);
+      setTimeout(() => refreshProfile(), 5000);
+    }
+    if (checkout === 'success') {
+      window.history.replaceState({}, '', '/');
+      showToast(t('proUnlocked'));
+      setFreeLimitHit(false);
+      // Refresh immediately, then retry after 2 s and 5 s to catch the webhook DB write.
+      // The Stripe webhook fires asynchronously and may take a moment to update the profile.
+      if (user) {
+        refreshProfile();
+        setTimeout(() => refreshProfile(), 2000);
+        setTimeout(() => refreshProfile(), 5000);
+      }
+    } else if (checkout === 'cancelled') {
+      window.history.replaceState({}, '', '/');
+    }
+  }, []); // eslint-disable-line
+
+  // ── Emergency: resolve country when screen is active and country unknown ──
+  // Safe side-effect: runs only when screen, country, lat, or lng changes.
+  // resolveCountryIfNeeded is memoized; it is a no-op when country is already set.
+  useEffect(() => {
+    if (screen === 'emergency' && country === 'DEFAULT') {
+      resolveCountryIfNeeded();
+    }
+  }, [screen, country, lat, lng, resolveCountryIfNeeded]);
+
   const hr = new Date().getHours();
   const greeting = hr < 12 ? t('goodMorning') : hr < 18 ? t('goodAfternoon') : t('goodEvening');
   const aiMsgs = AI_MSGS[lang] || AI_MSGS.en;
+
+
+  // ── Auth & Paywall modals — defined before screen returns, rendered as siblings ──
+  const AUTH_MODAL = (
+    <>
+      {/* ── Paywall overlay ── */}
+      {freeLimitHit && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:300,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px',overflow:'auto'}}>          <div style={{position:'absolute',top:-80,right:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,82,26,0.18) 0%,transparent 70%)',pointerEvents:'none'}}/>          <button onClick={()=>setFreeLimitHit(false)} style={{position:'absolute',top:'max(20px,env(safe-area-inset-top))',right:20,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:36,height:36,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>✕</button>          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}><span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span></div>          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:28}}/>          <div style={{fontSize:'2.8rem',marginBottom:16}}>{paywallSource==='nearby'?'📍':paywallSource==='parts'?'🔩':'🔓'}</div>          <div style={{fontSize:'1.4rem',fontWeight:800,textAlign:'center',marginBottom:10,color:'#F0EDE8'}}>{paywallSource==='nearby'?(lang==='de'?'Nearby ist eine Pro-Funktion':'Nearby Services is a Pro feature'):paywallSource==='parts'?(lang==='de'?'Teile-Suche ist eine Pro-Funktion':'Parts Lookup is a Pro feature'):t('freeDiagnosisUsed')}</div>          <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.45)',textAlign:'center',lineHeight:1.65,marginBottom:24,maxWidth:300}}>{paywallSource==='nearby'?(lang==='de'?'Finde Werkstätten und Teilehandel in deiner Nähe — mit einem Pro-Abonnement.':'Find workshops and parts shops near you — with a Pro subscription.'):paywallSource==='parts'?(lang==='de'?'Suche nach Ersatzteilen bei lokalen Händlern oder online — mit einem Pro-Abonnement.':'Search for spare parts at local dealers or online — with a Pro subscription.'):t('freeDiagnosisDesc')}</div>          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center',marginBottom:24}}>            {[['🔒','Nearby'],['🔒',lang==='de'?'Teile':'Parts'],['✅',lang==='de'?'Notfall':'Emergency'],['🔒',lang==='de'?'Unbegrenzte KI':'Unlimited AI']].map(([ic,lb])=>(              <div key={lb} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:100,padding:'5px 12px',fontSize:'0.72rem',color:'rgba(255,255,255,0.55)',display:'flex',gap:5,alignItems:'center'}}><span>{ic}</span><span>{lb}</span></div>            ))}          </div>          {!user ? (            <button onClick={()=>{setFreeLimitHit(false);setAuthScreen('signup');}} style={{width:'100%',maxWidth:340,background:'rgba(232,82,26,0.9)',border:'none',borderRadius:14,padding:'14px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',cursor:'pointer',marginBottom:10}}>              🔑 {t('createAccountUpgrade')}              <div style={{fontSize:'0.72rem',fontWeight:400,marginTop:3,opacity:0.8}}>{lang==='de'?'Kostenlos registrieren':'Free to sign up'}</div>            </button>          ) : (            <div style={{width:'100%',maxWidth:340,display:'flex',flexDirection:'column',gap:8}}>              {/* Yearly — highlighted as best value */}              <button onClick={()=>startCheckout('yearly')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.25),rgba(232,82,26,0.12))',border:'1px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>                  <div style={{fontSize:'0.6rem',fontWeight:700,color:'rgba(232,82,26,0.8)',letterSpacing:'0.1em',textTransform:'uppercase'}}>{t('yearlyBestValue')}</div>                  <div style={{fontSize:'0.58rem',background:'rgba(232,82,26,0.25)',border:'1px solid rgba(232,82,26,0.4)',borderRadius:4,padding:'1px 5px',color:'rgba(232,82,26,0.9)',fontWeight:700,whiteSpace:'nowrap'}}>{t('save33')}</div>                </div>                <div style={{fontSize:'1rem',fontWeight:800,marginBottom:2}}>€39.99 / {t('perYear')}</div>                <div style={{fontSize:'0.7rem',color:'rgba(255,255,255,0.4)'}}>{t('yearlyEquivalent')}</div>              </button>              {/* Monthly */}              <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'rgba(255,255,255,0.65)',textAlign:'left',opacity:checkoutBusy?0.7:1}}>                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.5)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>{t('monthlyPlanLabel')}</div>                <div style={{fontSize:'0.95rem',fontWeight:700}}>€4.99 / {t('perMonth')}</div>              </button>            </div>          )}          <button onClick={()=>setFreeLimitHit(false)} style={{marginTop:14,width:'100%',maxWidth:340,background:'none',border:'1px solid rgba(255,255,255,0.09)',borderRadius:14,padding:'12px',color:'rgba(255,255,255,0.35)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit'}}>{t('backToApp')}</button>          <div style={{marginTop:10,fontSize:'0.65rem',color:'rgba(255,255,255,0.2)',textAlign:'center'}}>{t('renewsAutomatically')}</div>        </div>      )}
+      {/* ── Login / Signup modal ── */}
+      {(authScreen === 'login' || authScreen === 'signup') && (
+        <div onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:22,width:'100%',maxWidth:360,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+              <div>
+                <div style={{fontSize:'1.1rem',fontWeight:800,color:'#F0EDE8'}}>{authScreen==='signup'?(t('createAccount')):(t('signIn'))}</div>
+                <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.4)',marginTop:2}}>{authScreen==='signup'?(t('freeSignUp')):(t('welcomeBack'))}</div>
+              </div>
+              <button onClick={()=>{setAuthScreen(null);setAuthErr('');setAuthEmail('');setAuthPwd('');}} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.5)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
+            </div>
+            {!AUTH_AVAILABLE && (
+              <div style={{background:'rgba(232,178,26,0.1)',border:'1px solid rgba(232,178,26,0.3)',borderRadius:10,padding:'10px 12px',fontSize:'0.73rem',color:'rgba(232,178,26,0.85)',marginBottom:14,lineHeight:1.5}}>
+                ⚙️ {lang==='de'?'Auth nicht konfiguriert — Supabase-Variablen fehlen. App läuft im Gastmodus.':'Auth not configured — Supabase env vars missing. App runs in guest mode.'}
+              </div>
+            )}
+            <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email"
+              placeholder={t('emailPlaceholder')}
+              style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:10,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none'}}
+              autoComplete="email" disabled={!AUTH_AVAILABLE||authBusy} readOnly={!AUTH_AVAILABLE}/>
+            <input value={authPwd} onChange={e=>setAuthPwd(e.target.value)} type="password"
+              placeholder={t('passwordPlaceholder')}
+              style={{background:AUTH_AVAILABLE?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:AUTH_AVAILABLE?'#F0EDE8':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',boxSizing:'border-box',marginBottom:authErr?8:16,outline:'none',pointerEvents:AUTH_AVAILABLE&&!authBusy?'auto':'none'}}
+              autoComplete={authScreen==='signup'?'new-password':'current-password'}
+              disabled={!AUTH_AVAILABLE||authBusy} readOnly={!AUTH_AVAILABLE}
+              onKeyDown={e=>e.key==='Enter'&&AUTH_AVAILABLE&&handleAuthSubmit()}/>
+            {authScreen === 'login' && (
+              <button onClick={()=>{setAuthScreen('forgot');setAuthErr('');setResetSent(false);}}
+                style={{background:'none',border:'none',color:'rgba(255,255,255,0.35)',fontSize:'0.72rem',cursor:'pointer',textAlign:'right',width:'100%',padding:'0 0 8px',fontFamily:'inherit',display:'block'}}>
+                {t('forgotPassword')}
+              </button>
+            )}
+            {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:12,lineHeight:1.45}}>{authErr}</div>}
+            <button onClick={handleAuthSubmit} disabled={!AUTH_AVAILABLE||authBusy}
+              style={{background:AUTH_AVAILABLE?'#E8521A':'rgba(255,255,255,0.06)',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:AUTH_AVAILABLE?'#fff':'rgba(255,255,255,0.25)',fontFamily:'inherit',width:'100%',cursor:AUTH_AVAILABLE&&!authBusy?'pointer':'not-allowed',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              {authBusy?<Spinner/>:authScreen==='signup'?(t('createAccount')):(t('signIn'))}
+            </button>
+            <button onClick={()=>{setAuthScreen(authScreen==='login'?'signup':'login');setAuthErr('');}}
+              style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:'0.75rem',cursor:'pointer',width:'100%',textAlign:'center',padding:'4px',fontFamily:'inherit'}}>
+              {authScreen==='login'?(t('noAccount')):(t('alreadyAccount'))}
+            </button>
+          </div>
+        </div>
+      )}
+      {/* ── Account modal ── */}
+      {authScreen === 'account' && (() => {
+        const normalizedPlan = String(authProfile?.plan || '').trim().toLowerCase();
+        const isYearly  = normalizedPlan === 'yearly';
+        const isMonthly = normalizedPlan === 'monthly';
+        const de = lang === 'de';
+        const rowStyle   = {background:'rgba(255,255,255,0.04)',borderRadius:12,padding:'12px 14px',marginBottom:8};
+        const labelStyle = {fontSize:'0.58rem',color:'rgba(255,255,255,0.35)',letterSpacing:'0.1em',marginBottom:3,textTransform:'uppercase'};
+        const dividerStyle = {borderTop:'1px solid rgba(255,255,255,0.06)',margin:'10px 0'};
+        const linkBtn  = {background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:'0.8rem',cursor:'pointer',fontFamily:'inherit',textAlign:'left',padding:'9px 0',width:'100%',display:'flex',alignItems:'center',gap:8};
+        const actionBtn = {background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:11,padding:'11px 14px',color:C.t,fontSize:'0.83rem',cursor:'pointer',fontFamily:'inherit',width:'100%',textAlign:'left',display:'flex',alignItems:'center',gap:8,marginBottom:6};
+        return (
+          <div onClick={()=>{setAuthScreen(null);setDeleteConfirm(false);}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',zIndex:500,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 0 env(safe-area-inset-bottom,0)'}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:'#141210',border:'1px solid rgba(255,255,255,0.09)',borderRadius:'22px 22px 0 0',width:'100%',maxWidth:480,padding:'8px 0 0',maxHeight:'92dvh',overflowY:'auto'}}>
+              {/* Handle bar */}
+              <div style={{width:40,height:4,borderRadius:2,background:'rgba(255,255,255,0.15)',margin:'0 auto 16px'}}/>
+              <div style={{padding:'0 22px 28px'}}>
+                {/* Header */}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+                  <div style={{fontSize:'1.05rem',fontWeight:800,color:C.t}}>{t('myAccount')}</div>
+                  <button onClick={()=>{setAuthScreen(null);setDeleteConfirm(false);}} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,width:34,height:34,cursor:'pointer',color:'rgba(255,255,255,0.45)',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                </div>
+                {user ? (<>
+                  {/* Email */}
+                  <div style={rowStyle}>
+                    <div style={labelStyle}>E-MAIL</div>
+                    <div style={{fontSize:'0.88rem',color:C.t,wordBreak:'break-all'}}>{user.email}</div>
+                  </div>
+                  {/* Plan */}
+                  <div style={{...rowStyle,background:isPro?'rgba(232,82,26,0.07)':'rgba(255,255,255,0.04)',border:`1px solid ${isPro?'rgba(232,82,26,0.2)':'rgba(255,255,255,0.06)'}`,marginBottom:14}}>
+                    <div style={labelStyle}>{t('planLabel')}</div>
+                    {(()=>{
+                      const cancelAt=authProfile?.cancel_at?new Date(authProfile.cancel_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB',{day:'numeric',month:'long',year:'numeric'}):null;
+                      const planLabel=isYearly?(de?'Pro Jährlich':'Pro Yearly'):isMonthly?(de?'Pro Monatlich':'Pro Monthly'):'Pro';
+                      if(isPro) return(<><div style={{fontSize:'0.93rem',fontWeight:800,color:'#E8521A',marginBottom:2}}>{cancelAt?'⏳':'✅'} FixIt {planLabel}</div><div style={{fontSize:'0.72rem',color:cancelAt?'rgba(232,178,26,0.75)':'rgba(255,255,255,0.35)'}}>{cancelAt?(de?`Wird gekündigt am ${cancelAt}`:`Cancels on ${cancelAt}`):(isYearly?t('activeSubYearly'):isMonthly?t('activeSubMonthly'):(de?'Aktives Abonnement':'Active subscription'))}</div></>);
+                      return<div style={{fontSize:'0.88rem',color:'rgba(255,255,255,0.45)'}}>{t('freePlan')}</div>;
+                    })()}
+                  </div>
+                  {/* Subscription management — shown for any active subscriber */}
+                  {isPro && <>
+                    <button onClick={openPortal} disabled={portalBusy}
+                      style={{...actionBtn,borderColor:'rgba(232,82,26,0.25)',opacity:portalBusy?.6:1}}>
+                      <span>💳</span><span style={{flex:1}}>{t('manageSub')}</span>{portalBusy&&<span style={{fontSize:'0.7rem',color:C.m}}>…</span>}
+                    </button>
+                    <div style={dividerStyle}/>
+                  </>}
+                  {/* Free user — upgrade CTA */}
+                  {!isPro && <>
+                    <button onClick={()=>{setAuthScreen(null);setPaywallSource('diagnosis');setFreeLimitHit(true);}}
+                      style={{...actionBtn,background:'rgba(232,82,26,0.12)',border:'1px solid rgba(232,82,26,0.35)',color:C.t}}>
+                      <span>🚀</span><span style={{flex:1}}>{t('upgradePro')}</span>
+                    </button>
+                    <div style={dividerStyle}/>
+                  </>}
+                  {/* Links */}
+                  <button onClick={()=>window.open('mailto:fixitapp.support@gmail.com','_blank')} style={linkBtn}>
+                    <span>✉️</span>{t('support')}
+                  </button>
+                  <button onClick={()=>setLegalPage('privacy')} style={linkBtn}>
+                    <span>🔒</span>{t('privacyPolicy')}
+                  </button>
+                  <button onClick={()=>setLegalPage('terms')} style={linkBtn}>
+                    <span>📄</span>{t('termsOfService')}
+                  </button>
+                  <button onClick={()=>setLegalPage('impressum')} style={linkBtn}>
+                    <span>ℹ️</span>Impressum
+                  </button>
+                  <div style={dividerStyle}/>
+                  {/* Sign out */}
+                  <button onClick={async()=>{
+                    await logout();
+                    // Clear all user-specific state immediately on sign-out so the
+                    // next user or guest session never inherits previous account data.
+                    setAuthScreen(null);
+                    setDeleteConfirm(false);
+                    setFreeLimitHit(false); setFreeRepairActive(false); setFreeRepairDone(false);
+                    setScreen('home');
+                    setNavStack([]);
+                    // IMPORTANT: clear in-memory history immediately.
+                    // Do NOT fall back to localStorage guest history — show empty list.
+                    // The previous user's localStorage key ('history:<uid>') is untouched
+                    // and will only be readable if the same account logs in again.
+                    setDiagHistory([]);
+                    LS.set('free_diagnosis_used', false);
+                  }} style={{...linkBtn,color:'rgba(255,255,255,0.5)'}}>
+                    <span>↩</span>{t('signOut')}
+                  </button>
+                  {/* Delete account — two-step confirm */}
+                  {!deleteConfirm
+                    ? <button onClick={()=>setDeleteConfirm(true)} style={{...linkBtn,color:'rgba(214,59,47,0.5)',marginTop:2}}>
+                        <span>🗑</span>{t('deleteAccount')}
+                      </button>
+                    : <div style={{background:'rgba(214,59,47,0.08)',border:'1px solid rgba(214,59,47,0.25)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                        <div style={{fontSize:'0.78rem',color:'rgba(214,59,47,0.8)',marginBottom:10}}>{t('deleteConfirmMsg')}</div>
+                        <div style={{display:'flex',gap:8}}>
+                          <button onClick={()=>setDeleteConfirm(false)} style={{flex:1,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:9,padding:'9px',color:C.m,cursor:'pointer',fontFamily:'inherit',fontSize:'0.8rem'}}>{t('cancel')}</button>
+                          <button onClick={handleDeleteAccount} disabled={deleteBusy} style={{flex:1,background:'rgba(214,59,47,0.15)',border:'1px solid rgba(214,59,47,0.35)',borderRadius:9,padding:'9px',color:'rgba(214,59,47,0.9)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.8rem'}}>
+                            {deleteBusy?'…':(t('delete'))}
+                          </button>
+                        </div>
+                      </div>}
+                </>) : (
+                  <div style={{textAlign:'center',padding:'20px 0'}}>
+                    <div style={{color:'rgba(255,255,255,0.45)',fontSize:'0.85rem',marginBottom:16}}>{t('notSignedIn')}</div>
+                    <button onClick={()=>setAuthScreen('login')} style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px',fontSize:'0.88rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',cursor:'pointer'}}>{de?'Anmelden':'Sign in'}</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {/* ── Verify-email screen — shown after signup, blocks app access ── */}
+      {authScreen === 'verify-email' && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:500,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px'}}>
+          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}>
+            <span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span>
+          </div>
+          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:32}}/>
+          <div style={{fontSize:'3rem',marginBottom:16}}>📧</div>
+          <div style={{fontSize:'1.3rem',fontWeight:800,color:'#F0EDE8',textAlign:'center',marginBottom:10}}>
+            {lang==='de'?'E-Mail bestätigen':'Verify your email'}
+          </div>
+          <div style={{fontSize:'0.85rem',color:'rgba(255,255,255,0.5)',textAlign:'center',lineHeight:1.75,maxWidth:300,marginBottom:28}}>
+            {lang==='de'
+              ? <>Wir haben einen Bestätigungslink an <strong style={{color:'rgba(255,255,255,0.75)'}}>{authEmail}</strong> gesendet. Klicke auf den Link, um dein Konto zu aktivieren.</>
+              : <>We sent a verification link to <strong style={{color:'rgba(255,255,255,0.75)'}}>{authEmail}</strong>. Click the link to activate your account.</>}
+          </div>
+          <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.3)',textAlign:'center',maxWidth:280,marginBottom:24}}>
+            {lang==='de'
+              ? 'Nach dem Klick wirst du automatisch zu FixIt zurückgeleitet.'
+              : 'After clicking, you will be returned to FixIt automatically.'}
+          </div>
+          <button onClick={()=>{setAuthScreen(null);setAuthEmail('');}}
+            style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,padding:'11px 24px',color:'rgba(255,255,255,0.4)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.82rem'}}>
+            {lang==='de'?'Zurück':'Back'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Free repair completed ─────────────────────────────────── */}
+      {freeRepairDone && !isPro && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:490,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-start',overflowY:'auto',padding:'40px 24px 32px'}}>
+          <div style={{width:'100%',maxWidth:400}}>
+            <div style={{textAlign:'center',marginBottom:24}}>
+              <div style={{fontSize:'2.8rem',marginBottom:10}}>🎉</div>
+              <div style={{fontSize:'1.4rem',fontWeight:900,color:'#F0EDE8',letterSpacing:'-0.02em',marginBottom:8,lineHeight:1.2}}>
+                {t('trialCompleteTitle')}
+              </div>
+              <div style={{fontSize:'0.83rem',color:'rgba(255,255,255,0.48)',lineHeight:1.6,maxWidth:290,margin:'0 auto'}}>
+                {t('trialCompleteDesc')}
+              </div>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+              <div style={{fontSize:'0.65rem',fontWeight:700,color:'rgba(255,255,255,0.28)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{t('trialCompleted')}</div>
+              {['trialDiagnosis','trialGuide','trialSteps','trialParts','trialNearby'].map((k,i)=>(
+                <div key={i} style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.62)',padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>{'✅ '}{t(k)}</div>
+              ))}
+            </div>
+            <div style={{background:'rgba(232,82,26,0.07)',border:'1px solid rgba(232,82,26,0.22)',borderRadius:12,padding:'14px 16px',marginBottom:18}}>
+              <div style={{fontSize:'0.65rem',fontWeight:700,color:'rgba(232,82,26,0.55)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{t('trialUnlockWith')}</div>
+              {['trialUnlimitedAI','trialUnlimitedGuides','trialUnlimitedParts','trialUnlimitedNearby','trialFutureAI'].map((k,i)=>(
+                <div key={i} style={{fontSize:'0.82rem',color:'rgba(232,82,26,0.78)',padding:'3px 0',borderBottom:'1px solid rgba(232,82,26,0.07)'}}>{'🔓 '}{t(k)}</div>
+              ))}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:10}}>
+              <button onClick={()=>startCheckout('yearly')} disabled={checkoutBusy} style={{background:'linear-gradient(135deg,rgba(232,82,26,0.2),rgba(232,82,26,0.09))',border:'2px solid rgba(232,82,26,0.5)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left'}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{fontSize:'0.63rem',fontWeight:700,color:'rgba(232,82,26,0.78)',textTransform:'uppercase',letterSpacing:'0.08em'}}>{t('yearlyBestValue')}</span><span style={{fontSize:'0.6rem',background:'rgba(232,82,26,0.18)',border:'1px solid rgba(232,82,26,0.32)',borderRadius:20,padding:'2px 6px',color:'rgba(232,82,26,0.82)',fontWeight:700}}>{t('save33')}</span></div>
+                <div><span style={{fontSize:'1.4rem',fontWeight:900}}>€39.99</span><span style={{fontSize:'0.73rem',opacity:0.5}}>/{t('perYear')}</span></div>
+                <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.38)',marginTop:2}}>{t('yearlyEquivalent')}</div>
+              </button>
+              <button onClick={()=>startCheckout('monthly')} disabled={checkoutBusy} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'13px',cursor:checkoutBusy?'wait':'pointer',fontFamily:'inherit',color:'#F0EDE8',textAlign:'left'}}>
+                <div style={{fontSize:'0.63rem',fontWeight:700,color:'rgba(255,255,255,0.32)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{t('monthlyPlanLabel')}</div>
+                <div><span style={{fontSize:'1.32rem',fontWeight:800}}>€4.99</span><span style={{fontSize:'0.73rem',opacity:0.5}}>/{t('perMonth')}</span></div>
+              </button>
+            </div>
+            <div style={{fontSize:'0.67rem',color:'rgba(255,255,255,0.28)',textAlign:'center',marginBottom:14}}>{t('renewsAutomatically')}</div>
+            <button onClick={()=>setFreeRepairDone(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.28)',fontSize:'0.74rem',cursor:'pointer',fontFamily:'inherit',width:'100%',textAlign:'center',padding:'6px'}}>
+              {t('trialBackToRepair')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── iOS install instructions modal ───────────────────────────── */}
+      {showInstallModal && (
+        <div onClick={()=>setShowInstallModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:600,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 0 32px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#1C1A1F',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'16px 16px 16px 16px',padding:'24px 24px 28px',width:'100%',maxWidth:380,margin:'0 16px'}}>
+            <div style={{fontSize:'1.05rem',fontWeight:800,color:'#F0EDE8',marginBottom:6,textAlign:'center'}}>
+              {lang==='de'?'FixIt installieren':'Install FixIt'}
+            </div>
+            <div style={{fontSize:'0.75rem',color:'rgba(255,255,255,0.4)',textAlign:'center',marginBottom:20}}>
+              {lang==='de'?'Safari on iPhone / iPad':'Safari on iPhone / iPad'}
+            </div>
+            {[
+              {icon:'1️⃣', label: lang==='de'?'Tippe auf das Teilen-Symbol unten in Safari':'Tap the Share button at the bottom of Safari'},
+              {icon:'2️⃣', label: lang==='de'?'Waehle "Zum Home-Bildschirm hinzufuegen"':'Choose "Add to Home Screen"'},
+              {icon:'3️⃣', label: lang==='de'?'Tippe oben rechts auf "Hinzufuegen"':'Tap "Add" in the top right'},
+            ].map((step,i)=>(
+              <div key={i} style={{display:'flex',gap:12,alignItems:'flex-start',marginBottom:14}}>
+                <span style={{fontSize:'1.4rem',flexShrink:0}}>{step.icon}</span>
+                <div style={{fontSize:'0.83rem',color:'rgba(255,255,255,0.7)',lineHeight:1.5,paddingTop:2}}>{step.label}</div>
+              </div>
+            ))}
+            <div style={{background:'rgba(232,82,26,0.08)',borderRadius:8,padding:'10px 12px',marginBottom:18,fontSize:'0.75rem',color:'rgba(232,82,26,0.7)',textAlign:'center'}}>
+              {lang==='de'?'Das App-Symbol erscheint auf deinem Home-Bildschirm':'The app icon will appear on your Home Screen'}
+            </div>
+            <button onClick={()=>setShowInstallModal(false)} style={{width:'100%',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,padding:'11px',color:'rgba(255,255,255,0.6)',fontFamily:'inherit',fontSize:'0.85rem',cursor:'pointer'}}>
+              {lang==='de'?'Schliessen':'Close'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Forgot Password screen ─────────────────────────────────────── */}
+      {authScreen === 'forgot' && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:500,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px'}}>
+          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}>
+            <span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span>
+          </div>
+          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:32}}/>
+          {resetSent ? (<>
+            <div style={{fontSize:'3rem',marginBottom:16}}>📬</div>
+            <div style={{fontSize:'1.25rem',fontWeight:800,color:'#F0EDE8',textAlign:'center',marginBottom:10}}>{t('resetEmailSent')}</div>
+            <div style={{fontSize:'0.82rem',color:'rgba(255,255,255,0.5)',textAlign:'center',lineHeight:1.75,maxWidth:310,marginBottom:28}}>{t('resetEmailDesc')}</div>
+            <button onClick={()=>{setAuthScreen('login');setResetSent(false);setAuthEmail('');}}
+              style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px 28px',fontSize:'0.88rem',fontWeight:700,color:'#fff',fontFamily:'inherit',cursor:'pointer'}}>
+              {t('backToSignIn')}
+            </button>
+          </>) : (<>
+            <div style={{fontSize:'3rem',marginBottom:16}}>🔑</div>
+            <div style={{fontSize:'1.25rem',fontWeight:800,color:'#F0EDE8',textAlign:'center',marginBottom:8}}>{t('resetPassword')}</div>
+            <div style={{fontSize:'0.8rem',color:'rgba(255,255,255,0.4)',textAlign:'center',marginBottom:24,maxWidth:290}}>
+              {lang==='de'?'Gib deine E-Mail ein. Wir senden dir einen Link zum Zurücksetzen.':'Enter your email. We\'ll send you a reset link.'}
+            </div>
+            <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email"
+              placeholder={t('emailPlaceholder')} autoComplete="email"
+              style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',maxWidth:340,boxSizing:'border-box',marginBottom:10,outline:'none'}}
+              onKeyDown={e=>{if(e.key==='Enter')handleForgotSubmit();}}/>
+            {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:10,maxWidth:340,textAlign:'center'}}>{authErr}</div>}
+            <button onClick={handleForgotSubmit} disabled={authBusy}
+              style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',maxWidth:340,cursor:authBusy?'wait':'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              {authBusy?<Spinner/>:t('sendResetLink')}
+            </button>
+            <button onClick={()=>{setAuthScreen('login');setAuthErr('');}}
+              style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:'0.75rem',cursor:'pointer',fontFamily:'inherit',padding:'4px'}}>
+              {t('backToSignIn')}
+            </button>
+          </>)}
+        </div>
+      )}
+
+      {/* ── Reset Password screen (reached via email link — PASSWORD_RECOVERY) ── */}
+      {authScreen === 'reset-password' && (
+        <div style={{position:'fixed',inset:0,background:'#08060A',zIndex:500,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 24px'}}>
+          <div style={{fontSize:'2.2rem',fontWeight:900,letterSpacing:'-0.03em',marginBottom:6}}>
+            <span style={{color:'#EDEAE4'}}>FIX</span><span style={{color:'#E8521A'}}>IT</span>
+          </div>
+          <div style={{width:40,height:2,background:'#E8521A',borderRadius:1,marginBottom:32}}/>
+          <div style={{fontSize:'3rem',marginBottom:16}}>🔒</div>
+          <div style={{fontSize:'1.25rem',fontWeight:800,color:'#F0EDE8',textAlign:'center',marginBottom:8}}>{t('createNewPassword')}</div>
+          <div style={{fontSize:'0.8rem',color:'rgba(255,255,255,0.4)',textAlign:'center',marginBottom:24,maxWidth:290}}>
+            {lang==='de'?'Wähle ein neues Passwort für dein Konto.':'Choose a new password for your account.'}
+          </div>
+          <input value={resetPwd} onChange={e=>setResetPwd(e.target.value)} type="password"
+            placeholder={t('newPasswordPlaceholder')} autoComplete="new-password"
+            style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',maxWidth:340,boxSizing:'border-box',marginBottom:10,outline:'none'}}/>
+          <input value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)} type="password"
+            placeholder={t('confirmPasswordPlaceholder')} autoComplete="new-password"
+            style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.13)',borderRadius:10,padding:'13px 14px',fontSize:'0.9rem',color:'#F0EDE8',fontFamily:'inherit',width:'100%',maxWidth:340,boxSizing:'border-box',marginBottom:10,outline:'none'}}
+            onKeyDown={e=>{if(e.key==='Enter')handleResetSubmit();}}/>
+          {authErr && <div style={{fontSize:'0.72rem',color:'rgba(214,59,47,0.9)',marginBottom:10,maxWidth:340,textAlign:'center'}}>{authErr}</div>}
+          <button onClick={handleResetSubmit} disabled={authBusy}
+            style={{background:'#E8521A',border:'none',borderRadius:12,padding:'13px',fontSize:'0.9rem',fontWeight:700,color:'#fff',fontFamily:'inherit',width:'100%',maxWidth:340,cursor:authBusy?'wait':'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+            {authBusy?<Spinner/>:t('updatePassword')}
+          </button>
+        </div>
+      )}
+
+      {/* ── Legal page modals — Privacy Policy and Terms of Service ── */}
+      {legalPage && (
+        <div style={{position:'fixed',inset:0,background:'#0A0808',zIndex:600,display:'flex',flexDirection:'column',overflowY:'auto'}}>
+          {/* Header */}
+          <div style={{position:'sticky',top:0,background:'rgba(10,8,8,0.97)',borderBottom:'1px solid rgba(255,255,255,0.08)',padding:'14px 20px',display:'flex',alignItems:'center',gap:12,zIndex:1,backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}}>
+            <button onClick={()=>setLegalPage(null)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:9,padding:'6px 12px',color:'rgba(255,255,255,0.55)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.8rem'}}>← {t('backBtn')}</button>
+            <div style={{fontSize:'0.92rem',fontWeight:700,color:'rgba(255,255,255,0.8)'}}>
+              {legalPage==='privacy'   ? (lang==='de'?'Datenschutzerklärung':'Privacy Policy')
+               : legalPage==='terms'  ? (lang==='de'?'Nutzungsbedingungen':'Terms of Service')
+               : 'Impressum'}
+            </div>
+          </div>
+          {/* Content */}
+          <div style={{padding:'24px 20px 60px',maxWidth:680,margin:'0 auto',width:'100%',color:'rgba(255,255,255,0.75)',fontSize:'0.88rem',lineHeight:1.75}}>
+            {legalPage==='privacy'   && <PrivacyPage    lang={lang}/>}
+            {legalPage==='terms'     && <TermsPage      lang={lang}/>}
+            {legalPage==='impressum' && <ImpressumPage  lang={lang}/>}
+          </div>
+        </div>
+      )}
+    </>
+  );
 
   // ── ONBOARDING ───────────────────────────────────────────────────────────────
   if (screen === 'onboarding') {
@@ -841,24 +2112,182 @@ export default function App() {
   );
 
   // ── HOME ─────────────────────────────────────────────────────────────────────
+  // ── HISTORY SCREEN ────────────────────────────────────────────────────────
+  // Rendered as a proper full-screen view — same pattern as fix-now, result, etc.
+  // Avoids all z-index / overflow / stacking-context issues that plagued the modal approach.
+  if (screen === 'history') return (
+    <>
+    <Screen>
+      <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>goto('home')} style={{background:'none',border:'none',color:C.m,fontSize:'0.85rem',cursor:'pointer',padding:'0 8px 0 0',fontFamily:'inherit'}}>←</button>
+        <div style={{fontSize:'1.1rem',fontWeight:800}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'} <span style={{fontSize:'0.8rem',fontWeight:400,color:C.m}}>({diagHistory.length})</span></div>
+      </div>
+      <Scroll>
+<div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
+      {diagHistory.filter(isValidDiagEntry).map(h=>{
+        // Safe date formatting — never call new Date() on an unvalidated value
+        const dateStr = (() => {
+          const d = new Date(h.date);
+          return isNaN(d.getTime()) ? '' : d.toLocaleDateString(lang, {day:'numeric',month:'short',year:'numeric'});
+        })();
+        return (
+          <div key={h.id} style={{...s.card,marginBottom:8,cursor:'pointer'}}
+               onClick={()=>{
+                 // Restore the full saved result to the result screen
+                 setRestoredResult({
+                   // All fields the result screen renders — must match what saveToHistory stores
+                   diagnosis:     h.diagnosis,
+                   confidence:    h.confidence    ?? 0,
+                   status:        h.status        || null,
+                   difficulty:    h.difficulty    || '',
+                   timeEstimate:  h.timeEstimate  || '',
+                   estimatedCost: h.estimatedCost || '',
+                   warningLevel:  h.warningLevel  || '',
+                   safetyWarning: h.safetyWarning || '',
+                   causes:        Array.isArray(h.causes)      ? h.causes      : [],
+                   steps:         Array.isArray(h.steps)       ? h.steps       : [],
+                   tools:         Array.isArray(h.tools)       ? h.tools       : [],
+                   partsNeeded:   Array.isArray(h.partsNeeded) ? h.partsNeeded : [],
+                   proTip:        h.proTip        || '',
+                   proReason:     h.proReason     || '',
+                   callPro:       h.callPro       ?? false,
+                   proSearchQuery:h.proSearchQuery|| '',
+                   _category:     (() => {
+                     // Use saved category. For old entries saved with 'home' as a
+                     // fallback, try to detect from the saved problem text.
+                     const saved = h.category;
+                     if (saved && saved !== 'home') return saved;
+                     // 'home' may be a stale default — re-detect from problem text
+                     const detected = detectCategoryFromText && detectCategoryFromText(h.problem || '');
+                     return detected || saved || 'home';
+                   })(),
+                 });
+                 problemRef.current = h.problem;
+                 setCurFix(h.category || 'home');
+                 diagCategoryRef.current = h.category || 'home';
+                 aiReset();
+                 goto('result');
+               }}>
+            <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
+            <div style={{fontSize:'0.72rem',color:C.m,marginBottom:6,WebkitLineClamp:2,display:'-webkit-box',WebkitBoxOrient:'vertical',overflow:'hidden'}}>{h.diagnosis}</div>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              {dateStr && <span style={{fontSize:'0.65rem',color:C.m}}>{dateStr}</span>}
+              {h.fixed===true  && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
+              {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
+
+            </div>
+          </div>
+        );
+      })}
+      {diagHistory.length === 0 && <div style={{textAlign:'center',color:C.m,padding:'20px 0'}}>No repairs yet</div>}
+      {totalSaved > 0 && <div style={{background:'rgba(26,158,92,0.08)',border:'1px solid rgba(26,158,92,0.18)',borderRadius:10,padding:'10px 14px',marginBottom:12,textAlign:'center'}}>
+        <div style={{fontSize:'0.65rem',color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{lang==='de'?'Mögliches Sparpotenzial mit FixIt':lang==='tr'?'FixIt ile tahmini tasarruf':lang==='pl'?'Potencjalne oszczędności z FixIt':'Estimated savings with FixIt'}</div>
+        <div style={{fontSize:'1.5rem',fontWeight:900,color:C.g}}>ca. €{totalSaved}</div>
+        <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.22)',marginTop:4}}>{lang==='de'?'Schätzung basierend auf typischen Reparaturkosten. Keine Garantie.':lang==='tr'?'Tipik onarım maliyetlerine göre tahmin. Garanti yoktur.':lang==='pl'?'Szacunek oparty na typowych kosztach naprawy. Bez gwarancji.':'Estimate based on typical repair costs. No guarantee.'}</div>
+      </div>}
+      <button onClick={async ()=>{
+        // Confirmation before deleting
+        const confirmMsg = lang==='de' ? 'Verlauf wirklich löschen?' :
+          lang==='tr' ? 'Geçmişi silmek istediğinizden emin misiniz?' :
+          lang==='pl' ? 'Czy na pewno usunąć historię?' :
+          lang==='fr' ? "Supprimer tout l'historique ?" :
+          lang==='it' ? 'Eliminare tutta la cronologia?' :
+          lang==='es' ? '¿Eliminar todo el historial?' :
+          lang==='mk' ? 'Да се избрише историјата?' :
+          (lang==='sr'||lang==='hr') ? 'Obrisati svu istoriju?' :
+          'Delete all history?';
+        if (!window.confirm(confirmMsg)) return;
+        // 1. Clear in-memory state immediately
+        setDiagHistory([]);
+        setTotalSaved(0);
+        // 2. Clear this user's local history key (never touches other users)
+        LS.set(historyKey(user?.id), []);
+        LS.set('totalSaved', 0);
+        // 3. Delete this user's rows from Supabase (non-blocking, best-effort)
+        if (user && AUTH_AVAILABLE) {
+          (async () => {
+            try {
+              const client = await getSbClient();
+              if (client) {
+                const { error } = await client
+                  .from('diagnoses')
+                  .delete()
+                  .eq('user_id', user.id);
+                if (error) console.error('[FixIt] delete history Supabase error:', error.message);
+                else console.log('[FixIt] Supabase history deleted for user', user.id.slice(0,8));
+              }
+            } catch (e) { console.error('[FixIt] delete history threw:', e.message); }
+          })();
+        }
+      }} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{
+        lang==='de'?'Verlauf löschen':
+        lang==='tr'?'Geçmişi temizle':
+        lang==='pl'?'Wyczyść historię':
+        lang==='fr'?"Effacer l'historique":
+        lang==='it'?'Cancella cronologia':
+        lang==='es'?'Borrar historial':
+        lang==='mk'?'Избриши историја':
+        (lang==='sr'||lang==='hr')?'Obriši istoriju':
+        'Delete history'
+      }</button>
+      </Scroll>
+      <NavBar screen="history" t={t} goto={goto}/>
+      <style>{CSS}</style>
+    </Screen>
+    </>
+  );
+
   if (screen === 'home') return (
+    <>
     <Screen>
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
       {/* Offline banner */}
-      {!isOnline && <div style={{background:'rgba(232,178,26,0.15)',borderBottom:'1px solid rgba(232,178,26,0.3)',padding:'8px 16px',fontSize:'0.72rem',color:C.y,textAlign:'center',flexShrink:0}}>⚠️ Offline mode — emergency info still available</div>}
+      {!isOnline && <div style={{background:'rgba(232,178,26,0.15)',borderBottom:'1px solid rgba(232,178,26,0.3)',padding:'8px 16px',fontSize:'0.72rem',color:C.y,textAlign:'center',flexShrink:0}}>⚠️ {t('offlineEmergencyBanner')}</div>}
       {/* PWA install banner */}
       {showPWA && <div style={{background:'rgba(232,82,26,0.1)',borderBottom:`1px solid ${C.b}`,padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
         <div style={{flex:1,fontSize:'0.78rem'}}>📲 {lang==='de'?'FixIt installieren für schnelleren Zugriff':lang==='tr'?'Daha hızlı erişim için FixIt yükle':lang==='pl'?'Zainstaluj FixIt dla szybszego dostępu':'Install FixIt for faster access'}</div>
-        <button onClick={()=>{if(pwaPrompt.current){pwaPrompt.current.prompt();pwaPrompt.current=null;}LS.set('pwa_dismissed',true);setShowPWA(false);}} style={{background:C.o,border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:'0.72rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Install</button>
+        <button onClick={()=>{
+                const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+                if(isIOS){setShowInstallModal(true);}
+                else if(pwaPrompt.current){pwaPrompt.current.prompt();pwaPrompt.current=null;LS.set('pwa_dismissed',true);setShowPWA(false);}
+              }} style={{background:C.o,border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:'0.72rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{/iPad|iPhone|iPod/.test(navigator.userAgent)?'How?':'Install'}</button>
         <button onClick={()=>{LS.set('pwa_dismissed',true);setShowPWA(false);}} style={{background:'none',border:'none',color:C.m,fontSize:'0.78rem',cursor:'pointer',fontFamily:'inherit'}}>✕</button>
       </div>}
       <div style={{background:'linear-gradient(160deg,#1f0c00,#0A0908 65%)',padding:'52px 20px 20px',flexShrink:0}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
-          <div style={{fontSize:'1.5rem',fontWeight:900}}>FIX<span style={{color:C.o}}>IT</span></div>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            {lat && <div style={{fontSize:'0.7rem',color:C.g,background:'rgba(26,158,92,0.1)',border:'1px solid rgba(26,158,92,0.2)',borderRadius:100,padding:'4px 10px'}}>📍 {city||`${lat.toFixed(2)},${lng.toFixed(2)}`}</div>}
-            {history.length > 0 && <button onClick={()=>setShowHistory(true)} style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:100,padding:'5px 10px',fontSize:'0.7rem',cursor:'pointer',color:C.m,fontFamily:'inherit'}}>🕐 {history.length}</button>}
-            <button onClick={()=>setShowLP(true)} style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:100,padding:'5px 12px',fontSize:'0.8rem',cursor:'pointer',color:C.m,fontFamily:'inherit'}}>{LANGS[lang]?.f} {lang.toUpperCase()}</button>
+        {/* ── Modern 3-column header ── */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18,gap:8}}>
+          {/* Left: location */}
+          <div style={{flex:1,minWidth:0}}>
+            {lat
+              ? <div style={{display:'flex',alignItems:'center',gap:5,fontSize:'0.7rem',color:C.g,background:'rgba(26,158,92,0.1)',border:'1px solid rgba(26,158,92,0.18)',borderRadius:100,padding:'5px 10px',maxWidth:140,overflow:'hidden'}}>
+                  <span style={{flexShrink:0}}>📍</span>
+                  <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{city||`${lat.toFixed(2)},${lng.toFixed(2)}`}</span>
+                </div>
+              : <div style={{width:24}}/>}
+          </div>
+          {/* Centre: FixIt logo */}
+          <div style={{fontSize:'1.45rem',fontWeight:900,letterSpacing:'-0.01em',flexShrink:0}}>FIX<span style={{color:C.o}}>IT</span></div>
+          {/* Right: history + lang flag + user icon */}
+          <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'flex-end',gap:6,minWidth:0}}>
+            {diagHistory.length > 0 &&
+              <button onClick={()=>goto('history')} title="History"
+                style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:10,width:34,height:34,cursor:'pointer',color:C.m,fontFamily:'inherit',fontSize:'0.7rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                🕐{diagHistory.length}
+              </button>}
+            {/* Language — shows flag only */}
+            <button onClick={()=>setShowLP(true)} title={LANGS[lang]?.n}
+              style={{background:C.c,border:`1px solid ${C.b}`,borderRadius:10,width:34,height:34,cursor:'pointer',fontFamily:'inherit',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              {LANGS[lang]?.f}
+            </button>
+            {/* User icon */}
+            <button onClick={()=>{setAuthScreen(user?'account':'login');if(user)refreshProfile();}} title={user?user.email:(t('signIn'))}
+              style={{background:user?'rgba(255,255,255,0.08)':'rgba(232,82,26,0.15)',border:`1px solid ${user?'rgba(255,255,255,0.12)':'rgba(232,82,26,0.35)'}`,borderRadius:10,width:34,height:34,cursor:'pointer',color:user?C.t:'#E8521A',fontFamily:'inherit',fontSize:user&&isPro?'0.55rem':'1rem',fontWeight:user&&isPro?800:400,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,position:'relative'}}>
+              {user
+                ? isPro
+                  ? <span style={{color:'#E8521A',letterSpacing:'0.02em'}}>PRO</span>
+                  : <span>👤</span>
+                : <span>👤</span>}
+            </button>
           </div>
         </div>
         <div style={{fontSize:'0.78rem',color:C.m,marginBottom:3}}>{greeting}</div>
@@ -882,35 +2311,8 @@ export default function App() {
         </div>
       </div>
       <Scroll>
-        {/* History modal */}
-        {showHistory && (
-          <div onClick={()=>setShowHistory(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:100,display:'flex',alignItems:'flex-end'}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:'#151310',borderRadius:'26px 26px 0 0',width:'100%',maxHeight:'70vh',overflowY:'auto',padding:20}}>
-              <div style={{fontSize:'1rem',fontWeight:800,marginBottom:16}}>🕐 {lang==='de'?'Verlauf':lang==='tr'?'Tamir Geçmişi':lang==='pl'?'Historia Napraw':lang==='mk'?'Историја':lang==='hr'?'Povijest':'Repair History'}</div>
-              {history.map(h=>(
-                <div key={h.id} style={{...s.card,marginBottom:8}}>
-                  <div style={{fontSize:'0.82rem',fontWeight:700,marginBottom:4}}>{h.problem}</div>
-                  <div style={{fontSize:'0.72rem',color:C.m,marginBottom:6}}>{h.diagnosis}</div>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:'0.65rem',color:C.m}}>{new Date(h.date).toLocaleDateString()}</span>
-                    {h.fixed===true && <span style={{fontSize:'0.65rem',color:C.g}}>{lang==='de'?'✅ Behoben':lang==='tr'?'✅ Çözüldü':lang==='pl'?'✅ Naprawiono':'✅ Fixed'}</span>}
-                    {h.fixed===false && <span style={{fontSize:'0.65rem',color:C.r}}>{lang==='de'?'❌ Nicht behoben':lang==='tr'?'❌ Çözülmedi':lang==='pl'?'❌ Nie naprawiono':'❌ Not fixed'}</span>}
-                    <button onClick={()=>{problemRef.current=h.problem;setCurFix('home');setShowHistory(false);goto('result');diagnose({problem:h.problem,category:'home',lang,countryName:cd.name});}} style={{marginLeft:'auto',background:C.o,border:'none',borderRadius:8,padding:'4px 10px',color:'#fff',fontSize:'0.65rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{lang==='de'?'Erneut':'Try again'}</button>
-                  </div>
-                </div>
-              ))}
-              {history.length === 0 && <div style={{textAlign:'center',color:C.m,padding:'20px 0'}}>No repairs yet</div>}
-              {totalSaved > 0 && <div style={{background:'rgba(26,158,92,0.08)',border:'1px solid rgba(26,158,92,0.18)',borderRadius:10,padding:'10px 14px',marginBottom:12,textAlign:'center'}}>
-                <div style={{fontSize:'0.65rem',color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{lang==='de'?'Mögliches Sparpotenzial mit FixIt':lang==='tr'?'FixIt ile tahmini tasarruf':lang==='pl'?'Potencjalne oszczędności z FixIt':'Estimated savings with FixIt'}</div>
-                <div style={{fontSize:'1.5rem',fontWeight:900,color:C.g}}>ca. €{totalSaved}</div>
-                <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.22)',marginTop:4}}>{lang==='de'?'Schätzung basierend auf typischen Reparaturkosten. Keine Garantie.':lang==='tr'?'Tipik onarım maliyetlerine göre tahmin. Garanti yoktur.':lang==='pl'?'Szacunek oparty na typowych kosztach naprawy. Bez gwarancji.':'Estimate based on typical repair costs. No guarantee.'}</div>
-              </div>}
-              <button onClick={()=>{setHistory([]);LS.set('history',[]);setTotalSaved(0);LS.set('totalSaved',0);}} style={{...s.btn,...s.btnSec,marginTop:8,fontSize:'0.78rem',padding:'10px'}}>{lang==='de'?'Verlauf löschen':lang==='tr'?'Geçmişi temizle':lang==='pl'?'Wyczyść historię':'Clear history'}</button>
-            </div>
-          </div>
-        )}
         {/* Emergency banner */}
-        <div onClick={()=>goto('emergency')} style={{background:'linear-gradient(135deg,#2A0000,#1A0000)',border:'1px solid rgba(214,59,47,0.3)',borderRadius:18,padding:16,display:'flex',alignItems:'center',gap:14,marginBottom:22,cursor:'pointer',animation:'fadeIn .4s ease'}}>
+        <div onClick={()=>{resolveCountryIfNeeded();goto('emergency');}} style={{background:'linear-gradient(135deg,#2A0000,#1A0000)',border:'1px solid rgba(214,59,47,0.3)',borderRadius:18,padding:16,display:'flex',alignItems:'center',gap:14,marginBottom:22,cursor:'pointer',animation:'fadeIn .4s ease'}}>
           <span style={{width:8,height:8,background:C.r,borderRadius:'50%',flexShrink:0,animation:'blink 1.2s infinite'}}/>
           <div style={{flex:1}}>
             <div style={{fontSize:'0.7rem',color:C.r,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>{t('emergencyHelp')}</div>
@@ -942,10 +2344,14 @@ export default function App() {
       <NavBar screen={screen} t={t} goto={goto}/>
       <style>{CSS}</style>
     </Screen>
+
+    {AUTH_MODAL}
+    </>
   );
 
   // ── FIX NOW ──────────────────────────────────────────────────────────────────
   if (screen === 'fix-now') return (
+    <>
     <Screen>
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
       <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
@@ -991,42 +2397,51 @@ export default function App() {
       <NavBar screen={screen} t={t} goto={goto}/>
       <style>{CSS}</style>
     </Screen>
+    {AUTH_MODAL}
+    </>
   );
 
   // ── RESULT ───────────────────────────────────────────────────────────────────
   if (screen === 'result') {
-    const r   = aiResult;
+    const r   = restoredResult || aiResult;
+    // Single source of truth for the active diagnosis category.
+    // r._category is set by useEffect (fresh) or restoredResult._category (history).
+    // Falls back to curFix only when _category is absent (old history entries).
+    // Never defaults to 'home' unless the entry itself is categorised as 'home'.
+    // r._category is set by useEffect AFTER paint — use diagCategoryRef as bridge for fresh results
+    const effectiveCat = (r && r._category) ? r._category : (diagCategory || diagCategoryRef.current || curFix);
+    console.log('[FIXIT-DEBUG] result screen: r._category='+(r&&r._category)+' diagCategoryRef='+diagCategoryRef.current+' diagCategory='+diagCategory+' curFix='+curFix+' effectiveCat='+effectiveCat+' lang='+lang);
     const pct = r?.confidence||0;
     const col = r?.callPro?C.r:pct<60?C.y:C.g;
     const ci  = 170, off = ci-(ci*pct/100);
     // Normalize AI-generated proSearchQuery to short, local-intent friendly term
-    function normalizeProSearch(raw, cat, isDE) {
-      if (!raw) return isDE ? 'Werkstatt in der Nähe' : 'repair service near me';
-      let q = raw.trim();
-      // Strip "oder X" alternatives
-      q = q.replace(/\s+(?:oder|or)\s+.*/i, '');
-      // Strip "in meiner Nähe" / "near me" if AI added it (we add it via Google Maps)
-      q = q.replace(/\s+in\s+meiner\s+Nähe/gi, '').replace(/\s+near\s+me/gi, '').trim();
-      // Strip trailing filler
-      q = q.replace(/\s*[–—].*$/, '').trim();
-      // If still too long (>40 chars), use category default
-      if (q.length > 40) {
-        const defaults = {
-          car: isDE?'Autowerkstatt':'car repair shop',
-          bike: isDE?'Fahrradwerkstatt':'bike repair shop',
-          tech: isDE?'Elektronik Reparatur':'electronics repair',
-          appliances: isDE?'Gerätereparatur':'appliance repair',
-          home: isDE?'Handwerker Klempner':'handyman plumber',
-          garden: isDE?'Gärtner Gartencenter':'garden center',
-          pets: isDE?'Tierarzt':'veterinarian',
-        };
-        q = defaults[cat] || (isDE?'Fachmann':'repair service');
-      }
-      return q;
+    function normalizeProSearch(raw, cat, _unused) {
+      // Use GPS country language for search terms so Maps finds local services.
+      // UI language (lang) is intentionally NOT used here — a Macedonian UI in Germany
+      // must search "Autowerkstatt" (German) not "Avtoservis" (Macedonian).
+      const ml = getMarketLang(cc); // cc = GPS country code from location state
+      const mDE=ml==='de',mFR=ml==='fr',mIT=ml==='it',mES=ml==='es',
+            mPL=ml==='pl',mTR=ml==='tr',mMK=ml==='mk',mSR=ml==='sr'||ml==='hr';
+      const defaults = {
+        car:        mDE?'Autowerkstatt':mFR?'Garage automobile':mIT?'Officina auto':mES?'Taller mecánico':mMK?'Автосервис':mSR?'Auto servis':mTR?'Araba tamircisi':mPL?'Warsztat samochodowy':'car repair shop',
+        motorcycle: mDE?'Motorradwerkstatt':mFR?'Atelier moto':mIT?'Officina moto':mES?'Taller de motos':mMK?'Сервис за мотори':mSR?'Servis motocikla':mTR?'Motosiklet servisi':mPL?'Serwis motocyklowy':'motorcycle repair',
+        moto:       mDE?'Motorradwerkstatt':mFR?'Atelier moto':mIT?'Officina moto':mES?'Taller de motos':mMK?'Сервис за мотори':mSR?'Servis motocikla':mTR?'Motosiklet servisi':mPL?'Serwis motocyklowy':'motorcycle repair',
+        bike:       mDE?'Fahrradwerkstatt':mFR?'Atelier vélo':mIT?'Officina bici':mES?'Taller de bicicletas':mMK?'Сервис за велосипеди':mSR?'Servis bicikla':mTR?'Bisiklet tamircisi':mPL?'Serwis rowerowy':'bike repair shop',
+        tech:       mDE?'Elektronik Reparatur':mFR?'Réparation électronique':mIT?'Riparazione elettronica':mES?'Reparación electrónica':mMK?'Електронски сервис':mSR?'Servis elektronike':mTR?'Elektronik tamircisi':mPL?'Serwis elektroniczny':'electronics repair',
+        appliances: mDE?'Hausgeräte Reparatur':mFR?'Réparation électroménager':mIT?'Riparazione elettrodomestici':mES?'Reparación electrodomésticos':mMK?'Сервис за апарати':mSR?'Servis aparata':mTR?'Ev aletleri tamircisi':mPL?'Serwis AGD':'appliance repair',
+        home:       mDE?'Handwerker':mFR?'Artisan':mIT?'Artigiano':mES?'Técnico del hogar':mMK?'Мајстор':mSR?'Majstor':mTR?'Usta':mPL?'Fachowiec':'handyman',
+        garden:     mDE?'Gärtner Gartencenter':mFR?'Jardinerie':mIT?'Centro giardinaggio':mES?'Centro de jardinería':mMK?'Градинарство':mSR?'Vrtni centar':mTR?'Bahçe merkezi':mPL?'Centrum ogrodnicze':'garden center',
+        pets:       mDE?'Tierarzt':mFR?'Vétérinaire':mIT?'Veterinario':mES?'Veterinario':mMK?'Ветеринар':mSR?'Veterinar':mTR?'Veteriner':mPL?'Weterynarz':'veterinarian',
+      };
+      // Use AI's proSearchQuery when it is concise (device-specific, e.g. "Waschmaschinen Reparatur")
+      // Fall back to category default when absent, empty, or too long (> 40 chars = likely garbage)
+      const categoryDefault = defaults[cat] || (mDE?'Fachmann':mFR?'Professionnel':mES?'Profesional':mMK?'Стручњак':mSR?'Stručnjak':'repair service');
+      if (!raw || !raw.trim() || raw.trim().length > 40) return categoryDefault;
+      return raw.trim();
     }
     const isDE = lang === 'de';
-    const proQ = normalizeProSearch(r?.proSearchQuery, curFix, isDE)||`${curFix} repair service`;
-    const ct  = catTerms(curFix, lang);  // category-aware terminology
+    const ct  = catTerms(effectiveCat, lang);  // category from saved entry, not stale curFix
+    const proQ = normalizeProSearch(r?.proSearchQuery, effectiveCat, isDE)||`${effectiveCat} repair service`;
 
 
 
@@ -1047,7 +2462,7 @@ export default function App() {
               <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.8rem',fontWeight:800}}>{r?`${pct}%`:'…'}</div>
             </div>
             <div>
-              <div style={{fontSize:'1rem',fontWeight:800,marginBottom:3,color:r?.callPro?C.r:C.t}}>{r?.status||(aiLoading?(ct.loading||AI_MSGS[lang]||AI_MSGS.en)[aiMsgIdx % (ct.loading||AI_MSGS[lang]||AI_MSGS.en).length]:'…')}</div>
+              <div style={{fontSize:'1rem',fontWeight:800,marginBottom:3,color:r?.callPro?C.r:C.t}}>{getStatusLabel(r?.status, lang) || (aiLoading?(ct.loading||AI_MSGS[lang]||AI_MSGS.en)[aiMsgIdx % (ct.loading||AI_MSGS[lang]||AI_MSGS.en).length]:'…')}</div>
               <div style={{fontSize:'0.75rem',color:C.m}}>{r?`⏱ ${r.timeEstimate} · ${r.estimatedCost}`:(aiLoading?'':'' )}</div>
             </div>
           </div>
@@ -1093,7 +2508,7 @@ export default function App() {
 
                 <button onClick={()=>{ const el=document.getElementById('fixit-problem-input'); if(el&&el.value.trim()) problemRef.current=el.value.trim(); runAI(savedProb||problemRef.current); }} style={s.btn}>{t('tryAgain')}</button>
                 <div style={{height:10}}/>
-                <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
+                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
             );
           })()}
@@ -1150,7 +2565,7 @@ export default function App() {
                 <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>
                   💰 {lang==='de'?'Sparpotenzial ca.':lang==='tr'?'Tahmini tasarruf':lang==='pl'?'Potencjał oszczędności':'Est. saving'} {r.estimatedCost}
                 </span>
-                {r.difficulty && <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>{r.difficulty}</span>}
+                {r.difficulty && <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>{getDiffLabel(r.difficulty, lang)}</span>}
               </div>
             </div>
             {/* Steps with real images */}
@@ -1199,11 +2614,15 @@ export default function App() {
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:0}}>{ct.parts}</div>
               <div style={{fontSize:'0.6rem',color:'rgba(255,178,36,0.65)',fontStyle:'italic'}}>{lang==='de'?'Suchvorschläge':lang==='tr'?'Arama önerileri':lang==='pl'?'Sugestie':'Search suggestions'}</div></div>
               <div style={{display:'flex',flexWrap:'wrap'}}>{r.partsNeeded.map((p,i)=><span key={i} onClick={()=>{
-                      const cat2=curFix==='car'?'car':curFix==='tech'?'tech':curFix==='appliances'?'appliances':curFix==='garden'?'garden':curFix==='pets'?'pets':'home';
+                      // Use r._category (attached at diagnosis time) so the correct
+                      // Parts tab is selected even when curFix differs from the diagnosis category.
+                      // Falls back to curFix for old history entries without _category.
+                      const _baseCat = r._category || curFix;
+                      const cat2=_baseCat==='car'?'car':_baseCat==='motorcycle'?'moto':_baseCat==='moto'?'moto':_baseCat==='bike'?'moto':_baseCat==='tech'?'tech':_baseCat==='appliances'?'appliances':_baseCat==='garden'?'garden':_baseCat==='pets'?'pets':'home';
                        const cq2 = cleanProductSearchQuery(p,'',cat2,'','');
                        setPInput(cq2); setVInput(''); setHsnModel(''); setVType(cat2);
                        setPResults({ q: cq2, vehicle: '', hsnModel: '', searchQ: cq2, isHSN: false, category: cat2, fromDiagnosis: true });
-                      goto('parts');
+                      if (!user) { setAuthScreen('login'); } else if (isPro || freeRepairActive) { goto('parts'); } else if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
                     }} style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(232,82,26,0.12)',color:C.o,border:'1px solid rgba(232,82,26,0.2)',cursor:'pointer',margin:3}}>{p} →</span>)}</div>
               <div style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.25)',marginTop:8,lineHeight:1.5}}>
                 {r._vehicleCtx ? (
@@ -1240,22 +2659,27 @@ export default function App() {
             {feedback === 'broken' && <div style={{...s.card,background:'rgba(214,59,47,0.06)',borderColor:'rgba(214,59,47,0.25)',textAlign:'center'}}>
               <div style={{fontSize:'1.5rem',marginBottom:8}}>🔧</div>
               <div style={{fontSize:'0.9rem',fontWeight:700,marginBottom:12}}>{lang==='de'?'Noch nicht behoben?':lang==='tr'?'Henüz düzeltilmedi mi?':lang==='pl'?'Jeszcze nie naprawione?':'Not fixed yet?'}</div>
-              <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
+              <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
             </div>}
             {r.callPro ? (
               <div style={{...s.card,background:'rgba(214,59,47,0.06)',borderColor:'rgba(214,59,47,0.25)'}}>
                 <div style={{fontSize:'0.62rem',fontWeight:700,color:C.r,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{t('proRequired')}</div>
                 <div style={{fontSize:'0.86rem',lineHeight:1.65,marginBottom:12}}>{r.proReason}</div>
-                <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
+                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,background:C.r}}>{ct.proBtn}</button>
               </div>
             ) : (
               <div style={{display:'flex',gap:10}}>
                 <button onClick={()=>{
-                  const cat = curFix==='car'?'car':curFix==='tech'?'tech':curFix==='appliances'?'appliances':curFix==='garden'?'garden':curFix==='pets'?'pets':'home';
+                  // effectiveCat is derived from r._category (set at save/restore time),
+                  // falling back to curFix only for old entries. Never depends on stale curFix.
+                  // Read r._category at click time (same as chip handler) to get the
+                  // post-useEffect corrected category — not the stale render-time closure.
+                  const _btnCat = (r && r._category) ? r._category : curFix;
+                  const cat=_btnCat==='car'?'car':_btnCat==='motorcycle'?'moto':_btnCat==='moto'?'moto':_btnCat==='bike'?'moto':_btnCat==='tech'?'tech':_btnCat==='appliances'?'appliances':_btnCat==='garden'?'garden':_btnCat==='pets'?'pets':'home';
                   setVType(cat);
                   // Build query from CURRENT diagnosis — never reuse old parts search
                   const detectedVehicle = r._vehicleCtx;
-                  const diagQuery = buildPartsQueryFromDiagnosis(r, problemRef.current, curFix, detectedVehicle);
+                  const diagQuery = buildPartsQueryFromDiagnosis(r, problemRef.current, _btnCat, detectedVehicle);
                   // Build the vehicle label string for the vInput field
                   const vehicleLabel = detectedVehicle
                     ? [detectedVehicle.make, detectedVehicle.model, detectedVehicle.engine, detectedVehicle.year].filter(Boolean).join(' ')
@@ -1263,13 +2687,13 @@ export default function App() {
                   setPInput(diagQuery);
                   setVInput(vehicleLabel); // populate vehicle field with detected vehicle
                   setHsnModel('');
-                  setVType('car');
+                  // vType already set correctly above via setVType(cat) — do NOT override
                   // Pre-populate pResults so parts are immediately visible
                   const fullSearchQ = diagQuery; // vehicle already in diagQuery via ensureVehicle
                   setPResults({ q: diagQuery, vehicle: vehicleLabel, hsnModel: '', searchQ: fullSearchQ, isHSN: false, category: cat, fromDiagnosis: true, vehicleCtx: detectedVehicle });
-                  goto('parts');
+                  if (!user) { setAuthScreen('login'); } else if (isPro || freeRepairActive) { goto('parts'); } else if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
                 }} style={s.btn}>{ct.partsBtn}</button>
-                <button onClick={()=>window.open(mu(proQ), '_blank', 'noopener,noreferrer')} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
+                <button onClick={()=>{console.log('[FIXIT-DEBUG] Expert click: effectiveCat='+effectiveCat+' curFix='+curFix+' diagCat='+diagCategoryRef.current+' r._cat='+(r&&r._category)+' proQ='+proQ);window.open(mu(proQ), '_blank', 'noopener,noreferrer');}} style={{...s.btn,...s.btnSec}}>{ct.proBtn}</button>
               </div>
             )}
           </div>}
@@ -1283,10 +2707,12 @@ export default function App() {
   }
 
   // ── EMERGENCY ────────────────────────────────────────────────────────────────
+  // Emergency debug — verify GPS country is independent of language
+  if (screen === 'emergency') console.log('[FixIt] EMERGENCY raw_country=' + country + ' ccGPS=' + ccGPS + ' lang=' + lang + ' city=' + city + ' geocodeErr=' + geocodeErr + ' emergency_country=' + (cdGPS?.name||'DEFAULT/International'));
   if (screen === 'emergency') return (
     <Screen bg="#060000">
       {showLP && <LangPicker lang={lang} setLang={lc=>{setLang(lc);setShowLP(false);aiReset();setPResults(null);setPInput('');setVInput('');}} setShowLP={setShowLP} LANGS={LANGS} t={t}/>}
-      {!isOnline && <div style={{background:'rgba(232,178,26,0.1)',borderBottom:'1px solid rgba(232,178,26,0.2)',padding:'8px 16px',fontSize:'0.72rem',color:C.y,textAlign:'center',flexShrink:0}}>⚠️ Offline mode — emergency numbers still available</div>}
+      {!isOnline && <div style={{background:'rgba(232,178,26,0.1)',borderBottom:'1px solid rgba(232,178,26,0.2)',padding:'8px 16px',fontSize:'0.72rem',color:C.y,textAlign:'center',flexShrink:0}}>⚠️ {t('offlineEmergencyBanner')}</div>}
       <div style={{padding:'52px 20px 14px',background:'linear-gradient(160deg,rgba(214,59,47,0.1),transparent 60%)',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:6,fontSize:'0.62rem',fontWeight:700,color:C.r,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>
           <span style={{width:8,height:8,background:C.r,borderRadius:'50%',animation:'blink 1.2s infinite'}}/>
@@ -1296,18 +2722,70 @@ export default function App() {
         <div style={{fontSize:'0.78rem',color:C.m}}>{t('selectCategory')}</div>
       </div>
       <Scroll pad="14px 20px">
-        <a href={`tel:${cd.e}`} style={{background:C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
+        {ccGPS === 'DEFAULT' && (
+          <div style={{background:geocodeErr?'rgba(214,59,47,0.08)':'rgba(232,178,26,0.08)',border:`1px solid ${geocodeErr?'rgba(214,59,47,0.25)':'rgba(232,178,26,0.2)'}`,borderRadius:14,padding:'14px 18px',marginBottom:10}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:geocodeErr?8:0}}>
+              <span style={{fontSize:'1.2rem'}}>📍</span>
+              <div>
+                <div style={{fontSize:'0.82rem',fontWeight:700,color:geocodeErr?C.r:C.y}}>
+                  {locStatus==='denied'
+                    ? t('gpsNotPermitted')
+                    : geocodeErr
+                      ? t('locationCouldNotResolve')
+                      : t('detectingLocation')}
+                </div>
+                <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.35)',marginTop:2}}>
+                  {geocodeErr
+                    ? t('tapToRetry')
+                    : t('enableGpsForEmergency')}
+                </div>
+              </div>
+            </div>
+            {geocodeErr && (
+              <button onClick={resolveCountryIfNeeded}
+                style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:9,padding:'8px 14px',color:C.t,fontSize:'0.78rem',cursor:'pointer',fontFamily:'inherit',width:'100%'}}>
+                🔄 {t('retryWord')}
+              </button>
+            )}
+          </div>
+        )}
+        {/* ── Main emergency button ── */}
+        <a href={`tel:${cdGPS.e}`} style={{background:ccGPS==='DEFAULT'?'rgba(214,59,47,0.5)':C.r,borderRadius:20,padding:18,display:'flex',alignItems:'center',gap:14,marginBottom:10,textDecoration:'none'}}>
           <div style={{fontSize:'2rem'}}>🆘</div>
           <div style={{flex:1}}>
-            <div style={{fontSize:'0.92rem',fontWeight:800,color:'#fff',marginBottom:3}}>CALL {cd.e} — {cd.name.toUpperCase()}</div>
-            <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.75)'}}>🚑 {cd.amb} · 🚒 {cd.fire} · 👮 {cd.police}{cd.doc?` · 👨‍⚕️ ${cd.doc}`:''}</div>
+            <div style={{fontSize:'0.92rem',fontWeight:800,color:'#fff',marginBottom:3}}>{t('callWord')} {cdGPS.e} — {getCountryName(ccGPS, lang).toUpperCase()}</div>
+            <div style={{fontSize:'0.68rem',color:'rgba(255,255,255,0.75)'}}>{t('generalEmergencyNumber')}</div>
           </div>
           <div style={{color:'#fff',fontSize:'1.2rem'}}>→</div>
         </a>
-        <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 14px',marginBottom:10,fontSize:'0.72rem',color:'rgba(255,255,255,0.5)',lineHeight:1.6}}>
-          📍 <strong style={{color:C.t}}>{cd.name}</strong> — 🚗 {cd.rs?.n}: <strong style={{color:C.t}}>{cd.rs?.num}</strong>
-          {cd.ph?.num?` | 🐾 ${cd.ph.n}: ${cd.ph.num}`:''}
-        </div>
+        {/* ── Individual service call buttons ── */}
+        {!cdGPS.noData && (() => {
+          const svcBtn = (href, icon, label, num, providerName) => num ? (
+            <a key={href} href={`tel:${num.replace(/\s/g,'')}`}
+               style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 16px',display:'flex',alignItems:'center',gap:12,marginBottom:6,textDecoration:'none',color:C.t}}>
+              <span style={{fontSize:'1.3rem',flexShrink:0,width:28,textAlign:'center'}}>{icon}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'0.8rem',fontWeight:600}}>{label}</div>
+                {providerName && <div style={{fontSize:'0.65rem',color:'rgba(255,255,255,0.45)',marginTop:1,fontStyle:'italic'}}>{providerName}</div>}
+                <div style={{fontSize:'0.72rem',color:C.m,marginTop:providerName?0:1}}>{num}</div>
+              </div>
+              <div style={{fontSize:'0.9rem',color:'rgba(255,255,255,0.35)'}}>→</div>
+            </a>
+          ) : null;
+          return (<>
+            {svcBtn('amb',  '🚑', t('ambulance'),            cdGPS.amb)}
+            {svcBtn('fire', '🚒', t('fireDepartment'),        cdGPS.fire)}
+            {svcBtn('pol',  '👮', t('policeLabel'),            cdGPS.police)}
+            {svcBtn('doc',  '👨‍⚕️', t('medicalAssistance'),  cdGPS.doc)}
+            {cdGPS.rs?.num  && svcBtn('rs',  '🚗', cdGPS.rs.n,   cdGPS.rs.num)}
+            {cdGPS.ph?.num  && svcBtn('ph',  '🐾', t('veterinaryEmergency'), cdGPS.ph.num, cdGPS.ph.n)}
+          </>);
+        })()}
+        {cdGPS.noData && (
+          <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,padding:'12px 14px',marginBottom:6,fontSize:'0.72rem',color:'rgba(255,255,255,0.45)'}}>
+            📍 <strong style={{color:C.t}}>{cdGPS.name}</strong> — {t('localDataUnavailable')}
+          </div>
+        )}
         {Object.entries(EMRG).map(([key,ec],idx)=>{
           const titles=getEmrgT(key,lang);
           return (
@@ -1317,7 +2795,7 @@ export default function App() {
                 <div style={{fontSize:'0.88rem',fontWeight:700,marginBottom:3}}>{titles[0]}</div>
                 <div style={{fontSize:'0.7rem',color:C.m}}>{titles[1]}</div>
               </div>
-              <span style={{padding:'4px 10px',borderRadius:100,fontSize:'0.62rem',fontWeight:700,background:ec.badge==='URGENT'?'rgba(214,59,47,0.2)':'rgba(232,178,26,0.2)',color:ec.badge==='URGENT'?C.r:C.y,flexShrink:0}}>{ec.badge}</span>
+              <span style={{padding:'4px 10px',borderRadius:100,fontSize:'0.62rem',fontWeight:700,background:ec.badge==='URGENT'?'rgba(214,59,47,0.2)':'rgba(232,178,26,0.2)',color:ec.badge==='URGENT'?C.r:C.y,flexShrink:0}}>{ec.badge==='URGENT'?t('badgeUrgent'):t('badgeAsap')}</span>
             </div>
           );
         })}
@@ -1357,12 +2835,12 @@ export default function App() {
         <Scroll pad="14px 20px">
           <div style={{background:'rgba(214,59,47,0.06)',border:'1px solid rgba(214,59,47,0.2)',borderRadius:14,padding:14,marginBottom:12}}>
             <div style={{fontSize:'0.62rem',fontWeight:700,color:C.r,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>{t('callNow')}</div>
-            {ec.call==='roadside'&&<><CallBtn icon="🚗" label={`${cd.rs?.n}: ${cd.rs?.num}`} num={cd.rs?.num||'112'} type="s"/><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/><MapBtn icon="🗺️" label={t('nearestGarage')} query="car garage mechanic near me"/></>}
-            {ec.call==='vet'&&<>{cd.ph?.num&&<CallBtn icon="🐾" label={`${cd.ph.n}: ${cd.ph.num}`} num={cd.ph.num} type="s"/>}{cd.pa?.num&&cd.pa.num.length>3&&<CallBtn icon="🚑" label={`${cd.pa.n}: ${cd.pa.num}`} num={cd.pa.num} type="i"/>}<MapBtn icon="🗺️" label={t('emergencyVet')} query="emergency vet open now 24h"/><MapBtn icon="🏥" label={t('animalClinicNear')} query="animal clinic veterinarian near me"/></>}
-            {ec.call==='fire'&&<><CallBtn icon="🚒" label={`Fire: ${cd.fire}`} num={cd.fire}/><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/></>}
-            {ec.call==='plumber'&&<><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/><MapBtn icon="🔧" label={t('emergencyPlumber')} query={t('plumberQuery')}/></>}
-            {ec.call==='power'&&<><CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/><MapBtn icon="⚡" label={t('electricityProvider')} query={cc==='DE'?'Stadtwerke Strom Störung Netzbetreiber Stromausfall':cc==='AT'?'Stromnetz Störung Stadtwerke':cc==='CH'?'Stromnetzbetreiber Störung':cc==='FR'?'panne électrique signaler fournisseur':cc==='GB'?'power cut report network operator':cc==='US'?'power outage report electric utility':'electricity power outage report'}/></>}
-            {ec.call==='emergency'&&<CallBtn icon="🆘" label={`Emergency: ${cd.e}`} num={cd.e}/>}
+            {ec.call==='roadside'&&<><CallBtn icon="🚗" label={`${cdGPS.rs?.n}: ${cdGPS.rs?.num}`} num={cdGPS.rs?.num||'112'} type="s"/><CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🗺️" label={t('nearestGarage')} query="car garage mechanic near me"/></>}
+            {ec.call==='vet'&&<>{cdGPS.ph?.num&&<CallBtn icon="🐾" label={`${t('veterinaryEmergency')}${cdGPS.ph.n ? ` — ${cdGPS.ph.n}` : ''}`} num={cdGPS.ph.num} type="s"/>}{cdGPS.pa?.num&&cdGPS.pa.num.length>3&&<CallBtn icon="🚑" label={`${cdGPS.pa.n}: ${cdGPS.pa.num}`} num={cdGPS.pa.num} type="i"/>}<MapBtn icon="🗺️" label={t('emergencyVet')} query="emergency vet open now 24h"/><MapBtn icon="🏥" label={t('animalClinicNear')} query="animal clinic veterinarian near me"/></>}
+            {ec.call==='fire'&&<><CallBtn icon="🚒" label={`${t('fireCallLabel')}: ${cdGPS.fire}`} num={cdGPS.fire}/><CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/></>}
+            {ec.call==='plumber'&&<><CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="🔧" label={t('emergencyPlumber')} query={getEmergencySearchQuery('plumber', ccGPS)}/></>}
+            {ec.call==='power'&&<><CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/><MapBtn icon="⚡" label={t('electricityProvider')} query={cc==='DE'?'Stadtwerke Strom Störung Netzbetreiber Stromausfall':cc==='AT'?'Stromnetz Störung Stadtwerke':cc==='CH'?'Stromnetzbetreiber Störung':cc==='FR'?'panne électrique signaler fournisseur':cc==='GB'?'power cut report network operator':cc==='US'?'power outage report electric utility':'electricity power outage report'}/></>}
+            {ec.call==='emergency'&&<CallBtn icon="🆘" label={`${t('emergencyCallLabel')}: ${cdGPS.e}`} num={cdGPS.e}/>}
           </div>
           <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding:14,marginBottom:12}}>
             <div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>{t('immediateSteps')}</div>
@@ -1374,9 +2852,9 @@ export default function App() {
             ))}
           </div>
           <div style={{background:'rgba(232,82,26,0.06)',border:'1px solid rgba(232,82,26,0.2)',borderRadius:14,padding:14}}>
-            <div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>📍 {t('emergencyNumbers')} — {cd.name}</div>
+            <div style={{fontSize:'0.62rem',fontWeight:700,color:C.o,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>📍 {t('emergencyNumbers')} — {cdGPS.name}</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              {[['🆘','Emergency',cd.e],['🚒','Fire',cd.fire],['👮','Police',cd.police],['🚑','Ambulance',cd.amb]].map(([ic,lb,nm])=>(
+              {[['🆘','Emergency',cdGPS.e],['🚒','Fire',cdGPS.fire],['👮','Police',cdGPS.police],['🚑','Ambulance',cdGPS.amb]].map(([ic,lb,nm])=>(
                 <a key={lb} href={`tel:${nm}`} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,padding:10,textAlign:'center',display:'block',textDecoration:'none'}}>
                   <div style={{fontSize:'1.2rem',marginBottom:3}}>{ic}</div>
                   <div style={{fontSize:'0.62rem',color:C.m,marginBottom:2}}>{lb}</div>
@@ -1398,7 +2876,18 @@ export default function App() {
 
   // ── NEARBY ───────────────────────────────────────────────────────────────────
   if (screen === 'nearby') {
-    const catLabels={garage:t('catGarage'),parts:t('catParts'),tyres:t('catTyres'),petrol:t('catPetrol'),hardware:t('catHardware'),vet:t('catVet'),it:t('catIT')};
+    // Hard render guard — defence in depth after goto() gate and useEffect gate.
+    // If a user is not authenticated or not Pro, redirect to home immediately.
+    if (!user) {
+      setAuthScreen('login');
+      setScreen('home');
+      return null;
+    }
+    if (!isPro && !freeRepairActive) {
+      if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('nearby'); setFreeLimitHit(true); }
+      setScreen('home'); return null;
+    }
+    const catLabels={garage:t('catGarage'),parts:t('catParts'),tyres:t('catTyres'),petrol:t('catPetrol'),hardware:t('catHardware'),vet:t('catVet'),it:t('catIT'),moto:t('motorcycle')};
     // Category-specific Google Maps search terms (correct service type, not product)
     // catMapsQ: short, intent-friendly local service search terms per language
     const _isDE = lang === 'de', _isTR = lang === 'tr',
@@ -1406,13 +2895,14 @@ export default function App() {
           _isMK = lang === 'mk', _isFR = lang === 'fr',
           _isES = lang === 'es', _isIT = lang === 'it';
     const catMapsQ={
-      garage:   _isDE?'Autowerkstatt in der Nähe':_isTR?'Araba tamircisi yakınımda':_isHR?'Auto servis u blizini':_isMK?'Автосервис во близина':_isFR?'Garage automobile près de moi':_isES?'Taller mecánico cercano':_isIT?'Officina auto vicino':' car mechanic near me',
-      parts:    _isDE?'Autoteile in der Nähe':_isTR?'Oto yedek parça yakınımda':_isHR?'Auto dijelovi u blizini':_isMK?'Авто делови во близина':'auto parts store near me',
-      tyres:    _isDE?'Reifenservice in der Nähe':_isTR?'Lastik servisi yakınımda':_isHR?'Servis za gume u blizini':_isMK?'Сервис за гуми во близина':'tyre service near me',
-      petrol:   _isDE?'Tankstelle in der Nähe':_isTR?'Benzin istasyonu yakınımda':_isHR?'Benzinska stanica u blizini':_isMK?'Бензинска станица во близина':'petrol station near me',
-      hardware: _isDE?'Baumarkt in der Nähe':_isTR?'Hırdavatçı yakınımda':_isHR?'Željezarija u blizini':_isMK?'Железарија во близина':'hardware store near me',
-      vet:      _isDE?'Tierarzt in der Nähe':_isTR?'Veteriner yakınımda':_isHR?'Veterinar u blizini':_isMK?'Ветеринар во близина':'veterinarian near me',
-      it:       _isDE?'Computer Reparatur in der Nähe':_isTR?'Bilgisayar tamiri yakınımda':_isHR?'Servis računala u blizini':_isMK?'Сервис компјутери во близина':'computer repair near me',
+      garage:   _isDE?'Autowerkstatt in der Nähe':_isTR?'Araba tamircisi yakınımda':_isHR?'Auto servis u blizini':_isMK?'Автосервис во близина':_isFR?'Garage automobile près de moi':_isES?'Taller mecánico cercano':_isIT?'Officina auto vicino':'car repair near me',
+      parts:    _isDE?'Autoteile in der Nähe':_isTR?'Oto yedek parça yakınımda':_isHR?'Auto dijelovi u blizini':_isMK?'Автоделови во близина':'auto parts store near me',
+      tyres:    _isDE?'Reifenservice in der Nähe':_isTR?'Lastik servisi yakınımda':_isHR?'Servis za gume u blizini':_isMK?'Вулканизер во близина':'tyre service near me',
+      petrol:   _isDE?'Tankstelle in der Nähe':_isTR?'Benzin istasyonu yakınımda':_isHR?'Benzinska stanica u blizini':_isMK?'Бензинска пумпа во близина':'petrol station near me',
+      hardware: _isDE?'Baumarkt in der Nähe':_isTR?'Hırdavatçı yakınımda':_isHR?'Željezarija u blizini':_isMK?'Железарија и градежни материјали во близина':'hardware store near me',
+      vet:      _isDE?'Tierarzt in der Nähe':_isTR?'Veteriner yakınımda':_isHR?'Veterinar u blizini':_isMK?'Ветеринарна станица во близина':'veterinarian near me',
+      it:       _isDE?'Computer Reparatur in der Nähe':_isTR?'Bilgisayar tamiri yakınımda':_isHR?'Servis računala u blizini':_isMK?'Компјутерски сервис во близина':'computer repair near me',
+      moto:     _isDE?'Motorradwerkstatt in der Nähe':_isTR?'Motosiklet servisi yakınımda':_isHR?'Servis motocikla u blizini':_isMK?'Сервис за мотор во близина':_isFR?'Garage moto près de moi':_isES?'Taller motos cerca de mí':_isIT?'Officina moto vicino':'motorcycle repair near me',
     };
     return (
       <Screen>
@@ -1421,7 +2911,7 @@ export default function App() {
           <BackBtn/>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
             <div style={{fontSize:'1.2rem',fontWeight:800,flex:1}}>{t('findNearby')}</div>
-            <button onClick={()=>{if(lat){setNearbyBump(b=>b+1);}else goto('loc-ask');}} style={{background:C.o,border:'none',borderRadius:100,padding:'8px 16px',color:'#fff',fontSize:'0.75rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{t('refresh')}</button>
+            <button onClick={()=>{if(lat){setNearbyForce(true);setNearbyBump(b=>b+1);}else goto('loc-ask');}} style={{background:C.o,border:'none',borderRadius:100,padding:'8px 16px',color:'#fff',fontSize:'0.75rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>{t('refresh')}</button>
           </div>
           <div style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:2}}>
             {Object.keys(MAP_CATS).map(k=>(
@@ -1510,7 +3000,7 @@ export default function App() {
               <div key={i} onClick={()=>b.phone?(window.location=`tel:${b.phone}`):window.open(mu(`${b.name} ${b.addr}`), '_blank', 'noopener,noreferrer')} style={{...s.card,display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',background:i===0?'rgba(26,158,92,0.04)':C.c,borderColor:i===0?'rgba(26,158,92,0.35)':C.b,animation:`fadeIn ${.3+i*.04}s ease`}}>
                 <div style={{width:44,height:44,borderRadius:13,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.3rem',flexShrink:0,background:'rgba(26,158,92,0.1)'}}>{i===0?'🏆':MAP_CATS[mapCat]?.icon||'📍'}</div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:'0.88rem',fontWeight:700,marginBottom:3}}>{i===0?'🏆 ':''}{b.name}</div>
+                  <div style={{fontSize:'0.88rem',fontWeight:700,marginBottom:3,display:'flex',alignItems:'center',gap:6}}><span>{i===0?'🏆 ':''}{b.name}</span>{b.source==='google'&&<span style={{fontSize:'0.52rem',background:'rgba(26,95,232,0.15)',color:'rgba(26,95,232,0.7)',borderRadius:4,padding:'1px 4px',letterSpacing:'0.04em',flexShrink:0}}>G</span>}</div>
                   <div style={{fontSize:'0.7rem',color:C.m,lineHeight:1.5}}>
                     {b.addr}
                     {b.phone&&<><br/><a href={`tel:${b.phone}`} onClick={e=>e.stopPropagation()} style={{color:C.bl}}>📞 {b.phone}</a></>}
@@ -1520,6 +3010,7 @@ export default function App() {
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
                   <div style={{fontSize:'0.9rem',fontWeight:800,color:C.g}}>{b.dist<1?Math.round(b.dist*1000)+'m':b.dist.toFixed(1)+'km'}</div>
+                  {b.rating&&<div style={{fontSize:'0.62rem',color:'rgba(232,178,26,0.8)',marginTop:2}}>★ {b.rating.toFixed(1)}</div>}
                   {b.phone&&<div style={{fontSize:'0.65rem',fontWeight:700,color:C.bl,marginTop:4}}>📞 {t('call')}</div>}
                 </div>
               </div>
@@ -1543,9 +3034,19 @@ export default function App() {
 
   // ── PARTS ────────────────────────────────────────────────────────────────────
   if (screen === 'parts') {
-    const localStores      = getStores(vType, cc);          // category-specific ONLINE stores
+    // Hard render guard — same defence-in-depth as nearby.
+    if (!user) {
+      setAuthScreen('login');
+      setScreen('home');
+      return null;
+    }
+    if (!isPro && !freeRepairActive) {
+      if (authProfile?.free_trial_completed_at) { setFreeRepairDone(true); } else { setPaywallSource('parts'); setFreeLimitHit(true); }
+      setScreen('home'); return null;
+    }
+    const localStores      = getStores(vType, cc, vType === 'moto' ? (pResults?.vehicle || '') : '');          // category-specific ONLINE stores
     const onlineStores     = getOnlineStores(cc);            // generic Amazon/eBay/Idealo
-    const localSearchTerm  = getLocalStoreSearch(vType, lang); // local Google Maps term
+    const localSearchTerm  = getLocalStoreSearch(vType, getMarketLang(cc)); // local Google Maps term — uses MARKET language, not UI language
     const localMapsUrl     = mu(localSearchTerm);             // Google Maps search URL
     const ptCt = catTerms(vType, lang); // category-aware terms for parts screen
     const isPetParts = vType === 'pets';
@@ -1559,13 +3060,7 @@ export default function App() {
         <div style={{padding:'52px 20px 14px',borderBottom:`1px solid ${C.b}`,flexShrink:0}}>
           <BackBtn/>
           <div style={{fontSize:'1.35rem',fontWeight:800,letterSpacing:'-0.02em',marginBottom:4}}>
-            {vType==='car'   ?(lang==='de'?'Auto-Teile finden':lang==='tr'?'Araba Parçası Bul':lang==='pl'?'Znajdź części do auta':'Find Auto Parts'):
-             vType==='bike'  ?(lang==='de'?'Fahrrad-Teile finden':lang==='tr'?'Bisiklet Parçası Bul':lang==='pl'?'Znajdź części do roweru':'Find Bike Parts'):
-             vType==='tech'  ?(lang==='de'?'Elektronik & Zubehör':lang==='tr'?'Elektronik & Aksesuar':lang==='pl'?'Elektronika & Akcesoria':'Electronics & Parts'):
-             vType==='appliances'?(lang==='de'?'Geräte-Ersatzteile':lang==='tr'?'Cihaz Yedek Parçaları':lang==='pl'?'Części do AGD':'Appliance Parts'):
-             vType==='garden'?(lang==='de'?'Gartenbedarf finden':lang==='tr'?'Bahçe Malzemesi Bul':lang==='pl'?'Znajdź artykuły ogrodowe':'Find Garden Supplies'):
-             vType==='pets'  ?(lang==='de'?'Tierbedarf finden':lang==='tr'?'Evcil Hayvan Ürünleri Bul':lang==='pl'?'Znajdź produkty dla zwierząt':'Find Pet Supplies'):
-                              (lang==='de'?'Haus & Geräte finden':lang==='tr'?'Ev & Alet Bul':lang==='pl'?'Znajdź części & narzędzia':'Find Parts & Tools')}
+            {(()=>{const _ptk=vType==='car'?'partsTitleCar':vType==='moto'?'partsTitleMoto':vType==='bike'?'partsTitleBike':vType==='tech'?'partsTitleTech':vType==='appliances'?'partsTitleAppl':vType==='garden'?'partsTitleGarden':vType==='pets'?'partsTitlePets':'partsTitleHome';console.log('[FIXIT-DEBUG] Parts title: vType='+vType+' key='+_ptk);return t(_ptk);})()}
           </div>
           <div style={{fontSize:'0.82rem',color:C.m}}>{t('partsSubtitle')}</div>
         </div>
@@ -1573,7 +3068,7 @@ export default function App() {
           <div style={s.card}>
             <div style={{fontSize:'0.68rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>{t('searchingFor')}</div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
-              {[['car',t('catCar')],['home',t('catHome')],['appliances',t('catAppliance')],['garden',t('catGarden')],['tech',t('catTech')],['bike',t('catBike')],['pets',t('catPets')]].map(([tp,lb])=>(
+              {[['car',t('catCar')],['moto',t('motorcycle')],['home',t('catHome')],['appliances',t('catAppliance')],['garden',t('catGarden')],['tech',t('catTech')],['bike',t('catBike')],['pets',t('catPets')]].map(([tp,lb])=>(
                 <button key={tp} onClick={()=>{setVType(tp);setVInput('');setHsnModel('');}} style={{padding:'7px 14px',borderRadius:100,fontSize:'0.76rem',fontWeight:600,cursor:'pointer',border:'none',background:vType===tp?C.bl:'rgba(255,255,255,0.06)',color:vType===tp?'#fff':C.m,fontFamily:'inherit'}}>{lb}</button>
               ))}
             </div>
@@ -1582,7 +3077,7 @@ export default function App() {
             {/^\d{4}/.test(vInput.trim()) && (
               <div style={{marginTop:10,padding:'10px 12px',background:'rgba(232,178,26,0.08)',border:'1px solid rgba(232,178,26,0.2)',borderRadius:10}}>
                 <div style={{fontSize:'0.65rem',color:C.y,fontWeight:700,marginBottom:6}}>
-                  {lang==='de'?'✏️ Fahrzeugmodell ergänzen (empfohlen für genaue Suche):':lang==='tr'?'✏️ Araç modeli ekle (kesin arama için önerilir):':lang==='pl'?'✏️ Dodaj model pojazdu (zalecane dla dokładnego wyszukiwania):':'✏️ Add vehicle model (recommended for accurate search):'}
+                  {t('addVehicleModel')}
                 </div>
                 <input
                   value={hsnModel}
@@ -1617,7 +3112,7 @@ export default function App() {
             {pResults.fromDiagnosis && aiResult?.partsNeeded?.length > 1 ? (
               <div style={{marginBottom:10}}>
                 <div style={{fontSize:'0.7rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>
-                  {lang==='de'?'Teile aus der Diagnose — tippe zum Suchen:':lang==='tr'?'Teşhisten parçalar — aramak için dokun:':lang==='pl'?'Części z diagnozy — dotknij aby wyszukać:':'Parts from diagnosis — tap to search:'}
+                  {t('partsFromDiagnosis')}
                 </div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                   {aiResult.partsNeeded.map((part,pi)=>(
@@ -1662,13 +3157,12 @@ export default function App() {
               <div style={{fontSize:'0.78rem',color:C.t,lineHeight:1.6,marginBottom:6}}>
                 {pResults.isHSN
                   ? (pResults.hsnModel
-                    ? `${lang==='de'?'Modell':lang==='tr'?'Model':lang==='pl'?'Model':'Model'}: ${pResults.hsnModel} — ${lang==='de'?'Suche':lang==='tr'?'Arama':lang==='pl'?'Szukaj':'Search'}: "${pResults.searchQ}"`
-                    : (lang==='de'?'HSN/TSN erkannt — bitte Modell oben ergänzen (z.B. "VW Golf 7 2.0 TDI 2017")':
-                       'HSN/TSN detected — add the vehicle model above (e.g. "VW Golf 7 2.0 TDI 2017")'))
-                  : `${lang==='de'?'Suche':lang==='tr'?'Arama':lang==='pl'?'Szukaj':'Search'}: "${pResults.searchQ}"`}
+                    ? `${t('searchWord')}: "${pResults.hsnModel}" — ${t('searchWord')}: "${pResults.searchQ}"`
+                    : t('hsnDetected'))
+                  : `${t('searchWord')}: "${pResults.searchQ}"`}
               </div>
               {pResults.isHSN && !pResults.hsnModel && <div style={{fontSize:'0.7rem',color:C.m}}>
-                {lang==='de'?'Tipp: Modell oben ergänzen für exakte Teilesuche.':'Tip: Add the model above for exact part search.'}
+                {t('tipAddModel')}
               </div>}
             </div>}
             {/* VIN compatibility warning — shown when vehicle was auto-detected */}
@@ -1691,7 +3185,7 @@ export default function App() {
             {/* LOKALE GESCHÄFTE — real nearby stores via Google Maps, NOT online shops */}
             <div style={{...s.card,background:'rgba(26,158,92,0.05)',borderColor:'rgba(26,158,92,0.2)',marginBottom:10}}>
               <div style={{fontSize:'0.62rem',fontWeight:700,color:C.g,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
-                📍 {lang==='de'?'Lokale Geschäfte in der Nähe':'Local Stores Nearby'} {lat?'(GPS)':''}
+                📍 {t('localStoresNearby')} {lat?'(GPS)':''}
               </div>
               {/* Single Google Maps button — opens real nearby local stores for this category */}
               <div onClick={()=>window.open(localMapsUrl, '_blank', 'noopener,noreferrer')}
@@ -1699,40 +3193,31 @@ export default function App() {
                 <div style={{fontSize:'1.4rem'}}>🗺️</div>
                 <div style={{flex:1}}>
                   <div style={{fontSize:'0.86rem',fontWeight:700,color:C.g}}>
-                    {localSearchTerm} {lang==='de'?'finden':'find'}
+                    {t(vType==='car'?'localStoreCar':vType==='moto'?'localStoreMoto':vType==='bike'?'localStoreBike':vType==='appliances'?'localStoreAppl':vType==='tech'?'localStoreTech':vType==='garden'?'localStoreGarden':vType==='pets'?'localStorePets':'localStoreHome')}
                   </div>
                   <div style={{fontSize:'0.65rem',color:C.m}}>
-                    {lat ? (lang==='de'?'GPS aktiv — echte Ergebnisse in deiner Nähe':'GPS active — real results near you') : (lang==='de'?'Google Maps öffnen und suchen':'Open Google Maps to search')}
+                    {lat ? t('gpsActiveNear') : t('openGoogleMapsSearch')}
                   </div>
                 </div>
                 <div style={{color:C.g,fontWeight:700}}>→</div>
               </div>
-              {/* Also show a direct product search on Google Maps */}
-              {pResults?.searchQ && <div onClick={()=>window.open(mu(`${pResults.searchQ}`), '_blank', 'noopener,noreferrer')}
-                style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                <div style={{fontSize:'1.2rem'}}>🔍</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:'0.78rem',fontWeight:600}}>{lang==='de'?`"${pResults.searchQ}" in der Nähe`:'"'+pResults.searchQ+'" nearby'}</div>
-                  <div style={{fontSize:'0.62rem',color:C.m}}>{lang==='de'?'Produkt direkt in Google Maps suchen':'Search this product on Google Maps'}</div>
-                </div>
-                <div style={{color:C.g}}>→</div>
-              </div>}
+              {/* product-name Maps search removed */}
             </div>
             {/* ONLINE-SHOPS — category-specific + generic */}
             <div style={s.card}>
               <div style={{fontSize:'0.62rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
-                🛒 {lang==='de'?'Online-Shops':'Online Shops'}
+                🛒 {t('onlineShops')}
               </div>
               {/* Category-specific online stores (Autodoc for car, MediaMarkt for tech, etc.) */}
               {localStores.map((st,i)=>(
-                <div key={`cat-${i}`} onClick={()=>window.open(st.u(pResults.searchQ), '_blank', 'noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`cat-${i}`} onClick={()=>openStore(st, pResults.searchQ)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700,display:'flex',alignItems:'center',gap:8}}>{st.n}{st.badge&&<span style={{background:C.o,color:'#fff',fontSize:'0.5rem',padding:'2px 7px',borderRadius:100,fontWeight:700}}>{st.badge}</span>}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
               ))}
               {/* Generic online stores (Amazon, eBay, Idealo) */}
               {onlineStores.map((st,i)=>(
-                <div key={`gen-${i}`} onClick={()=>window.open(st.u(pResults.searchQ), '_blank', 'noopener,noreferrer')} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                <div key={`gen-${i}`} onClick={()=>openStore(st, pResults.searchQ)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
                   <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700}}>{st.n}</div></div>
                   <div style={{color:C.m}}>→</div>
                 </div>
