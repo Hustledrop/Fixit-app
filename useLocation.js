@@ -140,7 +140,7 @@ export function useLocation() {
         setLocStatus('denied');
         requested.current = false;
       },
-      { timeout: 12000, maximumAge: 0, enableHighAccuracy: true }
+      { timeout: 12000, maximumAge: 60000, enableHighAccuracy: true }
     );
   }, [lat, lng, country, resolveCountry]);
 

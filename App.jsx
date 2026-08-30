@@ -3203,25 +3203,31 @@ export default function App() {
               </div>
               {/* product-name Maps search removed */}
             </div>
-            {/* ONLINE-SHOPS — category-specific + generic */}
+            {/* ONLINE-SHOPS — only shown when GPS country is resolved (never shows DE fallback for CH users) */}
             <div style={s.card}>
               <div style={{fontSize:'0.62rem',fontWeight:700,color:C.m,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
                 🛒 {t('onlineShops')}
               </div>
-              {/* Category-specific online stores (Autodoc for car, MediaMarkt for tech, etc.) */}
-              {localStores.map((st,i)=>(
-                <div key={`cat-${i}`} onClick={()=>openStore(st, pResults.searchQ)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
-                  <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700,display:'flex',alignItems:'center',gap:8}}>{st.n}{st.badge&&<span style={{background:C.o,color:'#fff',fontSize:'0.5rem',padding:'2px 7px',borderRadius:100,fontWeight:700}}>{st.badge}</span>}</div></div>
-                  <div style={{color:C.m}}>→</div>
+              {country !== 'DEFAULT' ? (<>
+                {/* Category-specific online stores (Autodoc for car, MediaMarkt for tech, etc.) */}
+                {localStores.map((st,i)=>(
+                  <div key={`cat-${i}`} onClick={()=>openStore(st, pResults.searchQ)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                    <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700,display:'flex',alignItems:'center',gap:8}}>{st.n}{st.badge&&<span style={{background:C.o,color:'#fff',fontSize:'0.5rem',padding:'2px 7px',borderRadius:100,fontWeight:700}}>{st.badge}</span>}</div></div>
+                    <div style={{color:C.m}}>→</div>
+                  </div>
+                ))}
+                {/* Generic online stores (Amazon, eBay, Idealo) */}
+                {onlineStores.map((st,i)=>(
+                  <div key={`gen-${i}`} onClick={()=>openStore(st, pResults.searchQ)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
+                    <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700}}>{st.n}</div></div>
+                    <div style={{color:C.m}}>→</div>
+                  </div>
+                ))}
+              </>) : (
+                <div style={{textAlign:'center',padding:'14px 0',color:C.m,fontSize:'0.82rem'}}>
+                  📍 {t('detectingLocation')}
                 </div>
-              ))}
-              {/* Generic online stores (Amazon, eBay, Idealo) */}
-              {onlineStores.map((st,i)=>(
-                <div key={`gen-${i}`} onClick={()=>openStore(st, pResults.searchQ)} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',marginBottom:7}}>
-                  <div style={{flex:1}}><div style={{fontSize:'0.86rem',fontWeight:700}}>{st.n}</div></div>
-                  <div style={{color:C.m}}>→</div>
-                </div>
-              ))}
+              )}
             </div>
           </>}
           {/* Affiliate disclosure — shown only when shop links are visible */}
