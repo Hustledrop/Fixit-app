@@ -641,9 +641,14 @@ export function getLocalStoreSearch(category, lang) {
 }
 
 export function getOnlineStores(cc) {
-  const isDACH = ['DE','AT','CH'].includes(cc);
+  const isDACH = ['DE','AT'].includes(cc);   // CH removed — has its own branch below
+  const isCH   = cc === 'CH';
   const isUK   = cc === 'GB';
   const isFR   = cc === 'FR';
+  if (isCH) return [
+    {n:"Galaxus 🔵",   u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+    {n:"Ricardo 🛒",   u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
+  ];
   return [
     {n:`Amazon ${isDACH?'🇩🇪':isUK?'🇬🇧':isFR?'🇫🇷':'🌍'}`,
      u:(q)=>`https://www.${isDACH?'amazon.de':isUK?'amazon.co.uk':isFR?'amazon.fr':'amazon.com'}/s?k=${encodeURIComponent(q)}`},
