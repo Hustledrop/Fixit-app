@@ -185,6 +185,8 @@ const STORES = {
     ],
     CH:[
       {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+      {n:"Autodoc.ch 🔧",u:(q)=>`https://www.autodoc.ch/search?searchTerm=${encodeURIComponent(q)}`},
+      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
       {n:"Euro Car Parts 🔴",u:(q)=>`https://www.eurocarparts.com/search?q=${encodeURIComponent(q)}`},
@@ -254,6 +256,7 @@ const STORES = {
     ],
     CH:[
       {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.ch/suche?q=${encodeURIComponent(q)}`},
+      {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.ch/search/?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -297,6 +300,11 @@ const STORES = {
       {n:"MediaMarkt 🔴",u:(q)=>`https://www.mediamarkt.de/de/search.html?query=${encodeURIComponent(q)}`},
       {n:"Saturn 🔵",u:(q)=>`https://www.saturn.de/de/search.html?query=${encodeURIComponent(q)}`},
       {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
+    ],
+    CH:[
+      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+      {n:"Digitec 💻",u:(q)=>`https://www.digitec.ch/search?q=${encodeURIComponent(q)}`},
+      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
       {n:"Currys 🔵",u:(q)=>`https://www.currys.co.uk/search?q=${encodeURIComponent(q)}`},
@@ -344,6 +352,11 @@ const STORES = {
       {n:"Fressnapf 🐕",u:(q)=>`https://www.fressnapf.de/search?query=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
+    CH:[
+      {n:"Qualipet 🐾",u:(q)=>`https://www.qualipet.ch/suche?term=${encodeURIComponent(q)}`},
+      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
+    ],
     GB:[
       {n:"Pets at Home 🐾",u:(q)=>`https://www.petsathome.com/shop/en/pets/search?q=${encodeURIComponent(q)}`},
       {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
@@ -367,6 +380,11 @@ const STORES = {
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.de/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
+    ],
+    CH:[
+      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+      {n:"Veloplus 🚲",u:(q)=>`https://www.veloplus.ch/de/search/products?q=${encodeURIComponent(q)}`},
+      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
       {n:"Wiggle 🔵",u:(q)=>`https://www.wiggle.co.uk/search/?q=${encodeURIComponent(q)}`},
