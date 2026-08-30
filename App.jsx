@@ -1676,7 +1676,7 @@ export default function App() {
   // Safe side-effect: runs only when screen, country, lat, or lng changes.
   // resolveCountryIfNeeded is memoized; it is a no-op when country is already set.
   useEffect(() => {
-    if (screen === 'emergency' && country === 'DEFAULT') {
+    if ((screen === 'emergency' || screen === 'parts') && country === 'DEFAULT') {
       resolveCountryIfNeeded();
     }
   }, [screen, country, lat, lng, resolveCountryIfNeeded]);
