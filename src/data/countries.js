@@ -184,6 +184,8 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
+      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+      {n:"Autodoc.ch 🔧",u:(q)=>`https://www.autodoc.ch/search?searchTerm=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -254,6 +256,7 @@ const STORES = {
     ],
     CH:[
       {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.ch/suche?q=${encodeURIComponent(q)}`},
+      {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.ch/search/?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -298,6 +301,11 @@ const STORES = {
       {n:"Saturn 🔵",u:(q)=>`https://www.saturn.de/de/search.html?query=${encodeURIComponent(q)}`},
       {n:"Idealo.de 💰",u:(q)=>`https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${encodeURIComponent(q)}`},
     ],
+    CH:[
+      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+      {n:"Digitec 💻",u:(q)=>`https://www.digitec.ch/search?q=${encodeURIComponent(q)}`},
+      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
+    ],
     GB:[
       {n:"Currys 🔵",u:(q)=>`https://www.currys.co.uk/search?q=${encodeURIComponent(q)}`},
       {n:"AO.com 🟡",u:(q)=>`https://ao.com/search?q=${encodeURIComponent(q)}`},
@@ -320,6 +328,10 @@ const STORES = {
       {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.info/suche?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
+    CH:[
+      {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.ch/suche?q=${encodeURIComponent(q)}`},
+      {n:"Landi 🌿",u:(q)=>`https://www.landi.ch/de/search?query=${encodeURIComponent(q)}`},
+    ],
     GB:[
       {n:"B&Q Garden 🌿",u:(q)=>`https://www.diy.com/search?q=${encodeURIComponent(q)}`},
       {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
@@ -338,6 +350,11 @@ const STORES = {
     DE:[
       {n:"Zooplus 🐾",u:(q)=>`https://www.zooplus.de/shop/search?text=${encodeURIComponent(q)}`},
       {n:"Fressnapf 🐕",u:(q)=>`https://www.fressnapf.de/search?query=${encodeURIComponent(q)}`},
+      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
+    ],
+    CH:[
+      {n:"Qualipet 🐾",u:(q)=>`https://www.qualipet.ch/suche?term=${encodeURIComponent(q)}`},
+      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -363,6 +380,11 @@ const STORES = {
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.de/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
       {n:"eBay.de 🛒",u:(q)=>`https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=0`},
+    ],
+    CH:[
+      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+      {n:"Veloplus 🚲",u:(q)=>`https://www.veloplus.ch/de/search/products?q=${encodeURIComponent(q)}`},
+      {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
       {n:"Wiggle 🔵",u:(q)=>`https://www.wiggle.co.uk/search/?q=${encodeURIComponent(q)}`},
@@ -637,9 +659,14 @@ export function getLocalStoreSearch(category, lang) {
 }
 
 export function getOnlineStores(cc) {
-  const isDACH = ['DE','AT','CH'].includes(cc);
+  const isDACH = ['DE','AT'].includes(cc);   // CH removed — has its own branch below
+  const isCH   = cc === 'CH';
   const isUK   = cc === 'GB';
   const isFR   = cc === 'FR';
+  if (isCH) return [
+    {n:"Galaxus 🔵",   u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+    {n:"Ricardo 🛒",   u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
+  ];
   return [
     {n:`Amazon ${isDACH?'🇩🇪':isUK?'🇬🇧':isFR?'🇫🇷':'🌍'}`,
      u:(q)=>`https://www.${isDACH?'amazon.de':isUK?'amazon.co.uk':isFR?'amazon.fr':'amazon.com'}/s?k=${encodeURIComponent(q)}`},

@@ -3045,10 +3045,31 @@ export default function App() {
       setScreen('home'); return null;
     }
     const localStores      = getStores(vType, cc, vType === 'moto' ? (pResults?.vehicle || '') : '');          // category-specific ONLINE stores
-    const onlineStores     = cc === 'CH'
-      ? [{n:'Galaxus 🔵', u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
-         {n:'Ricardo 🛒', u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}]
-      : getOnlineStores(cc);                                  // generic Amazon/eBay/Idealo per country
+    const CH_ONLINE = {
+      car:        [{n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
+                   {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`}],
+      motorcycle: [{n:'Motparts.ch 🏍️', u:(q)=>`https://www.motparts.ch/search/${encodeURIComponent(q)}/`},
+                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
+                   {n:'Galaxus.ch 🔵',  u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`}],
+      tech:       [{n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
+                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
+                   {n:'Galaxus.ch 🔵',  u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`}],
+      appliances: [{n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
+                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}],
+      home:       [{n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
+                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
+                   {n:'Galaxus.ch 🔵',  u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`}],
+      garden:     [{n:'Galaxus.ch 🔵',  u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+                   {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
+                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}],
+      bike:       [{n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
+                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}],
+      pets:       [{n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
+                   {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`}],
+    };
+    const onlineStores = cc === 'CH'
+      ? (CH_ONLINE[vType] || CH_ONLINE.home)                    // category-specific Swiss stores
+      : getOnlineStores(cc);                                    // generic Amazon/eBay/Idealo per country
     const localSearchTerm  = getLocalStoreSearch(vType, getMarketLang(cc)); // local Google Maps term — uses MARKET language, not UI language
     const localMapsUrl     = mu(localSearchTerm);             // Google Maps search URL
     const ptCt = catTerms(vType, lang); // category-aware terms for parts screen

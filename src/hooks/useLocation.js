@@ -152,10 +152,11 @@ export function useLocation() {
     console.log(`[FixIt] resolveCountryIfNeeded: country=DEFAULT lat=${lat} lng=${lng}`);
     geocodeAttempts.current = 0;             // fresh attempt budget
     setGeocodeErr(false);
-    if (!lat || !lng) {
-      requestLocation();                     // GPS not yet started
+    if (lat && lng) {
+      resolveCountry(lat, lng);             // coordinates known — geocode directly, bypass requested guard
     } else {
-      resolveCountry(lat, lng);             // GPS done, geocode failed — retry
+      requested.current = false;            // reset guard so requestLocation fires fresh GPS
+      requestLocation();                    // GPS not yet obtained
     }
   }, [country, lat, lng, requestLocation, resolveCountry]);
 
