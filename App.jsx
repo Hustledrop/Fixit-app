@@ -3045,7 +3045,10 @@ export default function App() {
       setScreen('home'); return null;
     }
     const localStores      = getStores(vType, cc, vType === 'moto' ? (pResults?.vehicle || '') : '');          // category-specific ONLINE stores
-    const onlineStores     = getOnlineStores(cc);            // generic Amazon/eBay/Idealo
+    const onlineStores     = cc === 'CH'
+      ? [{n:'Galaxus 🔵', u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+         {n:'Ricardo 🛒', u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}]
+      : getOnlineStores(cc);                                  // generic Amazon/eBay/Idealo per country
     const localSearchTerm  = getLocalStoreSearch(vType, getMarketLang(cc)); // local Google Maps term — uses MARKET language, not UI language
     const localMapsUrl     = mu(localSearchTerm);             // Google Maps search URL
     const ptCt = catTerms(vType, lang); // category-aware terms for parts screen
