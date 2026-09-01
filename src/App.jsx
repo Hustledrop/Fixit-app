@@ -3048,8 +3048,7 @@ export default function App() {
     const CH_ONLINE = {
       // car: specialist auto-parts stores; category/landing URLs where no text-search exists
       car:        [{n:'Mister-Auto.ch 🔧', u:()=>`https://www.mister-auto.ch/de/autoteile/`},
-                   {n:'E-Teile.ch 🇨🇭',   u:()=>`https://e-teile.ch/autoersatzteile-katalog/`},
-                   {n:'Ricardo.ch 🛒',    u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}],
+                   {n:'E-Teile.ch 🇨🇭',   u:()=>`https://e-teile.ch/autoersatzteile-katalog/`}],
       // motorcycle: Swiss spare-parts + CH-specific gear store + marketplace
       motorcycle: [{n:'Motparts.ch 🏍️', u:(q)=>`https://www.motparts.ch/search/${encodeURIComponent(q)}/`},
                    {n:'POLO Motorrad 🏍️', u:()=>`https://www.polo-motorrad.com/de-ch/`},
@@ -3064,9 +3063,9 @@ export default function App() {
       home:       [{n:'OBI.ch 🟢',       u:(q)=>`https://www.obi.ch/search/${encodeURIComponent(q)}/`},
                    {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`}],
       // garden: DIY/garden specialists (Bauhaus Garten+Landi already in localStores)
-      garden:     [{n:'HORNBACH.ch 🟠',  u:()=>`https://www.hornbach.ch/de/c/garten/S4035/`},
+      garden:     [{n:'HORNBACH.ch 🟠',  u:(q)=>`https://www.hornbach.ch/s/${encodeURIComponent(q)}`},
                    {n:'OBI.ch 🟢',       u:(q)=>`https://www.obi.ch/search/${encodeURIComponent(q)}/`},
-                   {n:'Bauhaus.ch 🏗️',  u:(q)=>`https://www.bauhaus.ch/suche?q=${encodeURIComponent(q)}`}],
+                   {n:'Bauhaus.ch 🏗️',  u:(q)=>`https://www.bauhaus.ch/search?q=${encodeURIComponent(q)}`}],
       // bike: Swiss cycling specialists (Galaxus+Veloplus already in localStores)
       bike:       [{n:'Velofactory.ch 🚲', u:()=>`https://www.velofactory.ch/bike-parts-from-switzerland`},
                    {n:'Bikester.ch 🚴',  u:()=>`https://www.bikester.ch/`}],

@@ -184,8 +184,7 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
-      {n:"Autodoc.ch 🔧",u:(q)=>`https://www.autodoc.ch/search?searchTerm=${encodeURIComponent(q)}`},
+      {n:"Auto-Doc.ch 🔧",u:(q)=>`https://www.auto-doc.ch/search?searchTerm=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -255,8 +254,8 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.ch/suche?q=${encodeURIComponent(q)}`},
-      {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.ch/search/?q=${encodeURIComponent(q)}`},
+      {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.ch/search?q=${encodeURIComponent(q)}`},
+      {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.ch/s/${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -329,8 +328,8 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.ch/suche?q=${encodeURIComponent(q)}`},
-      {n:"Landi 🌿",u:(q)=>`https://www.landi.ch/de/search?query=${encodeURIComponent(q)}`},
+      {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.ch/search?q=${encodeURIComponent(q)}`},
+      {n:"Landi 🌿",u:()=>`https://www.landi.ch/shop/garteninsektizide_100303`},
     ],
     GB:[
       {n:"B&Q Garden 🌿",u:(q)=>`https://www.diy.com/search?q=${encodeURIComponent(q)}`},
