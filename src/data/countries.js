@@ -184,7 +184,7 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Auto-Doc.ch 🔧",u:(q)=>`https://www.auto-doc.ch/search?searchTerm=${encodeURIComponent(q)}`},
+      {n:"Auto-Doc.ch 🔧",u:()=>`https://www.auto-doc.ch/autoteile/`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -254,8 +254,8 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.ch/search?q=${encodeURIComponent(q)}`},
-      {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.ch/s/${encodeURIComponent(q)}`},
+      {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.ch/de/search?q=${encodeURIComponent(q)}`},
+      {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.ch/de/s/${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[
@@ -328,7 +328,7 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.ch/search?q=${encodeURIComponent(q)}`},
+      {n:"Bauhaus Garten 🌱",u:(q)=>`https://www.bauhaus.ch/de/search?q=${encodeURIComponent(q)}`},
       {n:"Landi 🌿",u:()=>`https://www.landi.ch/shop/garteninsektizide_100303`},
     ],
     GB:[

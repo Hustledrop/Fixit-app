@@ -3063,9 +3063,9 @@ export default function App() {
       home:       [{n:'OBI.ch 🟢',       u:(q)=>`https://www.obi.ch/search/${encodeURIComponent(q)}/`},
                    {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`}],
       // garden: DIY/garden specialists (Bauhaus Garten+Landi already in localStores)
-      garden:     [{n:'HORNBACH.ch 🟠',  u:(q)=>`https://www.hornbach.ch/s/${encodeURIComponent(q)}`},
+      garden:     [{n:'HORNBACH.ch 🟠',  u:(q)=>`https://www.hornbach.ch/de/s/${encodeURIComponent(q)}`},
                    {n:'OBI.ch 🟢',       u:(q)=>`https://www.obi.ch/search/${encodeURIComponent(q)}/`},
-                   {n:'Bauhaus.ch 🏗️',  u:(q)=>`https://www.bauhaus.ch/search?q=${encodeURIComponent(q)}`}],
+                   {n:'Bauhaus.ch 🏗️',  u:(q)=>`https://www.bauhaus.ch/de/search?q=${encodeURIComponent(q)}`}],
       // bike: Swiss cycling specialists (Galaxus+Veloplus already in localStores)
       bike:       [{n:'Velofactory.ch 🚲', u:()=>`https://www.velofactory.ch/bike-parts-from-switzerland`},
                    {n:'Bikester.ch 🚴',  u:()=>`https://www.bikester.ch/`}],
