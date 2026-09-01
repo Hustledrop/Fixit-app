@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { LANGS } from '../data/lang.js';
-import { getAccessToken } from '../auth.js';
+import { getAccessToken } from '../../src/auth.js';
 
 const API_URL = '/api/diagnose';
 
@@ -42,7 +42,7 @@ export function useAI() {
   const [error, setError]     = useState(null);
   const reqId = useRef(0); // stale request guard — increments on each new diagnose call
 
-  const diagnose = useCallback(async ({ problem, photoB64, photoMime, category, lang, countryName, cc, userProfile }) => {
+  const diagnose = useCallback(async ({ problem, photoB64, photoMime, category, lang, countryName, userProfile }) => {
     // Increment request ID — any in-flight request with an older ID is stale
     const thisReq = ++reqId.current;
     setLoading(true);
@@ -77,7 +77,6 @@ export function useAI() {
       lang:         lang || 'en',
       langName:     langFull,
       countryName:  countryName || 'Unknown',
-      countryCode:  cc || null,      // market country code — server uses this for parts search language
       userProfile:  userProfile || null,
     };
 

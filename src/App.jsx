@@ -3046,26 +3046,33 @@ export default function App() {
     }
     const localStores      = getStores(vType, cc, vType === 'moto' ? (pResults?.vehicle || '') : '');          // category-specific ONLINE stores
     const CH_ONLINE = {
-      car:        [{n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
-                   {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`}],
+      // car: specialist auto-parts stores; category/landing URLs where no text-search exists
+      car:        [{n:'Mister-Auto.ch 🔧', u:()=>`https://www.mister-auto.ch/de/autoteile/`},
+                   {n:'E-Teile.ch 🇨🇭',   u:()=>`https://e-teile.ch/autoersatzteile-katalog/`},
+                   {n:'Ricardo.ch 🛒',    u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}],
+      // motorcycle: Swiss spare-parts + CH-specific gear store + marketplace
       motorcycle: [{n:'Motparts.ch 🏍️', u:(q)=>`https://www.motparts.ch/search/${encodeURIComponent(q)}/`},
-                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
-                   {n:'Galaxus.ch 🔵',  u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`}],
-      tech:       [{n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
-                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
-                   {n:'Galaxus.ch 🔵',  u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`}],
-      appliances: [{n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
+                   {n:'POLO Motorrad 🏍️', u:()=>`https://www.polo-motorrad.com/de-ch/`},
                    {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}],
-      home:       [{n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
-                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
-                   {n:'Galaxus.ch 🔵',  u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`}],
-      garden:     [{n:'Galaxus.ch 🔵',  u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
-                   {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
-                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}],
-      bike:       [{n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`},
-                   {n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`}],
-      pets:       [{n:'Ricardo.ch 🛒',  u:(q)=>`https://www.ricardo.ch/de/search?searchtext=${encodeURIComponent(q)}`},
+      // tech: Swiss electronics specialists (MediaMarkt+Digitec already in localStores)
+      tech:       [{n:'Interdiscount.ch ⚡', u:()=>`https://www.interdiscount.ch/de`},
                    {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`}],
+      // appliances: Swiss appliance specialists (Galaxus+Digitec already in localStores)
+      appliances: [{n:'Interdiscount.ch ⚡', u:()=>`https://www.interdiscount.ch/de/haushalt--c620`},
+                   {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`}],
+      // home/DIY: specialists not in localStores (Bauhaus+HORNBACH already there)
+      home:       [{n:'OBI.ch 🟢',       u:(q)=>`https://www.obi.ch/search/${encodeURIComponent(q)}/`},
+                   {n:'Brack.ch 🟡',    u:(q)=>`https://www.brack.ch/search?query=${encodeURIComponent(q)}`}],
+      // garden: DIY/garden specialists (Bauhaus Garten+Landi already in localStores)
+      garden:     [{n:'HORNBACH.ch 🟠',  u:()=>`https://www.hornbach.ch/de/c/garten/S4035/`},
+                   {n:'OBI.ch 🟢',       u:(q)=>`https://www.obi.ch/search/${encodeURIComponent(q)}/`},
+                   {n:'Bauhaus.ch 🏗️',  u:(q)=>`https://www.bauhaus.ch/suche?q=${encodeURIComponent(q)}`}],
+      // bike: Swiss cycling specialists (Galaxus+Veloplus already in localStores)
+      bike:       [{n:'Velofactory.ch 🚲', u:()=>`https://www.velofactory.ch/bike-parts-from-switzerland`},
+                   {n:'Bikester.ch 🚴',  u:()=>`https://www.bikester.ch/`}],
+      // pets: specialist pet shops (Qualipet+Galaxus already in localStores)
+      pets:       [{n:'Fressnapf.ch 🐾', u:()=>`https://www.fressnapf.ch/de/`},
+                   {n:'Zooplus.ch 🐾',   u:()=>`https://www.zooplus.ch/`}],
     };
     const onlineStores = cc === 'CH'
       ? (CH_ONLINE[vType] || CH_ONLINE.home)                    // category-specific Swiss stores
