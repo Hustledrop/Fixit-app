@@ -352,8 +352,7 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
-      {n:"Qualipet 🐾",u:(q)=>`https://www.qualipet.ch/suche?term=${encodeURIComponent(q)}`},
-      {n:"Galaxus 🔵",u:(q)=>`https://www.galaxus.ch/search?query=${encodeURIComponent(q)}`},
+      {n:"Qualipet 🐾",u:()=>`https://www.qualipet.ch/de/hunde/`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GB:[

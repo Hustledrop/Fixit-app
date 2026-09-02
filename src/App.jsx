@@ -3070,8 +3070,8 @@ export default function App() {
       bike:       [{n:'Velofactory.ch 🚲', u:()=>`https://www.velofactory.ch/bike-parts-from-switzerland`},
                    {n:'Bikester.ch 🚴',  u:()=>`https://www.bikester.ch/`}],
       // pets: specialist pet shops (Qualipet+Galaxus already in localStores)
-      pets:       [{n:'Fressnapf.ch 🐾', u:()=>`https://www.fressnapf.ch/de/`},
-                   {n:'Zooplus.ch 🐾',   u:()=>`https://www.zooplus.ch/`}],
+      pets:       [{n:'Fressnapf.ch 🐾', u:(q)=>`https://www.fressnapf.ch/de/search?q=${encodeURIComponent(q)}`},
+                   {n:'Zooplus.ch 🐾',   u:(q)=>`https://www.zooplus.ch/search/results?q=${encodeURIComponent(q)}`}],
     };
     const onlineStores = cc === 'CH'
       ? (CH_ONLINE[vType] || CH_ONLINE.home)                    // category-specific Swiss stores
