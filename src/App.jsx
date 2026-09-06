@@ -1171,6 +1171,17 @@ export default function App() {
       return alreadyHasVehicle ? q : `${vPrefix} ${q}`;
     }
 
+    // ── PRIMARY PATH: use server-derived searchTerm (clean product noun, no action words)
+    // The server strips "Ersatz", "Reparatur", "ersetzen", vehicle context, etc.
+    // Example: partsNeeded[0]="Pflasterstein Ersatz" → searchTerm="Pflasterstein"
+    const serverTerm = (result?.searchTerm || '').trim();
+    if (serverTerm && serverTerm.length > 1) {
+      // For car category, vehicle prefix is already included by server when vehicleCtx present
+      // For all other categories, use the clean term directly
+      return serverTerm;
+    }
+
+    // ── FALLBACK PATH: client-side extraction (used when server searchTerm is missing)
     if (parts.length > 0) {
       // First try smart extraction (handles "Kein Ersatzteil – nur Ladegerät" cases)
       const smart = extractSearchableProduct(parts[0], category);
