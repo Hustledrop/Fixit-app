@@ -493,8 +493,8 @@ const STORES = {
       {n:"OBI 🟡",u:(q)=>`https://www.obi.de/search/${encodeURIComponent(q)}/`,badge:"BEST"},
       // hornbach.de: /s/ confirmed 🟢
       {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.de/s/${encodeURIComponent(q)}`},
-      // bauhaus.info: 245 drills confirmed, no text search — category fallback 🟡
-      {n:"Bauhaus 🏗️",u:()=>`https://www.bauhaus.info/bohrmaschinen/c/10000161`},
+      // bauhaus.info: /search?q= confirmed from live page "Ähnliche Begriffe" links 🟢
+      {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.info/search?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     AT:[
@@ -502,8 +502,8 @@ const STORES = {
       {n:"OBI 🟡",u:(q)=>`https://www.obi.at/search/${encodeURIComponent(q)}/`,badge:"BEST"},
       // hornbach.at: /s/ confirmed 🟢
       {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.at/s/${encodeURIComponent(q)}`},
-      // bauhaus.at: same platform as .info — category fallback 🟡
-      {n:"Bauhaus 🏗️",u:()=>`https://www.bauhaus.at/bohrmaschinen/c/10000161`},
+      // bauhaus.at: same platform as .info, /search?q= confirmed 🟢
+      {n:"Bauhaus 🏗️",u:(q)=>`https://www.bauhaus.at/search?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
@@ -635,7 +635,7 @@ const STORES = {
       {n:"Pevex 🏗️",u:()=>`https://www.pevex.hr/zeljeznarija/elektricni-rucni-alat`,badge:"BEST"},
       // leroymerlin.hr: confirmed search URL 🟢
       {n:"Leroy Merlin HR 🟢",u:(q)=>`https://www.leroymerlin.hr/pretraga?q=${encodeURIComponent(q)}`},
-      {n:"Bauhaus HR 🏗️",u:()=>`https://www.bauhaus.hr/bohrmaschinen/c/10000161`},
+      {n:"Bauhaus HR 🏗️",u:(q)=>`https://www.bauhaus.hr/search?q=${encodeURIComponent(q)}`},
     ],
     DEFAULT:[
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
@@ -804,8 +804,8 @@ const STORES = {
       {n:"HORNBACH 🟠",u:(q)=>`https://www.hornbach.de/s/${encodeURIComponent(q)}`},
       // dehner.de: /search?q= confirmed from live page Sep 2026 🟢
       {n:"Dehner 🌱",u:(q)=>`https://www.dehner.de/search?q=${encodeURIComponent(q)}`},
-      // bauhaus.info: lawn mowers confirmed — category fallback 🟡
-      {n:"Bauhaus Garten 🏗️",u:()=>`https://www.bauhaus.info/rasenmaeher/c/10001297`},
+      // bauhaus.info: /search?q= confirmed — dynamic search for any garden query 🟢
+      {n:"Bauhaus Garten 🏗️",u:(q)=>`https://www.bauhaus.info/search?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     AT:[
@@ -943,8 +943,8 @@ const STORES = {
     HR:[
       // pevex.hr: garden section confirmed — category fallback 🟡
       {n:"Pevex 🌿",u:()=>`https://www.pevex.hr/vrt-i-sezona/`,badge:"BEST"},
-      // bauhaus.hr: garden section 🟡
-      {n:"Bauhaus HR 🌱",u:()=>`https://www.bauhaus.hr/rasenmaeher/c/10001297`},
+      // bauhaus.hr: same platform, /search?q= confirmed 🟢
+      {n:"Bauhaus HR 🌱",u:(q)=>`https://www.bauhaus.hr/search?q=${encodeURIComponent(q)}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     DEFAULT:[
@@ -1110,21 +1110,21 @@ const STORES = {
   },
   bike: {
     DE:[
-      // bike24.com: "Best German Bike Shop 2026" 5th year, disc brake pads confirmed 🟡
-      {n:"Bike24 🚲",u:()=>`https://www.bike24.com/cycling/parts/bike-brakes/disc-brake-pads`,badge:"TOP"},
-      // fahrrad-xxl.de: brake pads category confirmed 🟡
-      {n:"Fahrrad XXL 🏪",u:()=>`https://www.fahrrad-xxl.de/fahrradteile/bremsen-und-zubehoer/bremsbelaege/`},
-      // rosebikes.com: 110 years, Bocholt DE — disc brake pads confirmed 🟡
-      {n:"ROSE Bikes 🌹",u:()=>`https://www.rosebikes.com/bike-parts/brakes/disc-brake-pads`},
-      // bike-discount.de: Shimano, Avid confirmed 🟡
-      {n:"Bike-Discount 💰",u:()=>`https://www.bike-discount.de/de/belaege_scheibenbremse_mtb`},
+      // bike24.com: "Best German Bike Shop 2026" 5th year — all bike parts 🟡
+      {n:"Bike24 🚲",u:()=>`https://www.bike24.com/cycling/parts`,badge:"TOP"},
+      // fahrrad-xxl.de: all bike parts & components 🟡
+      {n:"Fahrrad XXL 🏪",u:()=>`https://www.fahrrad-xxl.de/fahrradteile/`},
+      // rosebikes.com: 110 years, Bocholt DE — all bike parts 🟡
+      {n:"ROSE Bikes 🌹",u:()=>`https://www.rosebikes.com/bike-parts`},
+      // bike-discount.de: all bike parts & components 🟡
+      {n:"Bike-Discount 💰",u:()=>`https://www.bike-discount.de/de/fahrradteile`},
       // decathlon.de: Ntt= confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.de/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     AT:[
-      // bike24 ships to AT, disc brake pads confirmed 🟡
-      {n:"Bike24 🚲",u:()=>`https://www.bike24.com/cycling/parts/bike-brakes/disc-brake-pads`,badge:"TOP"},
+      // bike24 ships to AT — all bike parts 🟡
+      {n:"Bike24 🚲",u:()=>`https://www.bike24.com/cycling/parts`,badge:"TOP"},
       // hervis.at: bike brakes confirmed — category fallback 🟡
       {n:"Hervis 🔵",u:()=>`https://www.hervis.at/shop/Sportwelten/Bike/Bremsen/c/3_rad_bremsen`},
       // decathlon.at: confirmed 🟢
@@ -1140,8 +1140,8 @@ const STORES = {
     GB:[
       // halfords.com: Sep 2 2026 confirmed bikes — category fallback 🟡
       {n:"Halfords 🔴",u:()=>`https://www.halfords.com/bikes/`,badge:"BEST"},
-      // wiggle.com: brake pads category confirmed 🟡
-      {n:"Wiggle 🚲",u:()=>`https://www.wiggle.com/cycle/bike-parts/brakes-and-shifters/brake-pads`},
+      // wiggle.com: all bike parts confirmed 🟡
+      {n:"Wiggle 🚲",u:()=>`https://www.wiggle.com/cycle/bike-parts`},
       // decathlon.co.uk: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.co.uk/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`},
       {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
@@ -1149,36 +1149,36 @@ const STORES = {
     FR:[
       // decathlon.fr: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.fr/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`,badge:"BEST"},
-      // alltricks.fr: "100% French bike specialist", brake pads confirmed 🟡
-      {n:"Alltricks 🚲",u:()=>`https://www.alltricks.fr/C-40656-plaquettes`},
-      // probikeshop.fr: FR cycling specialist — category fallback 🟡
-      {n:"Probikeshop 🔵",u:()=>`https://www.probikeshop.fr/c/freins-velo/plaquettes-de-frein/`},
+      // alltricks.fr: "100% French bike specialist" — all bike components 🟡
+      {n:"Alltricks 🚲",u:()=>`https://www.alltricks.fr/C-40583-composants-velo`},
+      // probikeshop.fr: FR cycling specialist — all bike parts 🟡
+      {n:"Probikeshop 🔵",u:()=>`https://www.probikeshop.fr/c/pieces-velo/`},
       {n:"Amazon.fr 📦",u:(q)=>`https://www.amazon.fr/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     IT:[
       // decathlon.it: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.it/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`,badge:"BEST"},
-      // alltricks.it: ships to IT, brake pads confirmed 🟡
-      {n:"Alltricks 🚲",u:()=>`https://www.alltricks.it/C-40656-plaquettes`},
+      // alltricks.it: ships to IT — all bike components 🟡
+      {n:"Alltricks 🚲",u:()=>`https://www.alltricks.it/C-40583-composants-velo`},
       {n:"Amazon.it 📦",u:(q)=>`https://www.amazon.it/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     ES:[
       // decathlon.es: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.es/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`,badge:"BEST"},
-      // alltricks.es: ships to ES, brake pads confirmed 🟡
-      {n:"Alltricks 🚲",u:()=>`https://www.alltricks.es/C-40656-plaquettes`},
+      // alltricks.es: ships to ES — all bike components 🟡
+      {n:"Alltricks 🚲",u:()=>`https://www.alltricks.es/C-40583-composants-velo`},
       {n:"Amazon.es 📦",u:(q)=>`https://www.amazon.es/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     PL:[
       // decathlon.pl: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.pl/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`,badge:"BEST"},
-      // centrumrowerowe.pl: PL bike specialist, brake pads confirmed 🟡
-      {n:"CentrumRowerowe 🚲",u:()=>`https://www.centrumrowerowe.pl/hamulce/klocki-hamulcowe/`},
+      // centrumrowerowe.pl: PL bike specialist, all brakes section 🟡
+      {n:"CentrumRowerowe 🚲",u:()=>`https://www.centrumrowerowe.pl/hamulce/`},
       {n:"Allegro 🛒",u:(q)=>`https://allegro.pl/listing?string=${encodeURIComponent(q)}`},
     ],
     NL:[
-      // mantel.com: "NL's largest bike store", remblokken confirmed 🟡
-      {n:"Mantel 🚲",u:()=>`https://www.mantel.com/remblokken`,badge:"BEST"},
+      // mantel.com: "NL's largest bike store", fietsonderdelen (all bike parts) confirmed 🟡
+      {n:"Mantel 🚲",u:()=>`https://www.mantel.com/fietsonderdelen`,badge:"BEST"},
       // decathlon.nl: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.nl/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
@@ -1186,8 +1186,8 @@ const STORES = {
     BE:[
       // decathlon.be: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.be/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`,badge:"BEST"},
-      // bikerepublic.be: BE bike specialist, remblokken confirmed 🟡
-      {n:"Bike Republic 🚲",u:()=>`https://www.bikerepublic.be/remblokken/`},
+      // mantel.com: fietsonderdelen (all bike parts) confirmed — ships to BE 🟡
+      {n:"Mantel 🚲",u:()=>`https://www.mantel.com/fietsonderdelen`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     SE:[
@@ -1205,10 +1205,8 @@ const STORES = {
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     DK:[
-      // cykelpartner.dk: 35 years, 13 DK stores confirmed 🟡
-      {n:"Cykelpartner 🚲",u:()=>`https://www.cykelpartner.dk/cykeldaek`,badge:"BEST"},
-      // thansen.dk: bike brake pads confirmed 🟡
-      {n:"thansen 🔵",u:()=>`https://www.thansen.dk/cykel/reservedele/bremsedele/bremsesko-bremseklodser/n-1351316082`},
+      // thansen.dk: "Cykler, cykeldele og cykeltilbehør" — all cycling 🟡
+      {n:"thansen 🔵",u:()=>`https://www.thansen.dk/cykel/n297284770`,badge:"BEST"},
       // decathlon.dk: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.dk/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`},
     ],
@@ -1237,8 +1235,8 @@ const STORES = {
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.com.tr/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`},
     ],
     AU:[
-      // 99bikes.com.au: AU #1 cycling Mar 2026 — Shopify-inferred 🟡
-      {n:"99 Bikes 🚲",u:()=>`https://www.99bikes.com.au/components/brakes`,badge:"BEST"},
+      // 99bikes.com.au: AU #1 cycling Mar 2026 — all components 🟡
+      {n:"99 Bikes 🚲",u:()=>`https://www.99bikes.com.au/components`,badge:"BEST"},
       // decathlon.com.au: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.com.au/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`},
       {n:"Amazon.com.au 📦",u:(q)=>`https://www.amazon.com.au/s?k=${encodeURIComponent(q)}`},
@@ -1268,8 +1266,8 @@ const STORES = {
     HR:[
       // decathlon.hr: confirmed 🟢
       {n:"Decathlon 🏃",u:(q)=>`https://www.decathlon.hr/search?Ntt=${encodeURIComponent(q.split(' ').slice(-2).join(' '))}`,badge:"BEST"},
-      // ciklo-centar.hr: HR bike specialist, brake pads confirmed 🟡
-      {n:"Ciklo Centar 🚲",u:()=>`https://ciklo-centar.hr/dijelovi/kocnice/kocioni-ulozak/`},
+      // ciklo-centar.hr: HR bike specialist — all bike parts 🟡
+      {n:"Ciklo Centar 🚲",u:()=>`https://ciklo-centar.hr/dijelovi/`},
     ],
     DEFAULT:[
       {n:"Amazon 📦",u:(q)=>`https://www.amazon.com/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
@@ -1327,15 +1325,15 @@ const STORES = {
     NL:[
       // fc-moto.de: confirmed 🟢
       {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/en-en/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
-      // louis.nl: "Europe's No.1 motorcycle spare parts" — category fallback 🟡
-      {n:"Louis 🔧",u:()=>`https://www.louis.nl/en/catalog/motorcycle-brake-pads`,types:["road","scooter"]},
+      // louis.nl: "Europe's No.1 motorcycle spare parts" — all service parts 🟡
+      {n:"Louis 🔧",u:()=>`https://www.louis.eu/en/catalog/motorcycle-service-parts`,types:["road","scooter"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     BE:[
       // fc-moto.de: confirmed 🟢
       {n:"FC-Moto 🏍️",u:(q)=>`https://www.fc-moto.com/en-en/?search=${encodeURIComponent(q)}`,badge:"BEST",types:["road","scooter","mx"]},
-      // louis.eu: ships to BE — category fallback 🟡
-      {n:"Louis 🔧",u:()=>`https://www.louis.eu/en/catalog/motorcycle-brake-pads`,types:["road","scooter"]},
+      // louis.eu: ships to BE — all motorcycle service parts 🟡
+      {n:"Louis 🔧",u:()=>`https://www.louis.eu/en/catalog/motorcycle-service-parts`,types:["road","scooter"]},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     SE:[
