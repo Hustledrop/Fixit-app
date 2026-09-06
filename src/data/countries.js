@@ -179,22 +179,22 @@ const STORES = {
   car: {
     DE:[
       // autodoc.de: "Largest European online car parts", Jun-Jul 2026 confirmed — category fallback (vehicle-selector primary) 🟡
-      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.de/autoteile/bremsbelag-10130`},
+      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.de/autoteile/`},
       // kfzteile24.de: 3M+ auto parts confirmed — category fallback 🟡
-      {n:"KFZTeile24 🔩",u:()=>`https://www.kfzteile24.de/ersatzteile-verschleissteile/bremsanlage/bremsbelaege`},
+      {n:"KFZTeile24 🔩",u:()=>`https://www.kfzteile24.de/ersatzteile-verschleissteile/`},
       // atp-autoteile.de: ATE, Brembo, TRW confirmed — category fallback 🟡
-      {n:"ATP Autoteile 🔩",u:()=>`https://www.atp-autoteile.de/de/search/n-243/bremsbelaege`},
+      {n:"ATP Autoteile 🔩",u:()=>`https://www.atp-autoteile.de/de/`},
       // mister-auto.de: 300,000+ parts confirmed — category fallback 🟡
-      {n:"Mister-Auto 🔧",u:()=>`https://www.mister-auto.de/bremsscheiben/`},
+      {n:"Mister-Auto 🔧",u:()=>`https://www.mister-auto.de/`},
       // bandel-online.de: 200,000 parts, 12,000+ brake sets — category fallback (vehicle-selector) 🟡
-      {n:"Bandel 🔩",u:()=>`https://www.bandel-online.de/bremsanlage/bremsbelaege-scheibenbremse.html`},
+      {n:"Bandel 🔩",u:()=>`https://www.bandel-online.de/`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     AT:[
       // forstinger.com: Aug 2026 confirmed, car+bike+moto — category fallback 🟡
       {n:"Forstinger 🔧",u:()=>`https://www.forstinger.com/Produkte/AUTO/Autozubehoer/`},
       // autodoc.at: 7.8M products — category fallback (vehicle-selector) 🟡
-      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.at/autoteile/bremsbelag-10130`},
+      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.at/autoteile/`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     CH:[
@@ -204,49 +204,49 @@ const STORES = {
     ],
     GB:[
       // eurocarparts.com: "UK's #1 car parts", 250+ stores — category fallback 🟡
-      {n:"Euro Car Parts 🔧",u:()=>`https://www.eurocarparts.com/brake-pads`,badge:"BEST"},
+      {n:"Euro Car Parts 🔧",u:()=>`https://www.eurocarparts.com/car-parts`,badge:"BEST"},
       // halfords.com: Jul 29 2026 confirmed, also UK #1 bike retailer — category fallback 🟡
-      {n:"Halfords 🔴",u:()=>`https://www.halfords.com/motoring/car-parts/brakes/brake-pads/`},
+      {n:"Halfords 🔴",u:()=>`https://www.halfords.com/motoring/car-parts/`},
       {n:"Amazon.co.uk 📦",u:(q)=>`https://www.amazon.co.uk/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     FR:[
       // oscaro.com: "1M+ parts, French leader" — category fallback (vehicle-selector) 🟡
-      {n:"Oscaro 🔧",u:()=>`https://www.oscaro.com/freinage-702551-c`},
+      {n:"Oscaro 🔧",u:()=>`https://www.oscaro.com/`},
       // auto-doc.fr: AUTODOC FR domain — category fallback 🟡
-      {n:"Auto-Doc.fr 🔧",u:()=>`https://www.auto-doc.fr/autoteile/bremsbelag-10130`},
+      {n:"Auto-Doc.fr 🔧",u:()=>`https://www.auto-doc.fr/autoteile/`},
       {n:"Amazon.fr 📦",u:(q)=>`https://www.amazon.fr/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     IT:[
       // auto-doc.it: AUTODOC IT domain — category fallback 🟡
-      {n:"Auto-Doc.it 🔧",u:()=>`https://www.auto-doc.it/autoteile/bremsbelag-10130`},
+      {n:"Auto-Doc.it 🔧",u:()=>`https://www.auto-doc.it/autoteile/`},
       // norauto.it: Mobivia Group — category fallback 🟡
       {n:"Norauto 🔧",u:()=>`https://www.norauto.it/e/ricambi-auto.html`},
       {n:"Amazon.it 📦",u:(q)=>`https://www.amazon.it/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     ES:[
       // autodoc.es: 6.7M products — category fallback 🟡
-      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.es/autoteile/bremsbelag-10130`},
+      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.es/autoteile/`},
       // norauto.es: Mobivia Group — category fallback 🟡
       {n:"Norauto 🔧",u:()=>`https://www.norauto.es/e/recambios-auto.html`},
       {n:"Amazon.es 📦",u:(q)=>`https://www.amazon.es/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     PL:[
       // autodoc.pl: confirmed — category fallback 🟡
-      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.pl/autoteile/bremsbelag-10130`},
+      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.pl/autoteile/`},
       {n:"Allegro 🛒",u:(q)=>`https://allegro.pl/listing?string=${encodeURIComponent(q)}`},
     ],
     NL:[
       // bol.com: confirmed search URL 🟢
       {n:"Bol.com 🟠",u:(q)=>`https://www.bol.com/nl/nl/s/?searchtext=${encodeURIComponent(q)}`,badge:"BEST"},
       // autodoc.nl: vehicle-selector — category fallback 🟡
-      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.nl/autoteile/bremsbelag-10130`},
+      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.nl/autoteile/`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     BE:[
       // bol.com BE: confirmed search URL 🟢
       {n:"Bol.com 🟠",u:(q)=>`https://www.bol.com/be/nl/s/?searchtext=${encodeURIComponent(q)}`,badge:"BEST"},
       // auto5.be: Norauto Group BE — category fallback 🟡
-      {n:"Auto5 🔧",u:()=>`https://www.auto5.be/nl/c/48113-remmen.html`},
+      {n:"Auto5 🔧",u:()=>`https://www.auto5.be/nl/c/auto-onderdelen.html`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     SE:[
@@ -260,7 +260,7 @@ const STORES = {
       // biltema.no: confirmed category 🟡
       {n:"Biltema 🔧",u:()=>`https://www.biltema.no/bil-og-mc/`},
       // autodoc.no: platform-confirmed — category fallback 🟡
-      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.no/autoteile/bremsbelag-10130`},
+      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.no/autoteile/`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     DK:[
@@ -274,7 +274,7 @@ const STORES = {
       // motonet.fi: "Autoilevan ihmisen tavaratalo" — category fallback 🟡
       {n:"Motonet 🔧",u:()=>`https://www.motonet.fi/tuoteryhmat/autotarvikkeet/`},
       // autodoc.fi: platform-confirmed — category fallback 🟡
-      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.fi/autoteile/bremsbelag-10130`},
+      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.fi/autoteile/`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     GR:[
@@ -286,7 +286,7 @@ const STORES = {
       // norauto.pt: 70,000+ references, Mobivia Group — category fallback 🟡
       {n:"Norauto 🔧",u:()=>`https://www.norauto.pt/e/pecas-auto.html`,badge:"BEST"},
       // auto-doc.pt: AUTODOC PT domain — category fallback 🟡
-      {n:"Auto-Doc.pt 🔧",u:()=>`https://www.auto-doc.pt/autoteile/bremsbelag-10130`},
+      {n:"Auto-Doc.pt 🔧",u:()=>`https://www.auto-doc.pt/autoteile/`},
       {n:"Amazon.es 📦",u:(q)=>`https://www.amazon.es/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     TR:[
@@ -326,7 +326,7 @@ const STORES = {
       // webshop.tokic.hr: "Largest HR auto parts", 300,000+ parts — category fallback 🟡
       {n:"Tokić 🔧",u:()=>`https://webshop.tokic.hr/t/dodatna-oprema`,badge:"BEST"},
       // autodoc.hr: platform-confirmed — category fallback 🟡
-      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.hr/autoteile/bremsbelag-10130`},
+      {n:"AUTODOC 🔧",u:()=>`https://www.autodoc.hr/autoteile/`},
       {n:"Amazon.de 📦",u:(q)=>`https://www.amazon.de/s?tag=fixitapp-20&k=${encodeURIComponent(q)}`},
     ],
     DEFAULT:[

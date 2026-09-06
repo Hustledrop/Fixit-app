@@ -456,9 +456,11 @@ module.exports = async function handler(req, res) {
       ...(intelligentParts ? [
         `DETECTED VEHICLE: ${[vehicleCtx.year, vehicleCtx.make, vehicleCtx.model, vehicleCtx.generation, vehicleCtx.engine].filter(Boolean).join(' ')}.`,
         `partsNeeded REQUIRED: You MUST use EXACTLY this pre-computed list as your partsNeeded array. Do not change it, do not add generic alternatives, do not modify the order: ${JSON.stringify(intelligentParts)}. These are vehicle-specific search suggestions generated from a fitment knowledge base. Copy them exactly into the partsNeeded field.`,
+        `searchTerm: the OPTIMIZED RETAILER SEARCH QUERY for the PRIMARY PRODUCT the user actually needs from this diagnosis (NOT a brake pad unless brakes are the diagnosed problem). Identify the core product: battery → "Autobatterie 70Ah"; brake pads → "Bremsbeläge"; spark plugs → "Zündkerzen"; wiper blades → "Scheibenwischer". Include essential specs (Ah, V, size) but EXCLUDE vehicle identity (make/model/year) — those are compatibility context. Write in ${lang2}. 1–4 words. No action words (Ersatz, repair, broken).`,
       ] : vehicleCtx ? [
         `DETECTED VEHICLE: ${[vehicleCtx.year, vehicleCtx.make, vehicleCtx.model, vehicleCtx.generation, vehicleCtx.engine].filter(Boolean).join(' ')}. Use this for vehicle-specific part search queries.`,
         `partsNeeded: 2–4 vehicle-specific buyable search terms. Write in ${lang2} (the UI/display language). Use concise buyable part names with brand where helpful (e.g. Bosch, NGK). No sentences. 2–5 words max.`,
+        `searchTerm: the OPTIMIZED RETAILER SEARCH QUERY for the PRIMARY PRODUCT the user actually needs. Identify the exact part: battery → "Autobatterie"; brakes → "Bremsbeläge"; oil filter → "Ölfilter". Include user-stated specs (e.g. "70Ah", "R134a"). EXCLUDE vehicle make/model/year (compatibility context, not part of product name). Write in ${lang2}. 1–4 words. No action words.`,
       ] : [
         `partsNeeded: 2–4 SHORT buyable PRODUCT NOUNS, 1–3 words each. Write in ${lang2}. RULES: product noun only — NO action words (Ersatz/replacement/repair/broken/ersetzen/für/for/pour/per/para/za/için). NEVER invent brand/model/size not stated by the user. Preserve user-stated specs (e.g. "Batterie 12V"). No sentences.`,
         `searchTerm: the single OPTIMIZED RETAILER SEARCH QUERY for the primary product the user needs. Write in ${lang2} (the market/commerce language). This is what a user would type into a hardware, electronics, or specialist store search box to find the exact product. SEMANTIC RULES — include: (1) the exact product/part name, (2) brand if stated and relevant to the product (not just context), (3) model/type if it identifies the product itself (e.g. "Shimano Deore"), (4) technical specs that are essential search attributes (e.g. voltage, Ah, size) — BUT only if the user stated them or if they identify the specific product variant needed. EXCLUDE: (a) action/problem words — never include Ersatz, Reparatur, ersetzen, kaputt, replacement, repair, broken, defekt, new, neu, reparieren; (b) vehicle/device context that is compatibility info, not part of the product name itself — e.g. "für Toyota Corolla", "für Bosch Waschmaschine", "für iPhone 15"; (c) user symptoms — "läuft nicht", "broken", "kaputt". EXAMPLES by category — Home: "Pflasterstein Ersatz" → "Pflasterstein"; "Türdichtung Kühlschrank 55cm" → "Türdichtung Kühlschrank 55cm". Garden: "Bosch 18V Rasenmäher reparieren" → "Bosch 18V Rasenmäher". Bike: "Shimano Deore Bremsbeläge defekt" → "Shimano Deore Bremsbeläge". Car: "Autobatterie 70Ah für Toyota Corolla" → "Autobatterie 70Ah". Pets: "getreidefreies Hundefutter für Labrador" → "getreidefreies Hundefutter". Tech: "Samsung Galaxy S24 Display kaputt" → "Samsung Galaxy S24 Display". Appliances: "Bosch Serie 6 Waschmaschine Türdichtung" → "Bosch Serie 6 Türdichtung". Motorcycle: "Yamaha MT-07 Bremsbeläge" → "Bremsbeläge Yamaha MT-07". 1–5 words. No sentences.`,
@@ -679,55 +681,46 @@ module.exports = async function handler(req, res) {
     const aiSearchTerm = (parsed.searchTerm || '').trim();
     const rawPart0 = (Array.isArray(parsed.partsNeeded) ? parsed.partsNeeded[0] : '') || '';
 
-    // Minimal safety net — strip obvious action/problem suffixes the AI should
-    // never include, but occasionally does. These are never product attributes.
+    // Minimal safety net — strip obvious action/problem words that should never
+    // appear in a retailer search query regardless of AI output.
     const NEVER_IN_SEARCH = [
-      /\b(Ersatz|Ersatzteil|ersetzen|reparieren|Reparatur|kaputt|defekt|broken|repair|replacement|replace|broken|defective)\b/gi,
-      /\b(neu(?:er?|es|en)?|new)\s+(?=[A-ZÄÖÜ])/g,  // "neuer X" → strip "neuer " prefix only
-      /\s+(?:für|for|pour|per|para|za|için|til|for)\s+\S+.*$/i,  // trailing "für Toyota..." context
+      /\b(Ersatz|Ersatzteil|ersetzen|reparieren|Reparatur|kaputt|defekt|broken|repair|replacement|replace|defective)\b/gi,
+      /\b(neu(?:er?|es|en)?|new)\s+(?=[A-ZÄÖÜ])/g,  // "neuer X" → strip leading "neuer "
+      /\s+(?:für|for|pour|per|para|za|için|til)\s+\S+.*$/i,  // trailing compatibility context
     ];
 
-    let finalTerm = aiSearchTerm;
-
-    // If AI returned a searchTerm, apply only the safety net
-    if (finalTerm && finalTerm.length > 1) {
-      for (const pattern of NEVER_IN_SEARCH) {
-        finalTerm = finalTerm.replace(pattern, '').trim();
-      }
-      finalTerm = finalTerm.replace(/\s{2,}/g, ' ').trim();
+    function applySafetyNet(s) {
+      let t = (s || '').trim();
+      for (const pattern of NEVER_IN_SEARCH) t = t.replace(pattern, '').trim();
+      return t.replace(/\s{2,}/g, ' ').trim();
     }
 
-    // If AI returned empty or safety net wiped it out, derive from partsNeeded[0]
-    // using the same minimal safety net — we don't do deep parsing here,
-    // we trust the improved AI prompt to return clean partsNeeded entries.
-    if (!finalTerm || finalTerm.length < 2) {
-      let fallback = rawPart0;
-      for (const pattern of NEVER_IN_SEARCH) {
-        fallback = fallback.replace(pattern, '').trim();
-      }
-      fallback = fallback.replace(/\s{2,}/g, ' ').trim();
-      finalTerm = fallback || rawPart0.split(/\s+/).slice(0, 3).join(' ').trim();
+    let finalTerm = '';
+
+    // PATH 1: AI returned a valid searchTerm → trust it (apply safety net only)
+    if (aiSearchTerm && aiSearchTerm.length > 1) {
+      finalTerm = applySafetyNet(aiSearchTerm);
     }
 
-    // For vehicle category with context: ensure vehicle info is correctly handled.
-    // The AI already handles this semantically — "für Toyota Corolla" is stripped above,
-    // but "Autobatterie 70Ah" (product + spec) is kept.
-    // If intelligentParts pre-computed the partsNeeded, use that as the basis.
-    if (intelligentParts && cat === 'car' && vehicleCtx && !aiSearchTerm) {
-      // intelligentParts = ["VW Golf Bremsbeläge vorne", ...] — strip vehicle prefix for generic retailers
+    // PATH 2: AI returned empty → derive from intelligentParts (strips vehicle prefix)
+    if ((!finalTerm || finalTerm.length < 2) && intelligentParts && cat === 'car' && vehicleCtx) {
       const part = intelligentParts[0] || '';
       const vMake = (vehicleCtx.make || '').toLowerCase();
       const vModel = (vehicleCtx.model || '').split(' ')[0].toLowerCase();
-      // Extract just the part name by stripping known vehicle tokens
       const partWords = part.split(/\s+/).filter(w => {
         const wl = w.toLowerCase();
         return wl !== vMake && wl !== vModel && !/^\d{4}$/.test(w);
       });
-      if (partWords.length > 0) finalTerm = partWords.join(' ').trim();
+      if (partWords.length > 0) finalTerm = applySafetyNet(partWords.join(' ').trim());
+    }
+
+    // PATH 3: Fallback → use partsNeeded[0] with safety net
+    if (!finalTerm || finalTerm.length < 2) {
+      finalTerm = applySafetyNet(rawPart0) || rawPart0.split(/\s+/).slice(0, 3).join(' ').trim();
     }
 
     parsed.searchTerm = finalTerm;
-    console.log('[FixIt] searchTerm: ai=%s → final=%s', (aiSearchTerm||'').slice(0,60), finalTerm.slice(0,60));
+    console.log('[FixIt] searchTerm: ai="%s" → final="%s"', (aiSearchTerm||'').slice(0,60), finalTerm.slice(0,60));
   }
 
   // ── Ensure proSearchQuery is device-specific, not generic ────────────────
