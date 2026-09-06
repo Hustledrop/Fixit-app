@@ -455,8 +455,9 @@ module.exports = async function handler(req, res) {
       `Be specific and expert, but concise. Name the exact component and real tool names. Diagnosis max 2 short sentences. Max 4 causes. Max 4 steps. Each step description max 2 short sentences. Each tip max 1 short sentence. Avoid advanced technician-only explanations unless absolutely necessary. Keep JSON compact and valid.`,
       ...(intelligentParts ? [
         `DETECTED VEHICLE: ${[vehicleCtx.year, vehicleCtx.make, vehicleCtx.model, vehicleCtx.generation, vehicleCtx.engine].filter(Boolean).join(' ')}.`,
-        `partsNeeded REQUIRED: You MUST use EXACTLY this pre-computed list as your partsNeeded array. Do not change it, do not add generic alternatives, do not modify the order: ${JSON.stringify(intelligentParts)}. These are vehicle-specific search suggestions generated from a fitment knowledge base. Copy them exactly into the partsNeeded field.`,
-        `searchTerm: the OPTIMIZED RETAILER SEARCH QUERY for the PRIMARY PRODUCT the user actually needs from this diagnosis (NOT a brake pad unless brakes are the diagnosed problem). Identify the core product: battery → "Autobatterie 70Ah"; brake pads → "Bremsbeläge"; spark plugs → "Zündkerzen"; wiper blades → "Scheibenwischer". Include essential specs (Ah, V, size) but EXCLUDE vehicle identity (make/model/year) — those are compatibility context. Write in ${lang2}. 1–4 words. No action words (Ersatz, repair, broken).`,
+        `DIAGNOSED PART TYPE: ${partType}. Pre-computed vehicle-specific parts: ${JSON.stringify(intelligentParts)}.`,
+        `partsNeeded REQUIRED: You MUST use EXACTLY this pre-computed list as your partsNeeded array. Do not change it, do not add generic alternatives, do not modify the order: ${JSON.stringify(intelligentParts)}. Copy them exactly into the partsNeeded field.`,
+        `searchTerm: the OPTIMIZED GENERIC RETAILER SEARCH QUERY for the diagnosed part. RULES: (1) Use the canonical product name in ${lang2} — for "battery" use "Autobatterie", "brakes" → "Bremsbeläge", "sparkplugs" → "Zündkerzen", "wipers" → "Scheibenwischer", "oilfilter" → "Ölfilter", "clutch" → "Kupplungssatz", "shocks" → "Stoßdämpfer", "belt" → "Zahnriemen". (2) Include product TYPE if it narrows the product (AGM, EFB, ceramic). (3) Include capacity/spec (Ah, V) if relevant and available from the pre-computed parts. (4) EXCLUDE vehicle make/model/generation/year — those identify the vehicle, not the product. EXAMPLES: partType=battery, AGM, 80Ah → "AGM Autobatterie 80Ah"; partType=brakes → "Bremsbeläge"; partType=sparkplugs, diesel → "Glühkerzen"; partType=wipers → "Scheibenwischer". Write in ${lang2}. 1–5 words. No action words.`,
       ] : vehicleCtx ? [
         `DETECTED VEHICLE: ${[vehicleCtx.year, vehicleCtx.make, vehicleCtx.model, vehicleCtx.generation, vehicleCtx.engine].filter(Boolean).join(' ')}. Use this for vehicle-specific part search queries.`,
         `partsNeeded: 2–4 vehicle-specific buyable search terms. Write in ${lang2} (the UI/display language). Use concise buyable part names with brand where helpful (e.g. Bosch, NGK). No sentences. 2–5 words max.`,
@@ -702,16 +703,52 @@ module.exports = async function handler(req, res) {
       finalTerm = applySafetyNet(aiSearchTerm);
     }
 
-    // PATH 2: AI returned empty → derive from intelligentParts (strips vehicle prefix)
+    // PATH 2: AI returned empty → derive from partType + intelligentParts (strips ALL vehicle tokens)
+    // Uses canonical product names (Autobatterie, Bremsbeläge, etc.) + preserves type/spec
     if ((!finalTerm || finalTerm.length < 2) && intelligentParts && cat === 'car' && vehicleCtx) {
+      // Canonical product names per partType — what a generic retailer search should use
+      const PART_CANONICAL = {
+        battery:    'Autobatterie', brakes:     'Bremsbeläge',
+        sparkplugs: 'Zündkerzen',   glowplugs:  'Glühkerzen',
+        oilfilter:  'Ölfilter',     airfilter:  'Luftfilter',
+        wipers:     'Scheibenwischer', clutch:   'Kupplungssatz',
+        shocks:     'Stoßdämpfer',  belt:       'Zahnriemen',
+      };
+      // All vehicle identity tokens to strip (make, model words, generation, year, engine codes)
+      const vTokens = new Set([
+        ...(vehicleCtx.make   ? [vehicleCtx.make.toLowerCase()] : []),
+        ...(vehicleCtx.model  ? vehicleCtx.model.toLowerCase().split(/\s+/) : []),
+        ...(vehicleCtx.generation ? [vehicleCtx.generation.toLowerCase()] : []),
+        ...(vehicleCtx.year   ? [vehicleCtx.year] : []),
+        ...(vehicleCtx.engine ? vehicleCtx.engine.toLowerCase().split(/[\s./]+/) : []),
+      ]);
+      // Spec/type words to KEEP from intelligentParts[0] (e.g. AGM, EFB, 80Ah, 70Ah)
       const part = intelligentParts[0] || '';
-      const vMake = (vehicleCtx.make || '').toLowerCase();
-      const vModel = (vehicleCtx.model || '').split(' ')[0].toLowerCase();
-      const partWords = part.split(/\s+/).filter(w => {
+      const specWords = part.split(/\s+/).filter(w => {
         const wl = w.toLowerCase();
-        return wl !== vMake && wl !== vModel && !/^\d{4}$/.test(w);
+        // Keep if: not a vehicle token, not a bare brand/part name that matches canonical
+        if (vTokens.has(wl)) return false;
+        if (/^\d{4}$/.test(w)) return false; // 4-digit years
+        // Keep spec tokens: Ah capacities, AGM, EFB, type designators
+        if (/^\d+[\-–]\d+(ah)?$/i.test(w)) return true; // "60-70Ah", "60–70Ah"
+        if (/^\d+(ah|v|w|a)$/i.test(w)) return true;     // "80Ah", "12V"
+        if (/^(agm|efb|gel|lifepo4|start.?stop)$/i.test(w)) return true;
+        // Drop if it's the bare product noun (Batterie, Bremsbeläge) — canonical replaces it
+        if (/^(batterie|bremsbeläge|bremsbelag|zündkerzen|glühkerzen|ölfilter|luftfilter|scheibenwischer|kupplungssatz|stoßdämpfer|zahnriemen|bremsscheib|bremsscheiben|satz)$/i.test(w)) return false;
+        // Drop common brand names from partsNeeded that aren't type specs
+        if (/^(varta|bosch|brembo|trw|ngk|mann|mahle|sachs|luk|valeo|bilstein|kyb|gates|contitech|exide|banner)$/i.test(w)) return false;
+        return false; // default: drop other words (avoid leaking model codes like "F30")
       });
-      if (partWords.length > 0) finalTerm = applySafetyNet(partWords.join(' ').trim());
+      const canonical = PART_CANONICAL[partType] || '';
+      // Build ordered term: type qualifiers (AGM, EFB) → canonical noun → numeric specs (60Ah)
+      const typeWords = specWords.filter(w => /^(agm|efb|gel|lifepo4|start.?stop)$/i.test(w));
+      const numWords  = specWords.filter(w => /^\d/.test(w));
+      const termParts = [...typeWords, ...(canonical ? [canonical] : []), ...numWords].filter(Boolean);
+      if (termParts.length > 0) {
+        finalTerm = termParts.join(' ').trim();
+      } else if (canonical) {
+        finalTerm = canonical;
+      }
     }
 
     // PATH 3: Fallback → use partsNeeded[0] with safety net
