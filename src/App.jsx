@@ -3087,7 +3087,134 @@ export default function App() {
     const onlineStores = cc === 'CH'
       ? (CH_ONLINE[vType] || CH_ONLINE.home)                    // category-specific Swiss stores
       : getOnlineStores(cc);                                    // generic Amazon/eBay/Idealo per country
-    const localSearchTerm  = getLocalStoreSearch(vType, getMarketLang(cc)); // local Google Maps term — uses MARKET language, not UI language
+    // Build the Google Maps local-search query based on the ACTUAL product intent.
+    // Strategy: detect what kind of local business handles this product, using the
+    // searchQ term as primary signal and vType category only as a fallback/hint.
+    const baseLocalSearch = getLocalStoreSearch(vType, getMarketLang(cc));
+    const localSearchTerm = (() => {
+      const mLang = getMarketLang(cc);
+      const sq = (pResults?.searchQ || '').trim();
+      if (!sq) return baseLocalSearch;
+
+      // Helper: test full-word OR substring (handles German compound words)
+      const sqL = sq.toLowerCase();
+      function has(re) { return re.test(sq) || re.test(sqL); }
+      function hasSub(str) { return sqL.includes(str.toLowerCase()); }
+      const short = sq.split(/\s+/).slice(0, 3).join(' ');
+
+      // ── Intent groups in PRIORITY ORDER ──────────────────────────────────
+      // Bike before car (Shimano Bremsbeläge → bike, not car)
+      // Laptop before smartphone (Laptop Akku → laptop, not phone)
+      // Auto battery before generic auto parts
+      // Paints/coatings use substring matching (German compound words)
+
+      // 1. BICYCLE PARTS — before generic auto parts
+      if (has(/\b(fahrrad|bicycle|velo|vélo)\b/i) ||
+          has(/\b(shimano|sram|campagnolo|brooks|schwalbe)\b/i) ||
+          (has(/\b(bremsbeläge|bremse|kette|chain|schlauch|reifen|sattel|lenker|pedal|kassette|felge)\b/i) && vType === 'bike')) {
+        const q = { de:'Fahrradladen Fahrrad Ersatzteile', en:'bike shop bicycle parts', fr:'magasin vélo pièces', es:'tienda bicicletas repuestos', it:'negozio biciclette ricambi', pl:'sklep rowerowy części', nl:'fietswinkel onderdelen', tr:'bisiklet tamircisi', sv:'cykelaffär', no:'sykkelbutikk', da:'cykelbutik', fi:'pyöräliike osat', pt:'loja bicicletas', el:'κατάστημα ποδηλάτων', sr:'prodavnica bicikla', hr:'prodavaonica bicikala', mk:'продавница велосипеди' };
+        return q[mLang] || q.en;
+      }
+
+      // 2. MOTORCYCLE / SCOOTER PARTS — before generic auto parts
+      if (has(/\b(motorrad|motorcycle|scooter|roller|moped|ktm|ducati|kawasaki|harley|triumph)\b/i) ||
+          vType === 'moto' || vType === 'motorcycle') {
+        const q = { de:'Motorrad Ersatzteile Motorradhandel', en:'motorcycle parts shop', fr:'pièces moto scooter', es:'recambios moto scooter', it:'ricambi moto scooter', pl:'sklep motocyklowy', nl:'motorfiets onderdelen', tr:'motorsiklet yedek parça', sv:'motorcykeldelar', no:'motorsykkeldelar', da:'motorcykeldele', fi:'moottoripyörän varaosat', pt:'peças mota', el:'ανταλλακτικά μοτοσικλέτας', sr:'delovi za motocikl', hr:'dijelovi za motocikl', mk:'делови за мотоцикл' };
+        return q[mLang] || q.en;
+      }
+
+      // 3. LAPTOP / NOTEBOOK — before smartphone ("akku" and "display" are shared terms)
+      if (has(/\b(laptop|notebook|macbook|netbook)\b/i)) {
+        const q = { de:'Laptop Reparatur Ersatzteile', en:'laptop repair parts', fr:'réparation ordinateur portable', es:'reparación portátil', it:'riparazione laptop', pl:'naprawa laptopa', nl:'laptop reparatie', tr:'laptop tamircisi', sv:'laptopservice', no:'laptop reparasjon', da:'laptop reparation', fi:'kannettavan korjaus', pt:'reparação portátil', el:'επισκευή laptop', sr:'servis laptopa', hr:'servis laptopa', mk:'сервис лаптоп' };
+        return `${q[mLang] || q.en} ${short}`.trim();
+      }
+
+      // 4. SMARTPHONE / MOBILE REPAIR
+      if (has(/\b(smartphone|iphone|samsung galaxy|google pixel|huawei|xiaomi|oneplus)\b/i) ||
+          (has(/\b(display|screen|bildschirm|ladebuchse|charging.?port)\b/i) && vType === 'tech')) {
+        const q = { de:'Smartphone Reparatur', en:'phone repair parts', fr:'réparation téléphone', es:'reparación móvil', it:'riparazione smartphone', pl:'naprawa telefonu', nl:'smartphone reparatie', tr:'telefon tamircisi', sv:'mobilreparation', no:'mobil reparasjon', da:'mobil reparation', fi:'puhelinkorjaamo', pt:'reparação telemóvel', el:'επισκευή smartphone', sr:'servis telefona', hr:'servis telefona', mk:'сервис телефон' };
+        return `${q[mLang] || q.en} ${short}`.trim();
+      }
+
+      // 5. AUTOMOTIVE BATTERY (AGM / EFB / Autobatterie) — before generic auto parts
+      if (hasSub('agm') || hasSub('efb') || hasSub('autobatterie') ||
+          has(/\b(car.?battery|\d+ah.*(batterie|battery)|(batterie|battery).*\d+ah)\b/i)) {
+        const q = { de:'Autoteile Autobatterie', en:'car battery auto parts', fr:'batterie auto pièces auto', es:'batería coche repuestos', it:'batteria auto ricambi', pl:'akumulator samochodowy', nl:'auto accu autoonderdelen', tr:'araç aküsü oto parça', sv:'bilbatteri bildelsbutik', no:'bilbatteri bildeler', da:'bilbatteri bildele', fi:'auton akku autovaraosat', pt:'bateria auto peças', el:'μπαταρία αυτοκινήτου', sr:'akumulator auto delovi', hr:'akumulator auto dijelovi', mk:'акумулатор авто делови' };
+        return q[mLang] || q.en;
+      }
+
+      // 6. AUTOMOTIVE PARTS (general)
+      if (has(/\b(bremsbeläge|bremsbelag|bremsscheib|brake.?pad|ölfilter|luftfilter|oil.?filter|air.?filter|zündkerzen|spark.?plug|glühkerzen|glow.?plug|scheibenwischer|wiper.?blade|kupplung|clutch|stoßdämpfer|shock.?absorber|zahnriemen|timing.?belt|getriebe|gearbox|auspuff|exhaust|lenkung|steering|reifen|tyre|tire|achse|axle)\b/i) ||
+          vType === 'car') {
+        const q = { de:'KFZ Teile Ersatzteile', en:'auto parts store', fr:'magasin pièces auto', es:'tienda repuestos auto', it:'ricambi auto', pl:'sklep z częściami samochodowymi', nl:'autoonderdelen winkel', tr:'oto parça mağazası', sv:'bildelsbutik', no:'bildeler butikk', da:'bildele butik', fi:'autovaraosakauppa', pt:'loja peças auto', el:'κατάστημα ανταλλακτικών', sr:'prodavnica auto delova', hr:'prodavaonica auto dijelova', mk:'продавница авто делови' };
+        const base = q[mLang] || q.en;
+        if (sq.split(/\s+/).length <= 3) return `${base} ${sq}`.trim();
+        return base;
+      }
+
+      // 7. PAINTS, COATINGS & PROTECTIVE TREATMENTS (hasSub for compound words)
+      if (hasSub('grundierung') || hasSub('rostschutz') || hasSub('rust') ||
+          has(/\b(farbe|lack|paint|coating|versiegelung|primer|politur|polish|wachs|wax|epoxy|resin|kleber|adhesive|klebstoff|silikon|silicon|dichtstoff|sealant)\b/i)) {
+        const q = { de:'Baumarkt Farben Lacke', en:'hardware store paint supplies', fr:'quincaillerie peintures', es:'ferretería pinturas', it:'ferramenta vernici', pl:'sklep budowlany farby', nl:'bouwmarkt verf', tr:'yapı market boya', sv:'byggvaruhus färg', no:'byggvare farger', da:'byggemarked maling', fi:'rautakauppa maalit', pt:'ferragens tintas', el:'κατάστημα χρωμάτων', sr:'prodavnica boja', hr:'prodavaonica boja', mk:'продавница за бои' };
+        return q[mLang] || q.en;
+      }
+
+      // 8. CLEANING, LUBRICANTS & MAINTENANCE CHEMICALS
+      if (has(/\b(reiniger|cleaner|entfetter|degreaser|schmiermittel|lubricant|frostschutz|antifreeze|kühlmittel|coolant|bremsflüssigkeit|brake.?fluid|hydrauliköl|spray|waschmittel|detergent)\b/i)) {
+        const q = { de:'Baumarkt Kfz Zubehör', en:'hardware store supplies', fr:'quincaillerie produits entretien', es:'ferretería suministros', it:'ferramenta manutenzione', pl:'sklep budowlany', nl:'bouwmarkt onderhoud', tr:'yapı market malzeme', sv:'byggvaruhus tillbehör', no:'byggvare tilbehør', da:'byggemarked rekvisita', fi:'rautakauppa tarvikkeet', pt:'ferragens manutenção', el:'κατάστημα υλικών', sr:'prodavnica materijala', hr:'prodavaonica materijala', mk:'продавница материјали' };
+        return q[mLang] || q.en;
+      }
+
+      // 9. GARDEN MACHINERY PARTS & SERVICE (mowers, hedgecutters, chainsaws, etc.)
+      if (hasSub('rasenmäher') || hasSub('heckenschere') || hasSub('kettensäge') ||
+          hasSub('mähroboter') || hasSub('laubbläser') ||
+          has(/\b(lawn.?mower|robot.?mower|hedge.?(cutter|trimmer)|chainsaw|brush.?cutter|leaf.?blower|rasentraktor|vertikutierer|scarifier)\b/i) ||
+          (has(/\b(ersatzmesser|ersatzklinge|mähfaden|blade|messer|riemen)\b/i) && vType === 'garden')) {
+        const q = { de:'Gartengeräte Ersatzteile Service', en:'garden machinery parts service', fr:'pièces matériel jardinage', es:'repuestos maquinaria jardín', it:'ricambi macchine giardinaggio', pl:'części sprzętu ogrodniczego', nl:'tuinmachines onderdelen', tr:'bahçe makinesi yedek parça', sv:'trädgårdsmaskiner reservdelar', no:'hageredskaper reservedeler', da:'havemaskiner reservedele', fi:'puutarhakoneiden varaosat', pt:'peças máquinas jardim', el:'ανταλλακτικά κηπευτικών', sr:'rezervni delovi baštenska oprema', hr:'rezervni dijelovi vrtni strojevi', mk:'резервни делови за градина' };
+        return q[mLang] || q.en;
+      }
+
+      // 10. HOUSEHOLD APPLIANCE SPARE PARTS
+      if (hasSub('kühlschrank') || hasSub('waschmaschine') || hasSub('geschirrspüler') ||
+          hasSub('trockner') || hasSub('gefrierschrank') ||
+          has(/\b(refrigerator|fridge|washing.?machine|dishwasher|dryer|freezer)\b/i) ||
+          (has(/\b(dichtung|seal|pumpe|pump|heizung|schlauch|hose|lager|bearing|türdichtung|door.?seal)\b/i) && vType === 'appliances')) {
+        const q = { de:'Hausgeräte Ersatzteile', en:'appliance spare parts', fr:'pièces électroménager', es:'repuestos electrodomésticos', it:'ricambi elettrodomestici', pl:'części AGD', nl:'witgoed onderdelen', tr:'beyaz eşya yedek parça', sv:'reservdelar hushållsmaskiner', no:'reservedeler hvitevarer', da:'reservedele husholdningsapparater', fi:'kodinkoneiden varaosat', pt:'peças electrodomésticos', el:'ανταλλακτικά οικιακών', sr:'rezervni delovi aparata', hr:'rezervni dijelovi aparata', mk:'резервни делови апарати' };
+        const base = q[mLang] || q.en;
+        if (sq.split(/\s+/).length <= 4) return `${base} ${sq}`.trim();
+        return base;
+      }
+
+      // 11. GARDEN SUPPLIES (plants, soil, fertiliser)
+      if (has(/\b(pflanze|plant|samen|seed|substrat|dünger|fertilizer|pflanzenschutz|pestizid|herbizid|insektizid|fungizid|bewässerung|kompost|compost)\b/i) ||
+          (hasSub('erde') && vType === 'garden')) {
+        const q = { de:'Gartencenter Pflanzen', en:'garden center plant nursery', fr:'jardinerie pépinière', es:'centro jardinería', it:'centro giardinaggio', pl:'centrum ogrodnicze', nl:'tuincentrum', tr:'bahçe merkezi', sv:'trädgårdscenter', no:'hagesenter', da:'havecenter', fi:'puutarhakeskus', pt:'centro jardim', el:'κέντρο κήπου', sr:'vrtni centar', hr:'vrtni centar', mk:'градинарски центар' };
+        return q[mLang] || q.en;
+      }
+
+      // 12. PET FOOD & SUPPLIES
+      if (hasSub('hundefutter') || hasSub('katzenfutter') || hasSub('tierfutter') ||
+          has(/\b(pet.?food|dog.?food|cat.?food|tiernahrung|tierbedarf|aquarium|vogelfutter)\b/i)) {
+        const q = { de:'Zoohandlung Tierbedarf', en:'pet shop pet store', fr:'animalerie magasin animaux', es:'tienda mascotas', it:'negozio animali', pl:'sklep zoologiczny', nl:'dierenwinkel', tr:'evcil hayvan mağazası', sv:'djuraffär', no:'dyrebutikk', da:'dyrebutikk', fi:'lemmikkieläinkauppa', pt:'loja animais', el:'κατάστημα κατοικίδιων', sr:'prodavnica ljubimaca', hr:'prodavaonica ljubimci', mk:'продавница миленичиња' };
+        return q[mLang] || q.en;
+      }
+
+      // 13. GENERAL ELECTRONICS
+      if (has(/\b(elektronik|electronic|netzteil|power.?supply|ladegerät|charger|platine|circuit.?board|fernseher|monitor|drucker|printer|router|modem|akku)\b/i)) {
+        const q = { de:'Elektronik Reparatur Ersatzteile', en:'electronics repair parts', fr:'pièces électronique réparation', es:'electrónica reparación', it:'elettronica ricambi', pl:'elektronika serwis', nl:'elektronica reparatie', tr:'elektronik yedek parça', sv:'elektronikreparation', no:'elektronikk reparasjon', da:'elektronik reparation', fi:'elektroniikka korjaus', pt:'eletrónica reparação', el:'ηλεκτρονικά επισκευή', sr:'elektronika servis', hr:'elektronika servis', mk:'електроника сервис' };
+        return q[mLang] || q.en;
+      }
+
+      // 14. HOME IMPROVEMENT & HARDWARE — also fallback for home category
+      if (has(/\b(schraube|screw|nagel|nail|dübel|säge|bohrmaschine|drill|pflasterstein|fliese|tile|putz|mörtel|mortar|laminat|parkett|türgriff|schloss|lock|rohr|pipe|fitting|dichtung|hahn|tap|valve)\b/i) ||
+          vType === 'home') {
+        const q = { de:'Baumarkt Eisenwaren', en:'hardware store DIY shop', fr:'quincaillerie bricolage', es:'ferretería bricolaje', it:'ferramenta fai da te', pl:'sklep budowlany', nl:'bouwmarkt', tr:'yapı market', sv:'byggvaruhus', no:'byggvare', da:'byggemarked', fi:'rautakauppa', pt:'ferragens bricolage', el:'κατάστημα δομικών', sr:'prodavnica građevinskog', hr:'prodavaonica građevinski', mk:'продавница градежни' };
+        return q[mLang] || q.en;
+      }
+
+      // No intent matched → category base fallback
+      return baseLocalSearch;
+    })();
     const localMapsUrl     = mu(localSearchTerm);             // Google Maps search URL
     const ptCt = catTerms(vType, lang); // category-aware terms for parts screen
     const isPetParts = vType === 'pets';
