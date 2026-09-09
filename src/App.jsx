@@ -12,6 +12,8 @@ import { C, s, Spinner, NavBar, BackBtn, LangPicker, Screen, Scroll } from './co
 import { useAuth } from './useAuth.js';
 import { getAccessToken, resetPasswordForEmail, updatePassword } from './auth.js';
 import { AUTH_AVAILABLE, checkUsage, incrementUsage, restoreProStatus, sb as getSbClient } from './auth.js';
+import { isNativePlatform, isNativeBillingAvailable, initRevenueCat, purchasePro, restorePurchases, setCustomerInfoListener, reconcileNativeEntitlement, BillingError } from './billing/index.js';
+import { apiFetch } from './lib/api.js';
 
 // ── localStorage helpers (prefixed fixit_) ────────────────────────────────────
 const LS = {
@@ -262,7 +264,7 @@ export default function App() {
   const { lat, lng, city, country, geocodeErr, locStatus, requestLocation, resolveCountryIfNeeded, getCC } = useLocation();
   const { result: aiResult, loading: aiLoading, error: aiError, diagnose, reset: aiReset } = useAI();
   const { bizs, loading: bizLoading, error: bizError, stale: bizStale, fallback: bizFallback, fetchBiz } = useNearby();
-  const { user, profile: authProfile, isPro, authLoading, authEvent, login, signup, logout, refreshProfile } = useAuth();
+  const { user, profile: authProfile, isPro, authLoading, authEvent, login, signup, logout, refreshProfile, grantProOptimistic } = useAuth();
 
   const t   = useCallback(k => tx(lang, k), [lang]);
   // cc: used for Nearby, Parts, Maps URLs — language-informed country
@@ -304,6 +306,25 @@ export default function App() {
         if (savedFix)  setCurFix(f => f !== savedFix ? savedFix : f);
         // If we have a saved diagnosis and were on result screen, stay there
         // (screen is already set; just make sure we don't reset to splash)
+
+        // ── Native: reconcile RC entitlement on app foreground ─────────────────
+        // The RC Capacitor bridge does not guarantee the CustomerInfo listener fires
+        // automatically when the app returns to the foreground (the WebView lifecycle
+        // differs from a native UIViewController/Activity). Calling getCustomerInfo()
+        // explicitly here ensures renewals, expirations, and billing recoveries that
+        // happened while the app was backgrounded are reflected immediately.
+        //
+        // RULE: if RC says isPro → grant optimistically (RC is authoritative).
+        //       if RC says not Pro → do nothing here; revocation flows via webhook
+        //       → Supabase → next refreshProfile(). This ensures a transient RC
+        //       network failure never strips access incorrectly.
+        if (isNativePlatform()) {
+          reconcileNativeEntitlement()
+            .then(ent => {
+              if (ent?.isPro) grantProOptimistic(ent.plan);
+            })
+            .catch(() => {}); // non-fatal; app continues normally
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -363,6 +384,41 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nearbyBump, mapCat]);
+
+  // ── RevenueCat: initialise once and sync user ID on auth changes ─────────────
+  // Runs on every user?.id change so RC always knows which Supabase UUID to
+  // associate purchases with. No-op on web (isNativePlatform() returns false).
+  useEffect(() => {
+    if (!isNativePlatform()) return;
+    const userId = user?.id ?? null;
+
+    // Register the RC CustomerInfo listener ONCE (billing/index.js deduplicates).
+    // This fires on renewals, expirations, and any server-side entitlement change
+    // detected by the RC SDK — no polling, no fixed timeouts needed.
+    // RC CustomerInfo is authoritative: if it says isPro, grant immediately.
+    // If it says not Pro, we do NOT revoke — the webhook handles revocation so
+    // that a transient RC network failure never strips access incorrectly.
+    setCustomerInfoListener((entitlement) => {
+      if (entitlement.isPro) {
+        grantProOptimistic(entitlement.plan);
+      }
+      // Revocation is handled server-side by the webhook → Supabase → refreshProfile.
+      // We intentionally do not revoke here from the client listener alone.
+    });
+
+    initRevenueCat(userId)
+      .then(async () => {
+        // After init (or logIn), reconcile RC entitlement with current Supabase state.
+        // If RC says isPro but local profile doesn't yet (e.g. after app cold start
+        // where webhook already fired but profile cache is stale), correct immediately.
+        const ent = await reconcileNativeEntitlement();
+        if (ent?.isPro && !isPro) {
+          console.log('[billing] RC reconcile: granting Pro from RC CustomerInfo');
+          grantProOptimistic(ent.plan);
+        }
+      })
+      .catch(err => console.warn('[billing] initRevenueCat error:', err.message));
+  }, [user?.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist key UI state so returning from external store tab restores correctly
   useEffect(() => {
@@ -898,7 +954,7 @@ export default function App() {
         try {
           const token = await getAccessToken().catch(() => null);
           if (!token) { console.warn('[FixIt] save-diagnosis: no token'); return; }
-          const resp = await fetch('/api/save-diagnosis', {
+          const resp = await apiFetch('/api/save-diagnosis', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1219,8 +1275,50 @@ export default function App() {
   }
 
   // ── Stripe checkout ────────────────────────────────────────────────────────
+  // ── startCheckout — platform-aware billing ────────────────────────────────────
+  // Web:     → Stripe Checkout (existing flow, unchanged)
+  // iOS/Android: → RevenueCat / Apple IAP / Google Play Billing
   async function startCheckout(plan) {
     if (!user) { setAuthScreen('signup'); return; }
+
+    // ── Native path: RevenueCat / Apple IAP / Google Play Billing ────────────
+    if (isNativePlatform()) {
+      setCheckoutBusy(true);
+      try {
+        if (!isNativeBillingAvailable()) {
+          // RC not yet configured — show a clear message rather than crashing
+          showToast(lang === 'de'
+            ? 'In-App-Kauf noch nicht verfügbar'
+            : 'In-app purchase not yet available');
+          return;
+        }
+        const result = await purchasePro(plan);
+        if (result.isPro) {
+          // RC customerInfo confirms the entitlement is active immediately.
+          // Apply optimistic update so the UI unlocks at once.
+          // The RC CustomerInfo listener (registered in the useEffect above) will
+          // fire on all subsequent entitlement changes (renewals, expiry) and
+          // reconcile as needed. No setTimeout / fixed polling.
+          grantProOptimistic(result.plan);
+          showToast(t('proUnlocked'));
+        }
+      } catch (err) {
+        if (err instanceof BillingError && err.code === 'user_cancelled') {
+          // User tapped Cancel — silent, no toast
+        } else {
+          const msg = err instanceof BillingError
+            ? err.message
+            : (lang === 'de' ? 'Zahlung fehlgeschlagen' : 'Purchase failed');
+          showToast(msg);
+          console.error('[billing] purchasePro error:', err);
+        }
+      } finally {
+        setCheckoutBusy(false);
+      }
+      return;
+    }
+
+    // ── Web path: Stripe Checkout (unchanged) ─────────────────────────────────
     setCheckoutBusy(true);
     // Navigate the current tab to Stripe Checkout.
     // We do NOT use window.open() because browsers block async popup redirections:
@@ -1236,7 +1334,7 @@ export default function App() {
         showToast(t('connectionError'));
         return;
       }
-      const res = await fetch('/api/checkout', {
+      const res = await apiFetch('/api/checkout', {
         method: 'POST',
         headers: {
           'Content-Type':  'application/json',
@@ -1267,7 +1365,7 @@ export default function App() {
     // context — async/await breaks it, causing popup blockers to block window.open.
     const win = window.open('', '_blank');
     try {
-      const res  = await fetch('/api/portal', {
+      const res  = await apiFetch('/api/portal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id }),
@@ -1309,7 +1407,7 @@ export default function App() {
       //     → profiles ON DELETE CASCADE (row deleted)
       //     → usage    ON DELETE CASCADE (row deleted)
       //     → payments ON DELETE SET NULL (anonymised; retained for legal compliance)
-      const res = await fetch('/api/delete-account', {
+      const res = await apiFetch('/api/delete-account', {
         method:  'POST',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -1542,7 +1640,7 @@ export default function App() {
 
         let resp, data;
         try {
-          resp = await fetch('/api/resolve-store-url', {
+          resp = await apiFetch('/api/resolve-store-url', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ query, domain: st.resolve }),
@@ -1609,7 +1707,7 @@ export default function App() {
     const pending = window.open('about:blank', '_blank', 'noopener,noreferrer');
     try {
       const token = await getAccessToken().catch(() => null);
-      const resp = await fetch('/api/translate-part', {
+      const resp = await apiFetch('/api/translate-part', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1801,6 +1899,35 @@ export default function App() {
                     </button>
                     <div style={dividerStyle}/>
                   </>}
+                  {/* Restore Purchases — shown on native iOS/Android for non-Pro users (required by Apple) */}
+                  {isNativePlatform() && !isPro && (
+                    <button onClick={async () => {
+                      setCheckoutBusy(true);
+                      try {
+                        const result = await restorePurchases();
+                        if (result.isPro) {
+                          // RC confirms entitlement from restore immediately.
+                          // Apply optimistic update — RC CustomerInfo is authoritative.
+                          // The RC listener handles future entitlement changes.
+                          // No setTimeout: a fixed delay cannot guarantee webhook arrival.
+                          grantProOptimistic(result.plan);
+                          showToast(lang === 'de' ? '✅ Pro wiederhergestellt!' : '✅ Pro restored!');
+                          setAuthScreen(null);
+                        } else {
+                          showToast(lang === 'de' ? 'Kein aktives Abonnement gefunden' : 'No active subscription found');
+                        }
+                      } catch (err) {
+                        showToast(lang === 'de' ? 'Wiederherstellung fehlgeschlagen' : 'Restore failed');
+                        console.error('[billing] restorePurchases error:', err);
+                      } finally {
+                        setCheckoutBusy(false);
+                      }
+                    }} disabled={checkoutBusy} style={{...actionBtn,opacity:checkoutBusy?0.6:1}}>
+                      <span>🔄</span>
+                      <span style={{flex:1}}>{lang === 'de' ? 'Käufe wiederherstellen' : 'Restore Purchases'}</span>
+                      {checkoutBusy && <span style={{fontSize:'0.7rem',color:C.m}}>…</span>}
+                    </button>
+                  )}
                   {/* Links */}
                   <button onClick={()=>window.open('mailto:fixitapp.support@gmail.com','_blank')} style={linkBtn}>
                     <span>✉️</span>{t('support')}
@@ -2573,11 +2700,19 @@ export default function App() {
               </div>}
               <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
                 <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.12)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>⏱ {r.timeEstimate}</span>
-                <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>
-                  💰 {lang==='de'?'Sparpotenzial ca.':lang==='tr'?'Tahmini tasarruf':lang==='pl'?'Potencjał oszczędności':'Est. saving'} {r.estimatedCost}
-                </span>
+                <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>\n                  💰 {lang==='de'?'Sparpotenzial ca.':lang==='tr'?'Tahmini tasarruf':lang==='pl'?'Potencjał oszczędności':'Est. saving'} {r.estimatedCost}\n                </span>
                 {r.difficulty && <span style={{padding:'5px 11px',borderRadius:100,fontSize:'0.7rem',fontWeight:600,background:'rgba(26,158,92,0.1)',color:C.g,border:'1px solid rgba(26,158,92,0.2)'}}>{getDiffLabel(r.difficulty, lang)}</span>}
               </div>
+              {/* AI transparency disclosure — always shown on every successful diagnosis */}
+              <div style={{marginTop:10,fontSize:'0.68rem',color:C.m,lineHeight:1.5}}>
+                🤖 {t('aiDiagnosisLabel')} · {t('aiVerify')}
+              </div>
+              {/* Pets-specific vet note — supplemental, shown when category is pets and no stronger callPro warning is already displayed */}
+              {effectiveCat === 'pets' && !r.callPro && (
+                <div style={{marginTop:6,fontSize:'0.68rem',color:C.m,lineHeight:1.5}}>
+                  🐾 {t('petVetNote')}
+                </div>
+              )}
             </div>
             {/* Steps with real images */}
             {r.steps?.length>0 && <div style={{...s.card,padding:0,overflow:'hidden'}}>

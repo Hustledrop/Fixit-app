@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
 import { LANGS } from '../data/lang.js';
 import { getAccessToken } from '../auth.js';
+import { apiFetch } from '../lib/api.js';
 
-const API_URL = '/api/diagnose';
+const API_PATH = '/api/diagnose';
 
 async function callAPI(payload) {
   // Attach the Supabase access token so the server can verify identity
@@ -11,7 +12,7 @@ async function callAPI(payload) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(API_URL, {
+  const res = await apiFetch(API_PATH, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),

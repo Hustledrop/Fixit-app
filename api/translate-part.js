@@ -1,3 +1,4 @@
+import { setCors } from '../lib/cors.js';
 // api/translate-part.js
 // POST /api/translate-part
 // Translates a single technical parts search query into the market language
@@ -37,6 +38,7 @@ async function verifyJWT(token) {
 }
 
 export default async function handler(req, res) {
+  if (setCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
   // Auth: require valid session (Pro or free — translation is always permitted)

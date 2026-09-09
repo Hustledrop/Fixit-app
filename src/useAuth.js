@@ -52,5 +52,12 @@ export function useAuth() {
     if (user) { const p = await getProfile(user.id); setProfile(p); }
   }, [user]);
 
-  return { user, profile, isPro, authLoading, authEvent, login, signup, logout, refreshProfile };
+  // Optimistic Pro grant — use immediately after native IAP purchase/restore.
+  // Sets is_pro=true in local state without waiting for the RC webhook to update Supabase.
+  // Always follow with a delayed refreshProfile() (see billing comment in billing/index.js).
+  const grantProOptimistic = useCallback((plan) => {
+    setProfile(prev => prev ? { ...prev, is_pro: true, plan: plan ?? prev.plan } : prev);
+  }, []);
+
+  return { user, profile, isPro, authLoading, authEvent, login, signup, logout, refreshProfile, grantProOptimistic };
 }

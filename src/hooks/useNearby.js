@@ -2,6 +2,7 @@
 // Cache persists across re-renders; resets on page reload (intentional — fresh data on return)
 
 import { useState, useCallback, useRef } from 'react';
+import { apiFetch } from '../lib/api.js';
 
 export const MAP_CATS = {
   garage:   { icon:'🔧' },
@@ -116,7 +117,7 @@ export function useNearby() {
     setError(null);
     setBizs([]);
 
-    const fetchPromise = fetch(
+    const fetchPromise = apiFetch(
       `/api/nearby?cat=${encodeURIComponent(cat)}&lat=${lat}&lng=${lng}${city?'&city='+encodeURIComponent(city):''}${cc?'&cc='+encodeURIComponent(cc):''}`
     ).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
 

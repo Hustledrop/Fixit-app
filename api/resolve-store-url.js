@@ -1,3 +1,4 @@
+import { setCors } from '../lib/cors.js';
 // api/resolve-store-url.js
 // POST /api/resolve-store-url
 // Returns a direct product URL for a given query on polo-motorrad.de or louis.de.
@@ -90,6 +91,7 @@ function readBody(req) {
 }
 
 export default async function handler(req, res) {
+  if (setCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
   let body;

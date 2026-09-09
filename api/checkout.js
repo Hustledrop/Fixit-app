@@ -20,6 +20,7 @@
 //   VITE_SUPABASE_URL              https://xxx.supabase.co
 //   SUPABASE_SERVICE_ROLE_KEY      eyJ...   (Supabase → Settings → API → service_role)
 
+import { setCors } from '../lib/cors.js';
 import Stripe from 'stripe';
 
 const STRIPE_KEY    = process.env.STRIPE_SECRET_KEY;
@@ -69,9 +70,7 @@ async function readBody(req) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', APP_URL);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (setCors(req, res)) return;
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'POST')   { res.status(405).json({ error: 'method_not_allowed' }); return; }
 

@@ -1,3 +1,4 @@
+import { setCors } from '../lib/cors.js';
 // api/save-diagnosis.js
 // POST /api/save-diagnosis
 // Saves a single diagnosis entry to public.diagnoses on behalf of the authenticated user.
@@ -29,6 +30,7 @@ function readBody(req) {
 }
 
 export default async function handler(req, res) {
+  if (setCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
   // Require valid JWT

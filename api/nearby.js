@@ -1,3 +1,4 @@
+import { setCors } from '../lib/cors.js';
 // api/nearby.js — FixIt Nearby  FIXIT_NEARBY_CONCURRENT_V9
 //
 // ── ARCHITECTURE ──────────────────────────────────────────────────────────────
@@ -566,7 +567,7 @@ function mergeGoogle(placesData, existing, cat, rid='--------') {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
-  if (req.method==='OPTIONS'){res.status(200).end();return;}
+  if (setCors(req, res, 'GET, OPTIONS', 'Content-Type, Authorization')) return;
   if (req.method!=='GET')    {res.status(405).json({error:'Method not allowed'});return;}
 
   const {cat='garage',lat,lng,city='',cc=''}=req.query;

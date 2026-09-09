@@ -1,3 +1,4 @@
+import { setCors } from '../lib/cors.js';
 // api/delete-account.js — permanent account deletion
 // POST /api/delete-account
 //   Headers: Authorization: Bearer <supabase_access_token>
@@ -29,6 +30,7 @@ async function getAdminClient() {
 }
 
 export default async function handler(req, res) {
+  if (setCors(req, res, 'DELETE, POST, OPTIONS')) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'method_not_allowed' });
   }

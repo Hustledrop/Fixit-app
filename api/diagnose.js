@@ -1,3 +1,4 @@
+import { setCors } from '../lib/cors.js';
 // api/diagnose.js — v11 — server-side JWT auth + entitlement check
 // DEPLOY_VERSION logged synchronously before ANY async code
 
@@ -326,9 +327,7 @@ async function callAnthropic(apiKey, content, attemptNum) {
 module.exports = async function handler(req, res) {
   console.log('[FixIt] DEPLOY_VERSION =', DEPLOY_VERSION);
 
-  res.setHeader('Access-Control-Allow-Origin',  '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (setCors(req, res)) return;
   res.setHeader('X-FixIt-Version', DEPLOY_VERSION);
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }

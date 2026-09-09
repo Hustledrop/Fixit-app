@@ -11,6 +11,7 @@
 //   Enable: Cancel subscriptions, Update payment methods, View invoices
 //   Set return URL: https://www.fixit-app.com/?portal=return
 
+import { setCors } from '../lib/cors.js';
 import Stripe from 'stripe';
 
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY;
@@ -63,9 +64,7 @@ async function readBody(req) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', APP_URL);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (setCors(req, res, 'POST, OPTIONS', 'Content-Type')) return;
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'POST')   { res.status(405).json({ error: 'method_not_allowed' }); return; }
 

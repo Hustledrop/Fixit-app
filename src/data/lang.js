@@ -235,6 +235,8 @@ T.en = {
   activeSub:'Active subscription',
   freePlan:'Free · 1 free diagnosis',
   aiDiagnosisLabel:'AI-generated guidance',
+  aiVerify:'Verify important information before acting',
+  petVetNote:'For health concerns, always consult a veterinarian.',
   // Forgot / reset password
   forgotPassword:'Forgot password?',
   resetPassword:'Reset Password',
@@ -441,6 +443,8 @@ T.de = {
   activeSub:'Aktives Abonnement',
   freePlan:'Free · 1 kostenlose Diagnose',
   aiDiagnosisLabel:'KI-generierte Anleitung',
+  aiVerify:'Wichtige Hinweise vor der Umsetzung prüfen',
+  petVetNote:'Bei gesundheitlichen Beschwerden immer einen Tierarzt aufsuchen.',
   // Forgot / reset password
   forgotPassword:'Passwort vergessen?',
   resetPassword:'Passwort zurücksetzen',
@@ -645,6 +649,8 @@ T.fr = {
   activeSub:'Abonnement actif',
   freePlan:'Gratuit · 1 diagnostic gratuit',
   aiDiagnosisLabel:'Conseils générés par IA',
+  aiVerify:'Vérifiez les informations importantes avant d\'agir',
+  petVetNote:'Pour tout problème de santé, consultez toujours un vétérinaire.',
   // Forgot / reset password
   forgotPassword:'Mot de passe oublié ?',
   resetPassword:'Réinitialiser le mot de passe',
@@ -848,6 +854,8 @@ T.es = {
   activeSub:'Suscripción activa',
   freePlan:'Gratis · 1 diagnóstico gratis',
   aiDiagnosisLabel:'Guía generada por IA',
+  aiVerify:'Verifica la información importante antes de actuar',
+  petVetNote:'Para problemas de salud, consulta siempre a un veterinario.',
   // Forgot / reset password
   forgotPassword:'¿Olvidaste tu contraseña?',
   resetPassword:'Restablecer contraseña',
@@ -1051,6 +1059,8 @@ T.it = {
   activeSub:'Abbonamento attivo',
   freePlan:'Gratuito · 1 diagnosi gratuita',
   aiDiagnosisLabel:'Guida generata da IA',
+  aiVerify:'Verifica le informazioni importanti prima di agire',
+  petVetNote:'Per problemi di salute, consulta sempre un veterinario.',
   // Forgot / reset password
   forgotPassword:'Password dimenticata?',
   resetPassword:'Reimposta password',
@@ -1254,6 +1264,8 @@ T.pl = {
   activeSub:'Aktywna subskrypcja',
   freePlan:'Bezpłatny · 1 darmowa diagnoza',
   aiDiagnosisLabel:'Wskazówki generowane przez AI',
+  aiVerify:'Przed działaniem zweryfikuj ważne informacje',
+  petVetNote:'W przypadku problemów zdrowotnych zawsze skonsultuj się z weterynarzem.',
   // Forgot / reset password
   forgotPassword:'Nie pamiętasz hasła?',
   resetPassword:'Zresetuj hasło',
@@ -1457,6 +1469,8 @@ T.sr = {
   activeSub:'Aktivna pretplata',
   freePlan:'Besplatno · 1 besplatna dijagnoza',
   aiDiagnosisLabel:'Uputstvo generisano od AI',
+  aiVerify:'Proverite važne informacije pre delovanja',
+  petVetNote:'Za zdravstvene probleme, uvek se konsultujte sa veterinarom.',
   // Forgot / reset password
   forgotPassword:'Zaboravili ste lozinku?',
   resetPassword:'Resetuj lozinku',
@@ -1660,6 +1674,8 @@ T.hr = {
   activeSub:'Aktivna pretplata',
   freePlan:'Besplatno · 1 besplatna dijagnoza',
   aiDiagnosisLabel:'Uputa generirana od AI',
+  aiVerify:'Provjeri važne informacije prije djelovanja',
+  petVetNote:'Za zdravstvene probleme uvijek se posavjetuj s veterinarom.',
   // Forgot / reset password
   forgotPassword:'Zaboravili ste lozinku?',
   resetPassword:'Resetiraj lozinku',
@@ -1863,6 +1879,8 @@ T.mk = {
   activeSub:'Активна претплата',
   freePlan:'Бесплатно · 1 бесплатна дијагноза',
   aiDiagnosisLabel:'Упатство генерирано од AI',
+  aiVerify:'Проверете важни информации пред да постапите',
+  petVetNote:'За здравствени проблеми секогаш консултирајте ветеринар.',
   // Forgot / reset password
   forgotPassword:'Ја заборавивте лозинката?',
   resetPassword:'Ресетирај ја лозинката',
@@ -2066,6 +2084,8 @@ T.tr = {
   activeSub:'Aktif abonelik',
   freePlan:'Ücretsiz · 1 ücretsiz tanı',
   aiDiagnosisLabel:'Yapay zeka tarafından oluşturulan rehber',
+  aiVerify:'Harekete geçmeden önce önemli bilgileri doğrulayın',
+  petVetNote:'Sağlık sorunları için her zaman bir veterinere başvurun.',
   // Forgot / reset password
   forgotPassword:'Şifrenizi mi unuttunuz?',
   resetPassword:'Şifreyi sıfırla',
