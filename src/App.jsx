@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { LANGS, tx, getStatusLabel, getDiffLabel } from './data/lang.js';
 import { getCountry, smartCC, mapsUrlFor, getStores, getOnlineStores, getLocalStoreSearch, getMarketLang, queryNeedsTranslation, getEmergencySearchQuery, getCountryName } from './data/countries.js';
 import { EMRG, getEmrgT, getEmrgS } from './data/emergency.js';
@@ -68,109 +69,125 @@ function catRecognitionLabel(vType, lang) {
 // ── Category terminology mapper ───────────────────────────────────────────────
 // Returns UI labels adapted to the category — pets/garden differ from repair
 function catTerms(cat, lang) {
-  const de = lang === 'de';
-  const fr = lang === 'fr';
-  const es = lang === 'es';
-  const it = lang === 'it';
-  const mk = lang === 'mk';
-  const sr = lang === 'sr';
-  const hr = lang === 'hr';
+  const de=lang==='de', fr=lang==='fr', es=lang==='es', it=lang==='it';
+  const pl=lang==='pl', tr=lang==='tr', mk=lang==='mk', sr=lang==='sr', hr=lang==='hr';
+  const slav = sr||hr; // Serbian and Croatian share forms throughout
 
-  const isPet    = cat === 'pets';
-  const isGarden = cat === 'garden';
-  const isBike   = cat === 'bike';
-  const isMoto   = cat === 'motorcycle' || cat === 'moto';
-  const isCar    = cat === 'car';
-  const isTech   = cat === 'tech';
-  // Everything else (home, appliances) = repair
+  const isCar  = cat==='car';
+  const isTech = cat==='tech';
 
-  if (isPet) return {
-    tools:     de?'Empfohlene Hilfsmittel':fr?'Accessoires recommandés':es?'Accesorios recomendados':it?'Accessori consigliati':mk?'Препорачани средства':(sr||hr)?'Preporučena sredstva':'Recommended Supplies',
-    parts:     de?'Empfohlene Produkte':fr?'Produits recommandés':es?'Productos recomendados':it?'Prodotti consigliati':mk?'Препорачани производи':(sr||hr)?'Preporučeni proizvodi':'Recommended Products',
-    steps:     de?'Pflegehinweise':fr?'Conseils de soin':es?'Consejos de cuidado':it?'Consigli di cura':mk?'Упатства за нега':(sr||hr)?'Saveti za negu':'Care Guide',
-    fixedQ:    de?'Hat das geholfen?':fr?'Cela a-t-il aidé?':es?'¿Ha ayudado?':it?'Ha aiutato?':mk?'Дали помогна?':(sr||hr)?'Da li je pomoglo?':'Did this help?',
-    fixedY:    de?'✅ Ja, hat geholfen!':fr?'✅ Oui, aidé!':es?'✅ Sí, ayudó!':it?'✅ Sì, ha aiutato!':mk?'✅ Да, помогна!':(sr||hr)?'✅ Da, pomoglo!':'✅ Yes, helped!',
-    fixedN:    de?'❌ Weitere Hilfe nötig':fr?'❌ Aide supplémentaire':es?'❌ Más ayuda necesaria':it?'❌ Serve altro aiuto':mk?'❌ Потребна е уште помош':(sr||hr)?'❌ Potrebna dodatna pomoć':'❌ More help needed',
-    proBtn:    de?'Tierarzt finden':fr?'Trouver un vétérinaire':es?'Buscar veterinario':it?'Trova veterinario':mk?'Најди ветеринар':(sr||hr)?'Nađi veterinara':'Find a Vet',
-    partsBtn:  de?'Produkte suchen':fr?'Chercher produits':es?'Buscar productos':it?'Cerca prodotti':mk?'Барај производи':(sr||hr)?'Traži proizvode':'Find Products',
-    loading:   de?['Problem wird analysiert…','Symptome werden erkannt…','Pflegehinweise werden erstellt…','Tierarzt-Empfehlungen werden gesucht…']:
-               fr?['Analyse du problème…','Identification des symptômes…','Préparation des conseils…','Recherche vétérinaire…']:
-               es?['Analizando el problema…','Identificando síntomas…','Preparando consejos…','Buscando veterinario…']:
-               mk?['Анализа на проблемот…','Препознавање на симптомите…','Подготовка на совети…','Барање ветеринар…']:
-               (sr||hr)?['Analiza problema…','Prepoznavanje simptoma…','Priprema saveta…','Traženje veterinara…']:
-               ['Analyzing the problem…','Identifying symptoms…','Preparing care advice…','Finding vet recommendations…'],
+  // ── PETS ────────────────────────────────────────────────────────────────────
+  if (cat==='pets') return {
+    tools:    de?'Empfohlene Hilfsmittel':fr?'Accessoires recommandés':es?'Accesorios recomendados':it?'Accessori consigliati':pl?'Polecane środki pomocnicze':tr?'Önerilen malzemeler':mk?'Препорачани средства':slav?'Preporučena sredstva':'Recommended Supplies',
+    parts:    de?'Empfohlene Produkte':fr?'Produits recommandés':es?'Productos recomendados':it?'Prodotti consigliati':pl?'Polecane produkty':tr?'Önerilen ürünler':mk?'Препорачани производи':slav?'Preporučeni proizvodi':'Recommended Products',
+    steps:    de?'Pflegehinweise':fr?'Conseils de soin':es?'Consejos de cuidado':it?'Consigli di cura':pl?'Wskazówki pielęgnacyjne':tr?'Bakım kılavuzu':mk?'Упатства за нега':slav?'Saveti za negu':'Care Guide',
+    fixedQ:   de?'Hat das geholfen?':fr?'Cela a-t-il aidé?':es?'¿Ha ayudado?':it?'Ha aiutato?':pl?'Czy to pomogło?':tr?'Bu yardımcı oldu mu?':mk?'Дали помогна?':slav?'Da li je pomoglo?':'Did this help?',
+    fixedY:   de?'✅ Ja, hat geholfen!':fr?'✅ Oui, ça a aidé!':es?'✅ Sí, ayudó!':it?'✅ Sì, ha aiutato!':pl?'✅ Tak, pomogło!':tr?'✅ Evet, yardımcı oldu!':mk?'✅ Да, помогна!':slav?'✅ Da, pomoglo!':'✅ Yes, helped!',
+    fixedN:   de?'❌ Weitere Hilfe nötig':fr?'❌ Aide supplémentaire nécessaire':es?'❌ Más ayuda necesaria':it?'❌ Serve altro aiuto':pl?'❌ Potrzebna dalsza pomoc':tr?'❌ Daha fazla yardım gerekli':mk?'❌ Потребна е уште помош':slav?'❌ Potrebna dodatna pomoć':'❌ More help needed',
+    proBtn:   de?'Tierarzt finden':fr?'Trouver un vétérinaire':es?'Buscar veterinario':it?'Trova veterinario':pl?'Znajdź weterynarza':tr?'Veteriner bul':mk?'Најди ветеринар':slav?'Nađi veterinara':'Find a Vet',
+    partsBtn: de?'Produkte suchen':fr?'Chercher des produits':es?'Buscar productos':it?'Cerca prodotti':pl?'Szukaj produktów':tr?'Ürün ara':mk?'Барај производи':slav?'Traži proizvode':'Find Products',
+    loading:  de?['Problem wird analysiert…','Symptome werden erkannt…','Pflegehinweise werden erstellt…','Tierarzt-Empfehlungen werden gesucht…']:
+              fr?['Analyse du problème…','Identification des symptômes…','Préparation des conseils…','Recherche vétérinaire…']:
+              es?['Analizando el problema…','Identificando síntomas…','Preparando consejos…','Buscando veterinario…']:
+              it?['Analisi del problema…','Identificazione dei sintomi…','Preparazione dei consigli…','Ricerca del veterinario…']:
+              pl?['Analiza problemu…','Rozpoznawanie objawów…','Przygotowanie porad…','Szukanie weterynarza…']:
+              tr?['Problem analiz ediliyor…','Belirtiler tanımlanıyor…','Bakım tavsiyeleri hazırlanıyor…','Veteriner aranıyor…']:
+              mk?['Анализа на проблемот…','Препознавање на симптомите…','Подготовка на совети…','Барање ветеринар…']:
+              slav?['Analiza problema…','Prepoznavanje simptoma…','Priprema saveta…','Traženje veterinara…']:
+              ['Analyzing the problem…','Identifying symptoms…','Preparing care advice…','Finding vet recommendations…'],
   };
-  if (isGarden) return {
-    tools:     de?'Benötigte Materialien':fr?'Matériaux nécessaires':es?'Materiales necesarios':it?'Materiali necessari':mk?'Потребни материјали':(sr||hr)?'Potrebni materijali':'Materials Needed',
-    parts:     de?'Empfohlene Gartenprodukte':fr?'Produits de jardin':es?'Productos de jardín':it?'Prodotti da giardino':mk?'Градинарски производи':(sr||hr)?'Vrtni proizvodi':'Garden Products',
-    steps:     de?'Pflegeschritte':fr?'Étapes de soin':es?'Pasos de cuidado':it?'Passi di cura':mk?'Чекори за нега':(sr||hr)?'Koraci nege':'Care Steps',
-    fixedQ:    de?'Hat das geholfen?':fr?'Cela a-t-il aidé?':es?'¿Ha ayudado?':it?'Ha aiutato?':mk?'Дали помогна?':(sr||hr)?'Da li je pomoglo?':'Did this help?',
-    fixedY:    de?'✅ Ja, Problem gelöst!':lang==='tr'?'✅ Evet, çözüldü!':lang==='pl'?'✅ Tak, rozwiązane!':'✅ Yes, sorted!',
-    fixedN:    de?'❌ Noch nicht gelöst':lang==='tr'?'❌ Hâlâ çözülmedi':lang==='pl'?'❌ Nadal nie rozwiązane':'❌ Still not solved',
-    proBtn:    de?'Gärtner finden':lang==='tr'?'Bahçıvan bul':lang==='pl'?'Znajdź ogrodnika':'Find a Gardener',
-    partsBtn:  de?'Gartenprodukte suchen':lang==='tr'?'Bahçe ürünleri bul':lang==='pl'?'Znajdź produkty ogrodowe':'Find Garden Products',
-    loading:   de?['Gartenproblem wird analysiert…','Ursache wird ermittelt…','Pflegeschritte werden erstellt…','Gartenprodukte werden gesucht…']:
-               ['Analyzing garden problem…','Identifying the cause…','Preparing care steps…','Finding garden products…'],
+
+  // ── GARDEN ──────────────────────────────────────────────────────────────────
+  if (cat==='garden') return {
+    tools:    de?'Benötigte Materialien':fr?'Matériaux nécessaires':es?'Materiales necesarios':it?'Materiali necessari':pl?'Potrzebne materiały':tr?'Gerekli malzemeler':mk?'Потребни материјали':slav?'Potrebni materijali':'Materials Needed',
+    parts:    de?'Empfohlene Gartenprodukte':fr?'Produits de jardin':es?'Productos de jardín':it?'Prodotti da giardino':pl?'Produkty ogrodowe':tr?'Bahçe ürünleri':mk?'Градинарски производи':slav?'Vrtni proizvodi':'Garden Products',
+    steps:    de?'Pflegeschritte':fr?'Étapes de soin':es?'Pasos de cuidado':it?'Passi di cura':pl?'Kroki pielęgnacji':tr?'Bakım adımları':mk?'Чекори за нега':slav?'Koraci nege':'Care Steps',
+    fixedQ:   de?'Hat das geholfen?':fr?'Cela a-t-il aidé?':es?'¿Ha ayudado?':it?'Ha aiutato?':pl?'Czy to pomogło?':tr?'Bu yardımcı oldu mu?':mk?'Дали помогна?':slav?'Da li je pomoglo?':'Did this help?',
+    fixedY:   de?'✅ Ja, Problem gelöst!':fr?'✅ Oui, résolu!':es?'✅ Sí, solucionado!':it?'✅ Sì, risolto!':pl?'✅ Tak, rozwiązane!':tr?'✅ Evet, çözüldü!':mk?'✅ Да, решено!':slav?'✅ Da, rešeno!':'✅ Yes, sorted!',
+    fixedN:   de?'❌ Noch nicht gelöst':fr?'❌ Pas encore résolu':es?'❌ Aún no resuelto':it?'❌ Non ancora risolto':pl?'❌ Nadal nie rozwiązane':tr?'❌ Hâlâ çözülmedi':mk?'❌ Сè уште нерешено':slav?'❌ Još nije rešeno':'❌ Still not solved',
+    proBtn:   de?'Gärtner finden':fr?'Trouver un jardinier':es?'Buscar jardinero':it?'Trova giardiniere':pl?'Znajdź ogrodnika':tr?'Bahçıvan bul':mk?'Најди градинар':slav?'Nađi baštovana':'Find a Gardener',
+    partsBtn: de?'Gartenprodukte suchen':fr?'Chercher produits de jardin':es?'Buscar productos de jardín':it?'Cerca prodotti da giardino':pl?'Znajdź produkty ogrodowe':tr?'Bahçe ürünleri bul':mk?'Барај градинарски производи':slav?'Traži vrtne proizvode':'Find Garden Products',
+    loading:  de?['Gartenproblem wird analysiert…','Ursache wird ermittelt…','Pflegeschritte werden erstellt…','Gartenprodukte werden gesucht…']:
+              fr?['Analyse du problème de jardin…','Identification de la cause…','Préparation des étapes de soin…','Recherche de produits de jardin…']:
+              es?['Analizando el problema de jardín…','Identificando la causa…','Preparando los pasos de cuidado…','Buscando productos de jardín…']:
+              it?['Analisi del problema del giardino…','Identificazione della causa…','Preparazione dei passi…','Ricerca prodotti da giardino…']:
+              pl?['Analiza problemu ogrodowego…','Identyfikacja przyczyny…','Przygotowanie kroków pielęgnacji…','Szukanie produktów ogrodowych…']:
+              tr?['Bahçe sorunu analiz ediliyor…','Neden araştırılıyor…','Bakım adımları hazırlanıyor…','Bahçe ürünleri aranıyor…']:
+              mk?['Анализа на градинарскиот проблем…','Откривање на причината…','Подготовка на чекорите за нега…','Барање градинарски производи…']:
+              slav?['Analiza baštovanskog problema…','Otkrivanje uzroka…','Priprema koraka nege…','Traženje vrtnih proizvoda…']:
+              ['Analyzing garden problem…','Identifying the cause…','Preparing care steps…','Finding garden products…'],
   };
-  if (isMoto) return {
-    tools:     de?'Benötigte Teile & Werkzeug':fr?'Pièces et outils nécessaires':es?'Piezas y herramientas':mk?'Потребни делови и алати':(sr||hr)?'Potrebni delovi i alati':'Parts & Tools Needed',
-    parts:     de?'Motorradteile':fr?'Pièces moto':es?'Repuestos moto':it?'Ricambi moto':mk?'Делови за мотор':(sr||hr)?'Delovi za motor':'Motorcycle Parts',
-    steps:     de?'Reparaturschritte':fr?'Étapes de réparation':es?'Pasos de reparación':mk?'Чекори за поправка':(sr||hr)?'Koraci popravke':'Repair Steps',
-    fixedQ:    de?'Wurde das Problem behoben?':fr?'Problème résolu?':es?'¿Se resolvió?':mk?'Дали се реши проблемот?':(sr||hr)?'Da li je problem rešen?':'Was the problem fixed?',
-    fixedY:    de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí!':mk?'✅ Да!':(sr||hr)?'✅ Da, popravljeno!':'✅ Yes, fixed!',
-    fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':mk?'❌ Сè уште':(sr||hr)?'❌ Još nije':'❌ Not fixed yet',
-    proBtn:    de?'Motorradwerkstatt finden':fr?'Trouver atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':mk?'Најди мото сервис':(sr||hr)?'Nađi moto servis':lang==='tr'?'Motosiklet servisi bul':lang==='pl'?'Znajdź serwis moto':'Find Moto Repair',
-    partsBtn:  de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts',
-    loading:   de?['Motorradproblem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile werden gesucht…']:
-               mk?['Анализа на проблемот…','Откривање на причината…','Подготовка на чекорите…','Барање делови…']:
-               (sr||hr)?['Analiza problema…','Otkrivanje uzroka…','Priprema koraka…','Traženje delova…']:
-               ['Analyzing motorcycle issue…','Identifying the cause…','Preparing repair steps…','Finding parts…'],
+
+  // ── MOTORCYCLE / MOTO ───────────────────────────────────────────────────────
+  if (cat==='motorcycle'||cat==='moto') return {
+    tools:    de?'Benötigte Teile & Werkzeug':fr?'Pièces et outils nécessaires':es?'Piezas y herramientas':it?'Parti e attrezzi necessari':pl?'Potrzebne części i narzędzia':tr?'Gerekli parçalar ve aletler':mk?'Потребни делови и алати':slav?'Potrebni delovi i alati':'Parts & Tools Needed',
+    parts:    de?'Motorradteile':fr?'Pièces moto':es?'Repuestos moto':it?'Ricambi moto':pl?'Części motocyklowe':tr?'Motosiklet parçaları':mk?'Делови за мотор':slav?'Delovi za motor':'Motorcycle Parts',
+    steps:    de?'Reparaturschritte':fr?'Étapes de réparation':es?'Pasos de reparación':it?'Passi di riparazione':pl?'Kroki naprawy':tr?'Onarım adımları':mk?'Чекори за поправка':slav?'Koraci popravke':'Repair Steps',
+    fixedQ:   de?'Wurde das Problem behoben?':fr?'Problème résolu?':es?'¿Se resolvió?':it?'Il problema è risolto?':pl?'Czy problem został naprawiony?':tr?'Sorun giderildi mi?':mk?'Дали се реши проблемот?':slav?'Da li je problem rešen?':'Was the problem fixed?',
+    fixedY:   de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí, arreglado!':it?'✅ Sì, riparato!':pl?'✅ Tak, naprawione!':tr?'✅ Evet, düzeltildi!':mk?'✅ Да, поправено!':slav?'✅ Da, popravljeno!':'✅ Yes, fixed!',
+    fixedN:   de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':it?'❌ Ancora guasto':pl?'❌ Nadal zepsute':tr?'❌ Hâlâ arızalı':mk?'❌ Сè уште дефектно':slav?'❌ Još nije popravljeno':'❌ Not fixed yet',
+    proBtn:   de?'Motorradwerkstatt finden':fr?'Trouver atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':pl?'Znajdź serwis moto':tr?'Motosiklet servisi bul':mk?'Најди мото сервис':slav?'Nađi moto servis':'Find Moto Repair',
+    partsBtn: de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':pl?'Znajdź części motocyklowe':tr?'Motor parçası bul':mk?'Барај делови за мотор':slav?'Traži dijelove za motor':'Find Moto Parts',
+    loading:  de?['Motorradproblem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile werden gesucht…']:
+              fr?['Analyse du problème moto…','Identification de la cause…','Préparation des étapes de réparation…','Recherche de pièces…']:
+              es?['Analizando el problema de la moto…','Identificando la causa…','Preparando los pasos de reparación…','Buscando repuestos…']:
+              it?['Analisi del problema moto…','Identificazione della causa…','Preparazione dei passi di riparazione…','Ricerca dei ricambi…']:
+              pl?['Analiza problemu motocykla…','Identyfikacja przyczyny…','Przygotowanie kroków naprawy…','Szukanie części…']:
+              tr?['Motosiklet sorunu analiz ediliyor…','Neden araştırılıyor…','Onarım adımları hazırlanıyor…','Parçalar aranıyor…']:
+              mk?['Анализа на проблемот…','Откривање на причината…','Подготовка на чекорите…','Барање делови…']:
+              slav?['Analiza problema…','Otkrivanje uzroka…','Priprema koraka…','Traženje delova…']:
+              ['Analyzing motorcycle issue…','Identifying the cause…','Preparing repair steps…','Finding parts…'],
   };
-  if (isBike) {
-    const tr = lang==='tr', pl = lang==='pl';
-    return {
-    tools:     de?'Benötigte Werkzeuge':tr?'Gerekli araçlar':pl?'Potrzebne narzędzia':'Tools Needed',
-    parts:     de?'Fahrradteile und Zubehör':tr?'Bisiklet parçaları':pl?'Części rowerowe':'Bike Parts & Accessories',
-    steps:     de?'Reparaturschritte':tr?'Onarım adımları':pl?'Kroki naprawy':'Repair Steps',
-    fixedQ:    de?'Wurde das Problem behoben?':tr?'Sorun çözüldü mü?':pl?'Czy problem został rozwiązany?':'Was the problem fixed?',
-    fixedY:    de?'✅ Ja, funktioniert!':tr?'✅ Evet, çalışıyor!':pl?'✅ Tak, działa!':'✅ Yes, working!',
-    fixedN:    de?'❌ Noch nicht behoben':tr?'❌ Hâlâ bozuk':pl?'❌ Nadal zepsute':'❌ Not fixed yet',
-    proBtn:    de?'Fahrradwerkstatt finden':tr?'Bisiklet tamircisi bul':pl?'Znajdź serwis rowerowy':'Find Bike Shop',
-    partsBtn:  de?'Fahrradteile suchen':tr?'Bisiklet parçası bul':pl?'Znajdź części rowerowe':'Find Bike Parts',
-    loading:   de?['Fahrradproblem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Fahrradteile werden gesucht…']:
-               tr?['Bisiklet sorunu analiz ediliyor…','Neden araştırılıyor…','Onarım adımları hazırlanıyor…','Bisiklet parçaları aranıyor…']:
-               pl?['Analiza problemu rowerowego…','Identyfikacja przyczyny…','Przygotowanie kroków naprawy…','Szukanie części rowerowych…']:
-               ['Analyzing bike issue…','Identifying the cause…','Preparing repair steps…','Finding bike parts…'],
-  };}
-  // Default: repair (home, appliances, car, tech)
+
+  // ── BIKE ────────────────────────────────────────────────────────────────────
+  if (cat==='bike') return {
+    tools:    de?'Benötigte Werkzeuge':fr?'Outils nécessaires':es?'Herramientas necesarias':it?'Attrezzi necessari':pl?'Potrzebne narzędzia':tr?'Gerekli araçlar':mk?'Потребни алатки':slav?'Potrebni alati':'Tools Needed',
+    parts:    de?'Fahrradteile und Zubehör':fr?'Pièces et accessoires vélo':es?'Piezas y accesorios de bicicleta':it?'Parti e accessori bici':pl?'Części rowerowe i akcesoria':tr?'Bisiklet parçaları ve aksesuarları':mk?'Делови и додатоци за велосипед':slav?'Delovi i oprema za bicikl':'Bike Parts & Accessories',
+    steps:    de?'Reparaturschritte':fr?'Étapes de réparation':es?'Pasos de reparación':it?'Passi di riparazione':pl?'Kroki naprawy':tr?'Onarım adımları':mk?'Чекори за поправка':slav?'Koraci popravke':'Repair Steps',
+    fixedQ:   de?'Wurde das Problem behoben?':fr?'Problème résolu?':es?'¿Se resolvió?':it?'Il problema è risolto?':pl?'Czy problem został rozwiązany?':tr?'Sorun çözüldü mü?':mk?'Дали се реши проблемот?':slav?'Da li je problem rešen?':'Was the problem fixed?',
+    fixedY:   de?'✅ Ja, funktioniert!':fr?'✅ Oui, ça marche!':es?'✅ Sí, funciona!':it?'✅ Sì, funziona!':pl?'✅ Tak, działa!':tr?'✅ Evet, çalışıyor!':mk?'✅ Да, работи!':slav?'✅ Da, radi!':'✅ Yes, working!',
+    fixedN:   de?'❌ Noch nicht behoben':fr?'❌ Pas encore réparé':es?'❌ Aún no reparado':it?'❌ Non ancora riparato':pl?'❌ Nadal zepsute':tr?'❌ Hâlâ bozuk':mk?'❌ Сè уште не е поправено':slav?'❌ Još nije popravljeno':'❌ Not fixed yet',
+    proBtn:   de?'Fahrradwerkstatt finden':fr?'Trouver un atelier vélo':es?'Buscar taller de bicicletas':it?'Trova officina bici':pl?'Znajdź serwis rowerowy':tr?'Bisiklet tamircisi bul':mk?'Најди велосипедски сервис':slav?'Nađi servis bicikla':'Find Bike Shop',
+    partsBtn: de?'Fahrradteile suchen':fr?'Chercher des pièces vélo':es?'Buscar piezas de bicicleta':it?'Cerca parti per bici':pl?'Znajdź części rowerowe':tr?'Bisiklet parçası bul':mk?'Барај делови за велосипед':slav?'Traži dijelove za bicikl':'Find Bike Parts',
+    loading:  de?['Fahrradproblem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Fahrradteile werden gesucht…']:
+              fr?['Analyse du problème vélo…','Identification de la cause…','Préparation des étapes de réparation…','Recherche de pièces vélo…']:
+              es?['Analizando el problema de la bicicleta…','Identificando la causa…','Preparando los pasos de reparación…','Buscando piezas de bicicleta…']:
+              it?['Analisi del problema della bici…','Identificazione della causa…','Preparazione dei passi…','Ricerca di parti per bici…']:
+              pl?['Analiza problemu rowerowego…','Identyfikacja przyczyny…','Przygotowanie kroków naprawy…','Szukanie części rowerowych…']:
+              tr?['Bisiklet sorunu analiz ediliyor…','Neden araştırılıyor…','Onarım adımları hazırlanıyor…','Bisiklet parçaları aranıyor…']:
+              mk?['Анализа на проблемот со велосипедот…','Откривање на причината…','Подготовка на чекорите за поправка…','Барање делови за велосипед…']:
+              slav?['Analiza problema sa biciklom…','Otkrivanje uzroka…','Priprema koraka popravke…','Traženje delova za bicikl…']:
+              ['Analyzing bike issue…','Identifying the cause…','Preparing repair steps…','Finding bike parts…'],
+  };
+
+  // ── DEFAULT: car / tech / appliances / home ─────────────────────────────────
   return {
-    tools:     de?'Benötigte Werkzeuge':fr?'Outils nécessaires':es?'Herramientas necesarias':it?'Strumenti necessari':mk?'Потребни алатки':(sr||hr)?'Potrebni alati':lang==='tr'?'Gerekli araçlar':lang==='pl'?'Potrzebne narzędzia':'Tools Needed',
-    parts:     de?'Benötigte Teile':fr?'Pièces nécessaires':es?'Piezas necesarias':it?'Parti necessarie':mk?'Потребни делови':(sr||hr)?'Potrebni delovi':lang==='tr'?'Gerekli parçalar':lang==='pl'?'Potrzebne części':'Parts Needed',
-    steps:     de?'Reparaturschritte':fr?'Étapes de réparation':es?'Pasos de reparación':it?'Passi di riparazione':mk?'Чекори за поправка':(sr||hr)?'Koraci popravke':lang==='tr'?'Onarım adımları':lang==='pl'?'Kroki naprawy':'Repair Steps',
-    fixedQ:    de?'Hat das geholfen?':fr?'Cela a-t-il résolu?':es?'¿Se resolvió?':it?'Il problema è risolto?':mk?'Дали се поправи?':(sr||hr)?'Da li je popravljeno?':'Did this fix it?',
-    fixedY:    de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí, solucionado!':it?'✅ Sì, risolto!':mk?'✅ Да, поправено!':(sr||hr)?'✅ Da, popravljeno!':lang==='tr'?'✅ Evet, çözüldü!':lang==='pl'?'✅ Tak, naprawione!':'✅ Yes, fixed!',
-    fixedN:    de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':it?'❌ Ancora rotto':mk?'❌ Сè уште дефектно':(sr||hr)?'❌ Još uvek pokvareno':lang==='tr'?'❌ Hâlâ bozuk':lang==='pl'?'❌ Nadal zepsute':'❌ Still broken',
-    proBtn:    (isCar)?(de?'Autowerkstatt finden':fr?'Trouver un garage':es?'Buscar taller':it?'Trova officina':mk?'Најди автосервис':(sr||hr)?'Nađi auto servis':lang==='tr'?'Araba tamircisi bul':lang==='pl'?'Znajdź warsztat':'Find Auto Repair'):
-             (cat==='motorcycle'||cat==='moto')?(de?'Motorradwerkstatt finden':fr?'Trouver un atelier moto':es?'Buscar taller de motos':it?'Trova officina moto':mk?'Најди мото сервис':(sr||hr)?'Nađi moto servis':lang==='tr'?'Motosiklet servisi bul':lang==='pl'?'Znajdź serwis moto':'Find Moto Repair'):
-             (isTech)?(de?'Elektronik-Reparatur finden':fr?'Trouver réparation électronique':es?'Buscar reparación electrónica':it?'Trova riparazione elettronica':mk?'Најди електронски сервис':(sr||hr)?'Nađi servis elektronike':lang==='tr'?'Elektronik tamircisi bul':lang==='pl'?'Znajdź serwis elektroniczny':'Find Electronics Repair'):
-             (cat==='appliances')?(de?'Gerätereparatur finden':fr?'Trouver réparateur électroménager':es?'Buscar reparación electrodomésticos':it?'Trova riparatore elettrodomestici':mk?'Најди сервис за апарати':(sr||hr)?'Nađi servis aparata':lang==='tr'?'Ev aletleri tamircisi bul':lang==='pl'?'Znajdź serwis AGD':'Find Appliance Repair'):
-             de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':mk?'Најди стручњак':(sr||hr)?'Nađi stručnjaka':lang==='tr'?'Usta bul':lang==='pl'?'Znajdź fachowca':'Find Professional',
-    partsBtn:  cat==='car'?(de?'Autoteile finden':fr?'Trouver des pièces auto':it?'Trova ricambi auto':es?'Buscar repuestos':lang==='pl'?'Znajdź części do auta':mk?'Барај авто делови':(sr||hr)?'Traži auto dijelove':lang==='tr'?'Araba parçası bul':'Find Auto Parts'):
-             cat==='motorcycle'||cat==='moto'?(de?'Motorradteile finden':fr?'Trouver des pièces moto':es?'Buscar repuestos moto':it?'Trovare parti moto':mk?'Барај делови за мотор':(sr||hr)?'Traži dijelove za motor':lang==='tr'?'Motor parçası bul':lang==='pl'?'Znajdź części motocyklowe':'Find Moto Parts'):
-             cat==='tech'?(de?'Ersatzteile finden':lang==='tr'?'Yedek parça bul':lang==='pl'?'Znajdź części zamienne':'Find Spare Parts'):
-             cat==='appliances'?(de?'Ersatzteile finden':lang==='tr'?'Yedek parça bul':lang==='pl'?'Znajdź części zamienne':'Find Spare Parts'):
-               (de?'Teile finden':fr?'Trouver les pièces':es?'Buscar piezas':it?'Trovare parti':mk?'Барај делови':(sr||hr)?'Traži dijelove':lang==='tr'?'Parça bul':lang==='pl'?'Znajdź części':'Find Parts'),
-    loading:   de?['Problem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile und Werkzeuge werden gesucht…']:
-               fr?['Analyse du problème…','Identification de la cause…','Préparation des étapes…','Recherche des pièces…']:
-               es?['Analizando tu problema…','Identificando la causa…','Preparando los pasos…','Buscando repuestos…']:
-               it?['Analisi del problema…','Identificazione della causa…','Preparazione dei passi…','Ricerca dei ricambi…']:
-               mk?['Анализа на проблемот…','Откривање на причината…','Подготовка на чекорите…','Барање делови…']:
-               (sr||hr)?['Analiza problema…','Otkrivanje uzroka…','Priprema koraka…','Traženje delova…']:
-               lang==='tr'?['Problem analiz ediliyor…','Neden araştırılıyor…','Onarım adımları hazırlanıyor…','Parça ve araçlar bulunuyor…']:
-               lang==='pl'?['Analiza problemu…','Identyfikacja przyczyny…','Przygotowanie kroków…','Szukanie części i narzędzi…']:
-               ['Analyzing your problem…','Identifying the cause…','Preparing repair steps…','Finding parts and tools…'],
+    tools:    de?'Benötigte Werkzeuge':fr?'Outils nécessaires':es?'Herramientas necesarias':it?'Strumenti necessari':pl?'Potrzebne narzędzia':tr?'Gerekli araçlar':mk?'Потребни алатки':slav?'Potrebni alati':'Tools Needed',
+    parts:    de?'Benötigte Teile':fr?'Pièces nécessaires':es?'Piezas necesarias':it?'Parti necessarie':pl?'Potrzebne części':tr?'Gerekli parçalar':mk?'Потребни делови':slav?'Potrebni delovi':'Parts Needed',
+    steps:    de?'Reparaturschritte':fr?'Étapes de réparation':es?'Pasos de reparación':it?'Passi di riparazione':pl?'Kroki naprawy':tr?'Onarım adımları':mk?'Чекори за поправка':slav?'Koraci popravke':'Repair Steps',
+    fixedQ:   de?'Hat das geholfen?':fr?'Cela a-t-il résolu?':es?'¿Se resolvió?':it?'Il problema è risolto?':pl?'Czy to naprawiło problem?':tr?'Bu sorunu çözdü mü?':mk?'Дали се поправи?':slav?'Da li je popravljeno?':'Did this fix it?',
+    fixedY:   de?'✅ Ja, behoben!':fr?'✅ Oui, résolu!':es?'✅ Sí, solucionado!':it?'✅ Sì, risolto!':pl?'✅ Tak, naprawione!':tr?'✅ Evet, çözüldü!':mk?'✅ Да, поправено!':slav?'✅ Da, popravljeno!':'✅ Yes, fixed!',
+    fixedN:   de?'❌ Noch defekt':fr?'❌ Toujours en panne':es?'❌ Aún defectuoso':it?'❌ Ancora rotto':pl?'❌ Nadal zepsute':tr?'❌ Hâlâ bozuk':mk?'❌ Сè уште дефектно':slav?'❌ Još uvek pokvareno':'❌ Still broken',
+    proBtn:   isCar?(de?'Autowerkstatt finden':fr?'Trouver un garage':es?'Buscar taller':it?'Trova officina':pl?'Znajdź warsztat':tr?'Araba tamircisi bul':mk?'Најди автосервис':slav?'Nađi auto servis':'Find Auto Repair'):
+              isTech?(de?'Elektronik-Reparatur finden':fr?'Trouver réparation électronique':es?'Buscar reparación electrónica':it?'Trova riparazione elettronica':pl?'Znajdź serwis elektroniczny':tr?'Elektronik tamircisi bul':mk?'Најди електронски сервис':slav?'Nađi servis elektronike':'Find Electronics Repair'):
+              cat==='appliances'?(de?'Gerätereparatur finden':fr?'Trouver réparateur électroménager':es?'Buscar reparación electrodomésticos':it?'Trova riparatore elettrodomestici':pl?'Znajdź serwis AGD':tr?'Ev aletleri tamircisi bul':mk?'Најди сервис за апарати':slav?'Nađi servis aparata':'Find Appliance Repair'):
+              de?'Fachmann finden':fr?'Trouver un pro':es?'Buscar profesional':it?'Trova professionista':pl?'Znajdź fachowca':tr?'Usta bul':mk?'Најди стручњак':slav?'Nađi stručnjaka':'Find Professional',
+    partsBtn: cat==='car'?(de?'Autoteile finden':fr?'Trouver des pièces auto':es?'Buscar repuestos':it?'Trova ricambi auto':pl?'Znajdź części do auta':tr?'Araba parçası bul':mk?'Барај авто делови':slav?'Traži auto dijelove':'Find Auto Parts'):
+              cat==='tech'?(de?'Ersatzteile finden':fr?'Trouver des pièces détachées':es?'Buscar repuestos electrónicos':it?'Trova ricambi elettronici':pl?'Znajdź części zamienne':tr?'Yedek parça bul':mk?'Барај резервни делови':slav?'Traži rezervne delove':'Find Spare Parts'):
+              cat==='appliances'?(de?'Ersatzteile finden':fr?'Trouver des pièces électroménager':es?'Buscar repuestos electrodomésticos':it?'Trova ricambi elettrodomestici':pl?'Znajdź części zamienne AGD':tr?'Ev aleti yedek parçası bul':mk?'Барај резервни делови за апарати':slav?'Traži rezervne delove za aparate':'Find Spare Parts'):
+              de?'Teile finden':fr?'Trouver les pièces':es?'Buscar piezas':it?'Trovare parti':pl?'Znajdź części':tr?'Parça bul':mk?'Барај делови':slav?'Traži dijelove':'Find Parts',
+    loading:  de?['Problem wird analysiert…','Ursache wird ermittelt…','Reparaturschritte werden erstellt…','Teile und Werkzeuge werden gesucht…']:
+              fr?['Analyse du problème…','Identification de la cause…','Préparation des étapes…','Recherche des pièces…']:
+              es?['Analizando tu problema…','Identificando la causa…','Preparando los pasos…','Buscando repuestos…']:
+              it?['Analisi del problema…','Identificazione della causa…','Preparazione dei passi…','Ricerca dei ricambi…']:
+              pl?['Analiza problemu…','Identyfikacja przyczyny…','Przygotowanie kroków…','Szukanie części i narzędzi…']:
+              tr?['Problem analiz ediliyor…','Neden araştırılıyor…','Onarım adımları hazırlanıyor…','Parça ve araçlar bulunuyor…']:
+              mk?['Анализа на проблемот…','Откривање на причината…','Подготовка на чекорите…','Барање делови…']:
+              slav?['Analiza problema…','Otkrivanje uzroka…','Priprema koraka…','Traženje delova…']:
+              ['Analyzing your problem…','Identifying the cause…','Preparing repair steps…','Finding parts and tools…'],
   };
 }
+
 
 const CSS = `
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -721,6 +738,40 @@ export default function App() {
     };
     reader.readAsDataURL(f);
   }
+async function takeNativePhoto() {
+  try {
+    const image = await Camera.getPhoto({
+      quality: 90,
+      allowEditing: false,
+      resultType: CameraResultType.DataUrl,
+      source: CameraSource.Prompt,
+      correctOrientation: true,
+    });
+
+    if (!image.dataUrl) return;
+
+    const blob = await (await fetch(image.dataUrl)).blob();
+    const file = new File(
+      [blob],
+      `fixit-photo-${Date.now()}.${image.format || 'jpeg'}`,
+      { type: blob.type || `image/${image.format || 'jpeg'}` }
+    );
+
+    handlePhoto({ target: { files: [file] } });
+  } catch (err) {
+    const msg = String(err?.message || err).toLowerCase();
+
+    // User simply closed/cancelled the camera picker.
+    if (msg.includes('cancel')) return;
+
+    console.error('[FixIt] Camera error:', err);
+    showToast(
+      lang === 'de'
+        ? '⚠️ Kamera konnte nicht geöffnet werden.'
+        : '⚠️ Could not open camera.'
+    );
+  }
+}
 
   function showToast(msg) {
     setToast(msg);
@@ -2504,7 +2555,15 @@ export default function App() {
             <button onClick={clearPhoto} style={{position:'absolute',top:8,right:8,background:'rgba(0,0,0,0.65)',border:'none',color:'#fff',borderRadius:'50%',width:28,height:28,cursor:'pointer',fontFamily:'inherit'}}>✕</button>
           </div>
         )}
-        <label style={{background:'rgba(232,82,26,0.04)',border:'2px dashed rgba(232,82,26,0.25)',borderRadius:20,padding:'24px 20px',textAlign:'center',marginBottom:14,cursor:'pointer',display:'block'}}>
+        <label
+  onClick={(e) => {
+    if (isNativePlatform()) {
+      e.preventDefault();
+      takeNativePhoto();
+    }
+  }}
+  style={{background:'rgba(232,82,26,0.04)',border:'2px dashed rgba(232,82,26,0.25)',borderRadius:20,padding:'24px 20px',textAlign:'center',marginBottom:14,cursor:'pointer',display:'block'}}
+>
           <input type="file" accept="image/*" onChange={handlePhoto} style={{display:'none'}}/>
           <div style={{fontSize:'2rem',marginBottom:6}}>📸</div>
           <div style={{fontSize:'0.92rem',fontWeight:700,marginBottom:4}}>{t('takePhoto')}</div>
