@@ -1414,7 +1414,7 @@ async function takeNativePhoto() {
     setPortalBusy(true);
     // Open blank window synchronously (before await) to preserve the user-gesture
     // context — async/await breaks it, causing popup blockers to block window.open.
-    const win = window.open('', '_blank');
+    const win = null;
     try {
       const res  = await apiFetch('/api/portal', {
         method: 'POST',
