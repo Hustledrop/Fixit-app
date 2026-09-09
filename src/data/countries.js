@@ -165,7 +165,7 @@ export function mapsUrlFor(q, lat, lng, cc, lang) {
     // Include GPS coordinates as the search center using the ll parameter.
     // The api=1 endpoint does not accept @lat,lng in the path, but the ll
     // parameter correctly centres the search on the user's GPS location.
-    return `https://www.google.com/maps/search/?api=1&query=${enc}&ll=${lat},${lng}&gl=${gl}&hl=${hl}`;
+    return `https://www.google.com/maps/search/${enc}/@${lat},${lng},14z?gl=${gl}&hl=${hl}`;
   }
   return `https://www.google.com/maps/search/?api=1&query=${enc}&gl=${gl}&hl=${hl}`;
 }
