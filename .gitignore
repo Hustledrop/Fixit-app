@@ -1,0 +1,8 @@
+.vercel
+.env*
+*.jks
+node_modules/
+dist/
+android/.idea/
+android/app/release/
+android/app/src/main/assets/adi-registration.properties
