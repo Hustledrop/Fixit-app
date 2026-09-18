@@ -15,8 +15,8 @@
 
 export const LEGAL = {
   // ── REQUIRED — fill in before release ─────────────────────────────────────
-  legalName:    '',        // e.g. 'Max Mustermann' or 'FixIt UG (haftungsbeschränkt)'
-  postalAddress:'',        // e.g. 'Musterstraße 1, 12345 Musterstadt, Deutschland'
+  legalName:    'Hristijan Velichkovski',
+  postalAddress:'Güstrower Str. 5, 56564 Neuwied, Deutschland',
 
   // ── OPTIONAL ──────────────────────────────────────────────────────────────
   vatId:        '',        // USt-IdNr. e.g. 'DE123456789' — leave empty to hide entirely
