@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.fixit.app',
+  appId: 'com.fixitapp.ai',
   appName: 'FixIt',
   webDir: 'dist'
 };

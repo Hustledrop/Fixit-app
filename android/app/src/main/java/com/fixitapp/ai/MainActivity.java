@@ -1,4 +1,4 @@
-package com.fixit.app;
+package com.fixitapp.ai;
 
 import com.getcapacitor.BridgeActivity;
 
