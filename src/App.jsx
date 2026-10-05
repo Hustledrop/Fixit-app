@@ -239,12 +239,26 @@ export default function App() {
   const [portalBusy,    setPortalBusy]    = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [legalPage,     setLegalPage]     = useState(null); // 'privacy' | 'terms' | null
+
+  useEffect(() => {
+    const path = window.location.pathname.toLowerCase();
+
+    if (path === '/privacy') {
+      setLegalPage('privacy');
+    } else if (path === '/terms') {
+      setLegalPage('terms');
+    } else if (path === '/impressum') {
+      setLegalPage('impressum');
+    }
+  }, []);
+
   const [paywallSource, setPaywallSource] = useState('diagnosis'); // 'diagnosis' | 'nearby' | 'parts'
   const [deleteBusy,    setDeleteBusy]    = useState(false);
   const [emrgKey, setEmrgKey]     = useState(null);
   const [aiMsgIdx, setAiMsgIdx]   = useState(0);
   const [feedback, setFeedback]   = useState(null); // null | 'fixed' | 'broken'
   const [toast, setToast]         = useState(null);
+
   // ── Navigation stack (in-memory only — never persisted) ──────────────────
   const [navStack, setNavStack]       = useState([]);
 
